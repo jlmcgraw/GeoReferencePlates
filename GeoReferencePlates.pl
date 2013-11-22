@@ -36,6 +36,7 @@ die "Usage: $0  pdf_file\n" if @ARGV != 1;
 
 my ( $output, $targetpdf );
 my ( $pdfx, $pdfy, $pngx, $pngy );
+my $retval;
 
 $targetpdf = $ARGV[0];
 my ( $filename, $dir, $ext ) = fileparse($targetpdf);
@@ -63,6 +64,8 @@ my $airportlondec = "";
 
 my @pdftotext;
 @pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
+$retval = $? >> 8;
+die "No output from pdftotext.  Is it installed?  Return code was $retval" if @pdftotext eq "";
 
 #Die if the chart says it's not to scale
 foreach my $line (@pdftotext) {
@@ -109,8 +112,12 @@ if ( $airportlondec eq "" or $airportlatdec eq "" ) {
 
 #----------------------------------------------------------
 
-$output = qx(mutool info $targetpdf);
-foreach my $line ( split /[\r\n]+/, $output ) {
+my $mutoolinfo;
+$mutoolinfo = qx(mutool info $targetpdf);
+$retval = $? >> 8;
+die "No output from mutool info.  Is it installed? Return code was $retval" if $mutoolinfo eq "";
+
+foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
     ## Regular expression magic to grab what you want
     if ( $line =~ /([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+)/ ) {
         $pdfx = $3 - $1;
@@ -121,13 +128,20 @@ foreach my $line ( split /[\r\n]+/, $output ) {
 
 #---------------------------------------------------
 #Convert to a PNG
-qx(pdftoppm -png -r 300 $targetpdf > $targetpng);
+my $pdftoppmoutput;
+$pdftoppmoutput = qx(pdftoppm -png -r 300 $targetpdf > $targetpng);
+
+$retval = $? >> 8;
+die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 
 #---------------------------------------------------------------------------------------------------------
 #Find the dimensions of the PNG
-$output = qx(file $targetpdf.png );
+my $fileoutput;
+$fileoutput = qx(file $targetpdf.png );
+$retval = $? >> 8;
+die "No output from file.  Is it installed? Return code was $retval" if $fileoutput eq "";
 
-foreach my $line ( split /[\r\n]+/, $output ) {
+foreach my $line ( split /[\r\n]+/, $fileoutput ) {
     ## Regular expression magic to grab what you want
     if ( $line =~ /([-\.0-9]+)\s+x\s+([-\.0-9]+)/ ) {
         $pngx = $1;
@@ -143,12 +157,15 @@ say "Scalefactor PDF->PNG X:  " . $scalefactorx;
 say "Scalefactor PDF->PNG Y:  " . $scalefactory;
 
 #------------------------------------------------------
-#Get number of objects in the targetpdf
-$output = qx(mutool show $targetpdf x);
+#Get number of objects/streams in the targetpdf
+my $mutoolshowoutput;
+$mutoolshowoutput = qx(mutool show $targetpdf x);
+$retval = $? >> 8;
+die "No output from mutool show.  Is it installed? Return code was $retval" if $mutoolshowoutput eq "";
 
 my $objectstreams;
 
-foreach my $line ( split /[\r\n]+/, $output ) {
+foreach my $line ( split /[\r\n]+/, $mutoolshowoutput ) {
     ## Regular expression magic to grab what you want
     if ( $line =~ /^(\d+)\s+(\d+)$/ ) {
         $objectstreams = $2;
@@ -164,7 +181,8 @@ my %obstacles = ();
 
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
-
+   $retval = $? >> 8;
+   die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
     #Remove new lines
     $output =~ s/\n/ /g;
     my @tempobstacles        = $output =~ /$obstacleregex/ig;
@@ -194,6 +212,8 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [\.0-9]+ l [-\.0-9]+ [\.0-
 my %fixes = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
+    $retval = $? >> 8;
+      die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -222,7 +242,8 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]
 my %gpswaypoints = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
-
+    $retval = $? >> 8;
+  die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
     #Remove new lines
     $output =~ s/\n/ /g;
     my @tempgpswaypoints        = $output =~ /$gpswaypointregex/ig;
@@ -249,6 +270,8 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]
 my %finalapproachfixes = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
+    $retval = $? >> 8;
+      die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -277,6 +300,8 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.
 my %visualdescentpoints = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
+    $retval = $? >> 8;
+      die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -307,7 +332,8 @@ qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">([A-Z]{5}
 my %fixtextboxes = ();
 
 my @pdftotextbbox = qx(pdftotext $targetpdf -bbox - );
-
+$retval = $? >> 8;
+  die "No output from pdftotext -bbox.  Is it installed? Return code was $retval" if @pdftotextbbox eq "";
 #| grep -P '>[A-Z]{5}<' | sort -n | uniq
 
 foreach my $line (@pdftotextbbox) {
@@ -380,6 +406,7 @@ my %font = (
     },
 );
 
+#Set up the various types of boxes to draw on the output PDF
 my $page = $pdf->openpage(1);
 
 my $obstacle_box = $page->gfx;
@@ -397,6 +424,7 @@ $faf_box->strokecolor('purple');
 my $vdp_box = $page->gfx;
 $vdp_box->strokecolor('green');
 
+#Draw the various types of boxes on the output PDF
 foreach my $key ( sort keys %obstacles ) {
     $obstacle_box->rect(
         $obstacles{$key}{X} - 4,
@@ -473,6 +501,8 @@ print join( " ", @obstacle_heights ), "\n";
 say "Unique potential obstacle heights from PDF";
 print join( " ", @obstacle_heights ), "\n";
 
+#Die if less than 3 obstacles found.  Eventually we will use the other fix types as GCPs too and won't only depend
+#on obstacles
 die "Need more obstacles\n" if 0 + @obstacle_heights < 3;
 
 #--------------------------------------------------------------------------
@@ -627,6 +657,7 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
     $obstacle_line->stroke;
 }
 print Dumper ( \%unique_obstacles_from_db );
+
 my @gcps;
 say "Ground Control Points";
 foreach my $key ( sort keys %unique_obstacles_from_db ) {
@@ -653,11 +684,16 @@ for my $line (@gcps) {
 }
 say "Ground Control Points command line string";
 say $gcpstring;
-$output =
+my $gdal_translateoutput;
+$gdal_translateoutput =
 qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetpng.vrt);
-say $output;
-$output =
+die "No output from gdal_translate  Is it installed?" if $gdal_translateoutput eq "";
+say $gdal_translateoutput;
+
+my $gdalwarpoutput;
+$gdalwarpoutput =
 qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -multi  -overwrite $targetpng.vrt $targettif);
+die "No output from gdalwarp.  Is it installed?" if $gdalwarpoutput eq "";
 
 #command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
 # -refine_gcps tolerance minimum_gcps:
@@ -668,7 +704,7 @@ qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha 
 # projection is available, otherwise it is in SRS units. If minimum_gcps is not provided,
 # the minimum GCPs according to the polynomial model is used.
 
-say $output;
+say $gdalwarpoutput;
 
 #This version tries using the PDF directly instead of the intermediate PNG
 # say $gcpstring;
