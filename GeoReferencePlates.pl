@@ -45,7 +45,7 @@ my ( $pdfx, $pdfy, $pngx, $pngy );
 my $retval;
 
 $targetpdf = $ARGV[0];
-my ( $filename, $dir, $ext ) = fileparse($targetpdf, qr/\.[^.]*/);
+my ( $filename, $dir, $ext ) = fileparse( $targetpdf, qr/\.[^.]*/ );
 my $outputpdf = $dir . "marked-" . $filename . ".pdf";
 
 say "Directory: " . $dir;
@@ -56,11 +56,10 @@ say "Suffix:    " . $ext;
 say "OutputPdf: $outputpdf";
 my $targetpng = $dir . $filename . ".png";
 say "TargetPng: $targetpng";
-my $targettif = $dir . $filename .  ".tif";
+my $targettif = $dir . $filename . ".tif";
 say "TargetTif: $targettif";
-my $targetvrt = $dir . $filename .  ".vrt";
+my $targetvrt = $dir . $filename . ".vrt";
 say "TargetVrt: $targetvrt";
-
 
 open my $file, '<', $targetpdf
   or die "can't open '$targetpdf' for reading : $!";
@@ -75,8 +74,9 @@ my $airportlondec = "";
 
 my @pdftotext;
 @pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
-$retval = $? >> 8;
-die "No output from pdftotext.  Is it installed?  Return code was $retval" if @pdftotext eq "";
+$retval    = $? >> 8;
+die "No output from pdftotext.  Is it installed?  Return code was $retval"
+  if @pdftotext eq "";
 
 #Die if the chart says it's not to scale
 foreach my $line (@pdftotext) {
@@ -125,8 +125,9 @@ if ( $airportlondec eq "" or $airportlatdec eq "" ) {
 
 my $mutoolinfo;
 $mutoolinfo = qx(mutool info $targetpdf);
-$retval = $? >> 8;
-die "No output from mutool info.  Is it installed? Return code was $retval" if $mutoolinfo eq "";
+$retval     = $? >> 8;
+die "No output from mutool info.  Is it installed? Return code was $retval"
+  if $mutoolinfo eq "";
 
 foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
     ## Regular expression magic to grab what you want
@@ -149,8 +150,9 @@ die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 #Find the dimensions of the PNG
 my $fileoutput;
 $fileoutput = qx(file $targetpdf.png );
-$retval = $? >> 8;
-die "No output from file.  Is it installed? Return code was $retval" if $fileoutput eq "";
+$retval     = $? >> 8;
+die "No output from file.  Is it installed? Return code was $retval"
+  if $fileoutput eq "";
 
 foreach my $line ( split /[\r\n]+/, $fileoutput ) {
     ## Regular expression magic to grab what you want
@@ -171,8 +173,9 @@ say "Scalefactor PDF->PNG Y:  " . $scalefactory;
 #Get number of objects/streams in the targetpdf
 my $mutoolshowoutput;
 $mutoolshowoutput = qx(mutool show $targetpdf x);
-$retval = $? >> 8;
-die "No output from mutool show.  Is it installed? Return code was $retval" if $mutoolshowoutput eq "";
+$retval           = $? >> 8;
+die "No output from mutool show.  Is it installed? Return code was $retval"
+  if $mutoolshowoutput eq "";
 
 my $objectstreams;
 
@@ -192,8 +195,10 @@ my %obstacles = ();
 
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
-   $retval = $? >> 8;
-   die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
+    $retval = $? >> 8;
+    die "No output from mutool show.  Is it installed? Return code was $retval"
+      if $output eq "";
+
     #Remove new lines
     $output =~ s/\n/ /g;
     my @tempobstacles        = $output =~ /$obstacleregex/ig;
@@ -224,7 +229,8 @@ my %fixes = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
-      die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
+    die "No output from mutool show.  Is it installed? Return code was $retval"
+      if $output eq "";
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -254,7 +260,9 @@ my %gpswaypoints = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
-  die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
+    die "No output from mutool show.  Is it installed? Return code was $retval"
+      if $output eq "";
+
     #Remove new lines
     $output =~ s/\n/ /g;
     my @tempgpswaypoints        = $output =~ /$gpswaypointregex/ig;
@@ -282,7 +290,8 @@ my %finalapproachfixes = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
-      die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
+    die "No output from mutool show.  Is it installed? Return code was $retval"
+      if $output eq "";
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -312,7 +321,8 @@ my %visualdescentpoints = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
-      die "No output from mutool show.  Is it installed? Return code was $retval" if $output eq "";
+    die "No output from mutool show.  Is it installed? Return code was $retval"
+      if $output eq "";
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -344,7 +354,9 @@ my %fixtextboxes = ();
 
 my @pdftotextbbox = qx(pdftotext $targetpdf -bbox - );
 $retval = $? >> 8;
-  die "No output from pdftotext -bbox.  Is it installed? Return code was $retval" if @pdftotextbbox eq "";
+die "No output from pdftotext -bbox.  Is it installed? Return code was $retval"
+  if @pdftotextbbox eq "";
+
 #| grep -P '>[A-Z]{5}<' | sort -n | uniq
 
 foreach my $line (@pdftotextbbox) {
@@ -670,7 +682,7 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
 print Dumper ( \%unique_obstacles_from_db );
 
 my @gcps;
-say "Ground Control Points";
+say "Ground Control Points (x,y,lon,lat)";
 foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
 #I'm trying rounding vs. not rounding the pixel coordinates.  I thought you might have to round but gdal_translate seems happy without
@@ -679,13 +691,12 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
     my $roundedpngx =
       $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
 
-
 # my $roundedpngy = int($pngy - $unique_obstacles_from_db{$key}{"ObsIconY"}*$scalefactory+.5);
     my $roundedpngy =
       $pngy - ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
     my $lon = $unique_obstacles_from_db{$key}{"Lon"};
     my $lat = $unique_obstacles_from_db{$key}{"Lat"};
-say "$roundedpngx $roundedpngy $lon $lat";
+    say "$roundedpngx $roundedpngy $lon $lat";
     push @gcps, "-gcp $roundedpngx $roundedpngy $lon $lat ";
 }
 
@@ -699,14 +710,16 @@ my $gdal_translateoutput;
 $gdal_translateoutput =
 qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
 $retval = $? >> 8;
-die "No output from gdal_translate  Is it installed? Return code was $retval" if $gdal_translateoutput eq "";
+die "No output from gdal_translate  Is it installed? Return code was $retval"
+  if $gdal_translateoutput eq "";
 say $gdal_translateoutput;
 
 my $gdalwarpoutput;
 $gdalwarpoutput =
 qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -multi  -overwrite $targetvrt $targettif);
 $retval = $? >> 8;
-die "No output from gdalwarp.  Is it installed? Return code was $retval" if $gdalwarpoutput eq "";
+die "No output from gdalwarp.  Is it installed? Return code was $retval"
+  if $gdalwarpoutput eq "";
 
 #command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
 # -refine_gcps tolerance minimum_gcps:
@@ -728,7 +741,6 @@ say $gdalwarpoutput;
 
 #;
 #;
-
 
 $sth->finish();
 $dbh->disconnect();
