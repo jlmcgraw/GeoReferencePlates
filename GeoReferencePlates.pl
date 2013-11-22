@@ -16,6 +16,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 
+#Known issues:
+#x/y of obstacles can be refined a small amount to actually be midpoint of obstacle dot
+#Add use of fixes and waypoints as additional GCPs
+#There has been no attempt to optimize anything yet
+#Images are being warped when they really shouldn't need to be .
+#Investigate not creating the intermediate PNG
 use PDF::API2;
 use DBI;
 use strict;
@@ -39,17 +45,22 @@ my ( $pdfx, $pdfy, $pngx, $pngy );
 my $retval;
 
 $targetpdf = $ARGV[0];
-my ( $filename, $dir, $ext ) = fileparse($targetpdf);
-my $outputpdf = $dir . "marked-" . $filename;
+my ( $filename, $dir, $ext ) = fileparse($targetpdf, qr/\.[^.]*/);
+my $outputpdf = $dir . "marked-" . $filename . ".pdf";
 
 say "Directory: " . $dir;
 say "File:      " . $filename;
 say "Suffix:    " . $ext;
 
 #Check that suffix is PDF for input file
-say $outputpdf;
-my $targetpng = $targetpdf . ".png";
-my $targettif = $targetpdf . ".tif";
+say "OutputPdf: $outputpdf";
+my $targetpng = $dir . $filename . ".png";
+say "TargetPng: $targetpng";
+my $targettif = $dir . $filename .  ".tif";
+say "TargetTif: $targettif";
+my $targetvrt = $dir . $filename .  ".vrt";
+say "TargetVrt: $targetvrt";
+
 
 open my $file, '<', $targetpdf
   or die "can't open '$targetpdf' for reading : $!";
@@ -686,14 +697,16 @@ say "Ground Control Points command line string";
 say $gcpstring;
 my $gdal_translateoutput;
 $gdal_translateoutput =
-qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetpng.vrt);
-die "No output from gdal_translate  Is it installed?" if $gdal_translateoutput eq "";
+qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
+$retval = $? >> 8;
+die "No output from gdal_translate  Is it installed? Return code was $retval" if $gdal_translateoutput eq "";
 say $gdal_translateoutput;
 
 my $gdalwarpoutput;
 $gdalwarpoutput =
-qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -multi  -overwrite $targetpng.vrt $targettif);
-die "No output from gdalwarp.  Is it installed?" if $gdalwarpoutput eq "";
+qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -multi  -overwrite $targetvrt $targettif);
+$retval = $? >> 8;
+die "No output from gdalwarp.  Is it installed? Return code was $retval" if $gdalwarpoutput eq "";
 
 #command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
 # -refine_gcps tolerance minimum_gcps:
