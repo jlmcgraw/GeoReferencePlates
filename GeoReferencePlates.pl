@@ -22,6 +22,8 @@
 #There has been no attempt to optimize anything yet
 #Images are being warped when they really shouldn't need to be .
 #Investigate not creating the intermediate PNG
+#Accumulate CFPs across the streams
+
 use PDF::API2;
 use DBI;
 use strict;
@@ -80,7 +82,7 @@ die "No output from pdftotext.  Is it installed?  Return code was $retval"
 
 #Die if the chart says it's not to scale
 foreach my $line (@pdftotext) {
-    if ( $line =~ m/chart not to scale/i ) {
+    if ( $line =~ m/chartnott/i ) {
         die "Chart not to scale, can't georeference";
     }
 
@@ -149,7 +151,7 @@ die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 #---------------------------------------------------------------------------------------------------------
 #Find the dimensions of the PNG
 my $fileoutput;
-$fileoutput = qx(file $targetpdf.png );
+$fileoutput = qx(file $targetpng);
 $retval     = $? >> 8;
 die "No output from file.  Is it installed? Return code was $retval"
   if $fileoutput eq "";
