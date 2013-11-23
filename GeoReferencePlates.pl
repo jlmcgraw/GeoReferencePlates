@@ -192,7 +192,7 @@ say "Object streams: " . $objectstreams;
 #----------------------------------------------------------------------------------------------------------
 #Find obstacles in the pdf
 my $obstacleregex =
-qr/q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm 0 0 m [\.0-9]+ [\.0-9]+ l [\.0-9]+ [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
+qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) [\.0-9]+ l ([\.0-9]+) [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
 my %obstacles = ();
 
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
@@ -205,13 +205,14 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output =~ s/\n/ /g;
     my @tempobstacles        = $output =~ /$obstacleregex/ig;
     my $tempobstacles_length = 0 + @tempobstacles;
-    my $tempobstacles_count  = $tempobstacles_length / 2;
+    my $tempobstacles_count  = $tempobstacles_length / 6;
 
     if ( $tempobstacles_length >= 2 ) {
-        for ( my $i = 0 ; $i < $tempobstacles_length ; $i = $i + 2 ) {
+        for ( my $i = 0 ; $i < $tempobstacles_length ; $i = $i + 6 ) {
 
             #put them into a hash
-            $obstacles{$i}{"X"}                  = $tempobstacles[$i];
+            #This finds the midpoint X of the obstacle triangle (the X,Y of the dot itself was too far right)
+            $obstacles{$i}{"X"}                  = $tempobstacles[$i]+$tempobstacles[$i+2];
             $obstacles{$i}{"Y"}                  = $tempobstacles[ $i + 1 ];
             $obstacles{$i}{"Height"}             = "unknown";
             $obstacles{$i}{"BoxesThatPointToMe"} = "0";
