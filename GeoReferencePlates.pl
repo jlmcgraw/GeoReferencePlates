@@ -78,7 +78,7 @@ my @pdftotext;
 @pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
 $retval    = $? >> 8;
 die "No output from pdftotext.  Is it installed?  Return code was $retval"
-  if @pdftotext eq "";
+  if ( @pdftotext eq "" || $retval != 0 );
 
 #Die if the chart says it's not to scale
 foreach my $line (@pdftotext) {
@@ -129,7 +129,7 @@ my $mutoolinfo;
 $mutoolinfo = qx(mutool info $targetpdf);
 $retval     = $? >> 8;
 die "No output from mutool info.  Is it installed? Return code was $retval"
-  if $mutoolinfo eq "";
+  if ( $mutoolinfo eq "" || $retval != 0 );
 
 foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
     ## Regular expression magic to grab what you want
@@ -151,10 +151,10 @@ die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 #---------------------------------------------------------------------------------------------------------
 #Find the dimensions of the PNG
 my $fileoutput;
-$fileoutput = qx(file $targetpng);
+$fileoutput = qx(file $targetpng );
 $retval     = $? >> 8;
 die "No output from file.  Is it installed? Return code was $retval"
-  if $fileoutput eq "";
+  if ( $fileoutput eq "" || $retval != 0 );
 
 foreach my $line ( split /[\r\n]+/, $fileoutput ) {
     ## Regular expression magic to grab what you want
@@ -177,7 +177,7 @@ my $mutoolshowoutput;
 $mutoolshowoutput = qx(mutool show $targetpdf x);
 $retval           = $? >> 8;
 die "No output from mutool show.  Is it installed? Return code was $retval"
-  if $mutoolshowoutput eq "";
+  if ( $mutoolshowoutput eq "" || $retval != 0 );
 
 my $objectstreams;
 
@@ -199,7 +199,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
-      if $output eq "";
+      if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -232,7 +232,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
-      if $output eq "";
+      if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -263,7 +263,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
-      if $output eq "";
+      if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -293,7 +293,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
-      if $output eq "";
+      if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -324,7 +324,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
-      if $output eq "";
+      if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
@@ -357,7 +357,7 @@ my %fixtextboxes = ();
 my @pdftotextbbox = qx(pdftotext $targetpdf -bbox - );
 $retval = $? >> 8;
 die "No output from pdftotext -bbox.  Is it installed? Return code was $retval"
-  if @pdftotextbbox eq "";
+  if ( @pdftotextbbox eq "" || $retval != 0 );
 
 #| grep -P '>[A-Z]{5}<' | sort -n | uniq
 
@@ -713,7 +713,7 @@ $gdal_translateoutput =
 qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
 $retval = $? >> 8;
 die "No output from gdal_translate  Is it installed? Return code was $retval"
-  if $gdal_translateoutput eq "";
+  if ( $gdal_translateoutput eq "" || $retval != 0 );
 say $gdal_translateoutput;
 
 my $gdalwarpoutput;
@@ -721,7 +721,7 @@ $gdalwarpoutput =
 qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -multi  -overwrite $targetvrt $targettif);
 $retval = $? >> 8;
 die "No output from gdalwarp.  Is it installed? Return code was $retval"
-  if $gdalwarpoutput eq "";
+  if ( $gdalwarpoutput eq "" || $retval != 0 );
 
 #command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
 # -refine_gcps tolerance minimum_gcps:
