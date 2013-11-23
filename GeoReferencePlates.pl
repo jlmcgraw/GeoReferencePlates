@@ -18,11 +18,12 @@
 
 #Known issues:
 
+#Make the fix x/y accurate
 #Add use of fixes and waypoints as additional GCPs
 #There has been no attempt to optimize anything yet
 #Images are being warped when they really shouldn't need to be.   Try using ULLR method
 #Investigate not creating the intermediate PNG
-#Accumulate CFPs across the streams
+#Accumulate GCPs across the streams
 #Discard outliers (eg obstacles in the airport view box, or missed approach waypoints
 #Very easy to mismatch obstacles with their height text.  How to weed out false ones?
 
@@ -191,6 +192,7 @@ foreach my $line ( split /[\r\n]+/, $mutoolshowoutput ) {
 }
 say "Object streams: " . $objectstreams;
 
+#Finding each of these icons can be rolled into one loop instead of separate one for each type
 #----------------------------------------------------------------------------------------------------------
 #Find obstacles in the pdf
 my $obstacleregex =
@@ -207,15 +209,17 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output =~ s/\n/ /g;
     my @tempobstacles        = $output =~ /$obstacleregex/ig;
     my $tempobstacles_length = 0 + @tempobstacles;
-    my $tempobstacles_count  = $tempobstacles_length / 6;
 
-    if ( $tempobstacles_length >= 2 ) {
+    #6 data points for each obstacle
+    my $tempobstacles_count = $tempobstacles_length / 6;
+
+    if ( $tempobstacles_length >= 6 ) {
         for ( my $i = 0 ; $i < $tempobstacles_length ; $i = $i + 6 ) {
 
-            #put them into a hash
-            #This finds the midpoint X of the obstacle triangle (the X,Y of the dot itself was too far right)
-            $obstacles{$i}{"X"}                  = $tempobstacles[$i]+$tempobstacles[$i+2];
-            $obstacles{$i}{"Y"}                  = $tempobstacles[ $i + 1 ];
+#put them into a hash
+#This finds the midpoint X of the obstacle triangle (the X,Y of the dot itself was too far right)
+            $obstacles{$i}{"X"} = $tempobstacles[$i] + $tempobstacles[ $i + 2 ];
+            $obstacles{$i}{"Y"} = $tempobstacles[ $i + 1 ];
             $obstacles{$i}{"Height"}             = "unknown";
             $obstacles{$i}{"BoxesThatPointToMe"} = "0";
         }
@@ -229,7 +233,7 @@ say "Found " . keys(%obstacles) . " obstacles icons";
 # #-------------------------------------------------------------------------------------------------------
 # #Find fixes in the PDF
 my $fixregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [\.0-9]+ l [-\.0-9]+ [\.0-9]+ l 0 0 l S Q/;
+qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([-\.0-9]+) [\.0-9]+ l [-\.0-9]+ ([\.0-9]+) l 0 0 l S Q/;
 my %fixes = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output = qx(mutool show $targetpdf $i x);
@@ -241,14 +245,22 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     $output =~ s/\n/ /g;
     my @tempfixes        = $output =~ /$fixregex/ig;
     my $tempfixes_length = 0 + @tempfixes;
-    my $tempfixes_count  = $tempfixes_length / 2;
 
-    if ( $tempfixes_length >= 2 ) {
-        for ( my $i = 0 ; $i < $tempfixes_length ; $i = $i + 2 ) {
+    #4 data points for each fix
+    #$1 = x
+    #$2 = y
+    #$3 = delta x (will be negative)
+    #$4 = delta y (will be negative)
+    my $tempfixes_count = $tempfixes_length / 4;
+
+    if ( $tempfixes_length >= 4 ) {
+        for ( my $i = 0 ; $i < $tempfixes_length ; $i = $i + 4 ) {
 
             #put them into a hash
-            $fixes{$i}{"X"}    = $tempfixes[$i];
-            $fixes{$i}{"Y"}    = $tempfixes[ $i + 1 ];
+            #code here is making the x/y the center of the triangle
+            $fixes{$i}{"X"} = $tempfixes[$i] + ( $tempfixes[ $i + 2 ] / 2 );
+            $fixes{$i}{"Y"} =
+              $tempfixes[ $i + 1 ] + ( $tempfixes[ $i + 3 ] / 2 );
             $fixes{$i}{"Name"} = "none";
         }
 
@@ -355,7 +367,8 @@ say "Found " . keys(%visualdescentpoints) . " Visual Descent Point icons";
 my $fixtextboxregex =
 qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">([A-Z]{5})</;
 
-my %fixtextboxes = ();
+my $invalidfixnamesregex = qr/tower|south/i;
+my %fixtextboxes         = ();
 
 my @pdftotextbbox = qx(pdftotext $targetpdf -bbox - );
 $retval = $? >> 8;
@@ -366,6 +379,10 @@ die "No output from pdftotext -bbox.  Is it installed? Return code was $retval"
 
 foreach my $line (@pdftotextbbox) {
     if ( $line =~ m/$fixtextboxregex/ ) {
+
+#Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
+        next if $5 =~ m/$invalidfixnamesregex/;
+
         $fixtextboxes{ $1 . $2 }{"RasterX"}    = $1;
         $fixtextboxes{ $1 . $2 }{"RasterY"}    = $2;
         $fixtextboxes{ $1 . $2 }{"Width"}      = $3 - $1;
@@ -463,7 +480,7 @@ foreach my $key ( sort keys %obstacles ) {
 }
 
 foreach my $key ( sort keys %fixes ) {
-    $fix_box->rect( $fixes{$key}{X} + 2, $fixes{$key}{Y} - 2, -9, 9 );
+    $fix_box->rect( $fixes{$key}{X} - 4, $fixes{$key}{Y} - 4, 9, 9 );
     $fix_box->stroke;
 }
 foreach my $key ( sort keys %fixtextboxes ) {
@@ -533,7 +550,7 @@ print join( " ", @obstacle_heights ), "\n";
 #on obstacles
 die "Need more obstacles\n" if 0 + @obstacle_heights < 3;
 
-#--------------------------------------------------------------------------
+#---------------------------------------------------------------------------------------------------------------------------------------------------
 #Find obstacles with a certain height in the DB
 my $radius = ".3";    #~15 miles
 my $sth;
@@ -686,8 +703,164 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
 }
 print Dumper ( \%unique_obstacles_from_db );
 
+#------------------------------------------------------------------------------------------------------------------------------------------
+#Find fixes near the airport
+my %fixes_from_db = ();
+say
+"Fixes within $radius degrees of airport  ($airportlondec, $airportlatdec) from database";
+
+#Query the database for fixes within our $radius
+$sth = $dbh->prepare(
+"SELECT * FROM fixes WHERE  (Latitude >  $airportlatdec - $radius ) and (Latitude < $airportlatdec +$radius ) and (Longitude >  $airportlondec - $radius ) and (Longitude < $airportlondec +$radius )"
+);
+$sth->execute();
+
+my $all  = $sth->fetchall_arrayref();
+my $rows = $sth->rows();
+
+foreach my $row (@$all) {
+    my ( $fixname, $lat, $lon, $fixtype ) = @$row;
+    $fixes_from_db{$fixname}{"Name"} = $fixname;
+    $fixes_from_db{$fixname}{"Lat"}  = $lat;
+    $fixes_from_db{$fixname}{"Lon"}  = $lon;
+    $fixes_from_db{$fixname}{"Type"} = $fixtype;
+
+}
+
+# my $fields = $sth->{NUM_OF_FIELDS};
+# print "We have selected $fields field(s)\n";
+# print "We have selected $rows row(s)\n";
+
+#Find a text box with text that matches the name of each of our fixes_from_db
+#Add the center coordinates of that box to fixes_from_db hash
+foreach my $key ( keys %fixes_from_db ) {
+    foreach my $key2 ( keys %fixtextboxes ) {
+        if ( $fixtextboxes{$key2}{"Text"} eq $key ) {
+            $fixes_from_db{$key}{"Label"} =
+              $fixtextboxes{$key2}{"Text"};
+            $fixes_from_db{$key}{"TextBoxX"} =
+              $fixtextboxes{$key2}{"CenterPdfX"};
+            $fixes_from_db{$key}{"TextBoxY"} =
+              $fixtextboxes{$key2}{"CenterPdfY"};
+        }
+
+    }
+}
+
+# say "All fixes from database";
+# print Dumper ( \%fixes_from_db );
+
+$fix_box->strokecolor('orange');
+
+#Only outline our fixtextboxes
+foreach my $key ( sort keys %fixtextboxes ) {
+
+    #Is there a fixtextbox with the same text as our fix?
+    if ( exists $fixes_from_db{ $fixtextboxes{$key}{"Text"} } ) {
+
+        #Yes, draw a box around it
+        $fix_box->rect(
+            $fixtextboxes{$key}{"PdfX"},
+            $fixtextboxes{$key}{"PdfY"} + 2,
+            $fixtextboxes{$key}{"Width"},
+            -( $fixtextboxes{$key}{"Height"} + 1 )
+        );
+        $fix_box->stroke;
+    }
+}
+
+#clean up fixes_from_db
+#remove entries that have no TextBoxX or Y (not mentioned on plate)
+foreach my $key ( sort keys %fixes_from_db ) {
+    unless ( ( exists $fixes_from_db{$key}{"TextBoxX"} )
+        && ( exists $fixes_from_db{$key}{"TextBoxY"} ) )
+    {
+        delete $fixes_from_db{$key};
+    }
+}
+
+#fixes_from_db should now only have fixes that are mentioned on the PDF
+print Dumper ( \%fixes_from_db );
+
+#Try to find closest fix icon to each text box for the fixes fixes_from_db
+#we should probably do this the other way and fix the closest textbox to each icon
+foreach my $key ( sort keys %fixes_from_db ) {
+    my $distance_to_closest_fix_icon_x;
+    my $distance_to_closest_fix_icon_y;
+    my $distance_to_closest_fix_icon = 999999999999;
+    foreach my $key2 ( keys %fixes ) {
+        $distance_to_closest_fix_icon_x =
+          $fixes_from_db{$key}{"TextBoxX"} - $fixes{$key2}{"X"};
+        $distance_to_closest_fix_icon_y =
+          $fixes_from_db{$key}{"TextBoxY"} - $fixes{$key2}{"Y"};
+
+        my $hyp = sqrt( $distance_to_closest_fix_icon_x**2 +
+              $distance_to_closest_fix_icon_y**2 );
+
+#The 27 here was chosen to make one particular sample work, it's not universally valid
+#Need to improve the icon -> textbox mapping
+        if ( ( $hyp < $distance_to_closest_fix_icon ) && ( $hyp < 27 ) ) {
+            $distance_to_closest_fix_icon = $hyp;
+            $fixes_from_db{$key}{"X"} =
+              $fixes{$key2}{"X"};
+            $fixes_from_db{$key}{"Y"} =
+              $fixes{$key2}{"Y"};
+        }
+
+    }
+
+    # say "$distance_to_closest_fix_icon";
+}
+
+#clean up fixes_from_db
+#remove entries that have no Icon X or Y
+foreach my $key ( sort keys %fixes_from_db ) {
+    unless ( ( exists $fixes_from_db{$key}{"X"} )
+        && ( exists $fixes_from_db{$key}{"Y"} ) )
+    {
+        delete $fixes_from_db{$key};
+    }
+}
+
+#Remove entries that share an X and Y with another entry
+@a = "";
+
+# foreach my $key ( sort keys %fixes_from_db ) {
+
+# foreach my $key2 ( sort keys %fixes_from_db ) {
+# if (   ( $key ne $key2 )
+# && ( $fixes_from_db{$key}{"X"} == $fixes_from_db{$key2}{"X"} )
+# && ( $fixes_from_db{$key}{"Y"} == $fixes_from_db{$key2}{"Y"} ) )
+# {
+# push @a, $key;
+
+# # push @a, $key2;
+# say "Dupe!";
+# }
+
+# }
+# }
+foreach my $entry (@a) {
+    delete $fixes_from_db{$entry};
+}
+
+#Draw a line from fix icon to closest text boxes
+my $fix_line = $page->gfx;
+$fix_line->strokecolor('blue');
+foreach my $key ( sort keys %fixes_from_db ) {
+    $fix_line->move( $fixes_from_db{$key}{"X"}, $fixes_from_db{$key}{"Y"} );
+    $fix_line->line( $fixes_from_db{$key}{"TextBoxX"},
+        $fixes_from_db{$key}{"TextBoxY"} );
+    $fix_line->stroke;
+}
+print Dumper ( \%fixes_from_db );
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------
+
 my @gcps;
 say "Ground Control Points (x,y,lon,lat)";
+
+#Add obstacles to Ground Control Points array
 foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
 #I'm trying rounding vs. not rounding the pixel coordinates.  I thought you might have to round but gdal_translate seems happy without
@@ -701,6 +874,23 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
       $pngy - ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
     my $lon = $unique_obstacles_from_db{$key}{"Lon"};
     my $lat = $unique_obstacles_from_db{$key}{"Lat"};
+    say "$roundedpngx $roundedpngy $lon $lat";
+    push @gcps, "-gcp $roundedpngx $roundedpngy $lon $lat ";
+}
+
+#Add fixes to Ground Control Points array
+foreach my $key ( sort keys %fixes_from_db ) {
+
+#I'm trying rounding vs. not rounding the pixel coordinates.  I thought you might have to round but gdal_translate seems happy without
+#my $rounded = int($float + 0.5);
+# my $roundedpngx =int( $unique_obstacles_from_db{$key}{"ObsIconX"}*$scalefactorx+.5);
+    my $roundedpngx = $fixes_from_db{$key}{"X"} * $scalefactorx;
+
+# my $roundedpngy = int($pngy - $unique_obstacles_from_db{$key}{"ObsIconY"}*$scalefactory+.5);
+    my $roundedpngy =
+      $pngy - ( $fixes_from_db{$key}{"Y"} * $scalefactory );
+    my $lon = $fixes_from_db{$key}{"Lon"};
+    my $lat = $fixes_from_db{$key}{"Lat"};
     say "$roundedpngx $roundedpngy $lon $lat";
     push @gcps, "-gcp $roundedpngx $roundedpngy $lon $lat ";
 }
