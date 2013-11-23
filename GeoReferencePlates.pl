@@ -17,12 +17,14 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 
 #Known issues:
-#x/y of obstacles can be refined a small amount to actually be midpoint of obstacle dot
+
 #Add use of fixes and waypoints as additional GCPs
 #There has been no attempt to optimize anything yet
-#Images are being warped when they really shouldn't need to be .
+#Images are being warped when they really shouldn't need to be.   Try using ULLR method
 #Investigate not creating the intermediate PNG
 #Accumulate CFPs across the streams
+#Discard outliers (eg obstacles in the airport view box, or missed approach waypoints
+#Very easy to mismatch obstacles with their height text.  How to weed out false ones?
 
 use PDF::API2;
 use DBI;
