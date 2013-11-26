@@ -28,24 +28,27 @@
 #Accumulate GCPs across the streams
 #Discard outliers (eg obstacles in the airport view box, or missed approach waypoints
 #Very easy to mismatch obstacles with their height text.  How to weed out false ones?
+use 5.010;
+
+use strict;
+use warnings;
+#use diagnostics;
 
 use PDF::API2;
 use DBI;
-use strict;
-use warnings;
-
-#use diagnostics;
-use constant mm => 25.4 / 72;
-use constant in => 1 / 72;
-use constant pt => 1;
-use 5.010;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
-
-use GeoReferencePlatesSubroutines;
-
 use Getopt::Std;
+
+
+#PDF constants
+use constant mm => 25.4 / 72;
+use constant in => 1 / 72;
+use constant pt => 1;
+
+#Some subroutines
+use GeoReferencePlatesSubroutines;
 
 use vars qw/ %opt /;
 
