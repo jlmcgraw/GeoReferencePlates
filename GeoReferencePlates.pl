@@ -18,6 +18,8 @@
 
 #Known issues:
 
+#Output some statistics from the process to see which plates are working 
+#Change the logic for obstacles to find nearest text to icon and not vice versa (the current method)
 #Relies on icons being drawn very specific ways, it won't work if these ever change
 #Relies on text being in PDF.  I've found at least one example that doesn't use text (plates from KSSC)
 #Plates from KCDN are coming out of gdalwarp way too big.  Why?  the same command line works fine elsewhere
@@ -32,6 +34,7 @@ use 5.010;
 
 use strict;
 use warnings;
+
 #use diagnostics;
 
 use PDF::API2;
@@ -40,7 +43,6 @@ use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
 use Getopt::Std;
-
 
 #PDF constants
 use constant mm => 25.4 / 72;
@@ -51,9 +53,7 @@ use constant pt => 1;
 use GeoReferencePlatesSubroutines;
 
 use vars qw/ %opt /;
-
 my $opt_string = 'vs:a:';
-
 my $arg_num = scalar @ARGV;
 
 unless ( getopts( "$opt_string", \%opt ) ) {
@@ -68,7 +68,7 @@ if ( $arg_num < 1 ) {
 my $debug = $opt{v};
 
 my ( $output, $targetpdf );
-my ( $pdfx, $pdfy, $pngx, $pngy );
+my ( $pdfx, $pdfy, $pdfCenterX, $pdfCenterY, $pngx, $pngy );
 my $retval;
 
 #Get the target PDF file from command line options
@@ -80,6 +80,7 @@ if ($airportid) {
     say "Supplied airport ID: $airportid";
 }
 
+say $targetpdf;
 my ( $filename, $dir, $ext ) = fileparse( $targetpdf, qr/\.[^.]*/ );
 my $outputpdf = $dir . "marked-" . $filename . ".pdf";
 my $targetpng = $dir . $filename . ".png";
@@ -108,8 +109,8 @@ close $file;
 #Get the lat/lon of the airport for the plate we're working on
 #This line will try to pull the lat/lon at the bottom of the drawing instead of a DB query
 #pdftotext  <pdf_name> - | grep -P '\b\d+’[NS]-\d+’[EW]'
-my $airportlatdec = "";
-my $airportlondec = "";
+my $airportLatitudeDec  = "";
+my $airportLongitudeDec = "";
 
 my @pdftotext;
 @pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
@@ -153,20 +154,21 @@ foreach my $line (@pdftotext) {
         $aptlondeg = substr( $aptlon, 0,  -2 );
         $aptlonmin = substr( $aptlon, -2, 2 );
 
-        $airportlatdec =
+        $airportLatitudeDec =
           &coordinatetodecimal(
             $aptlatdeg . "-" . $aptlatmin . "-00" . $aptlatd );
 
-        $airportlondec =
+        $airportLongitudeDec =
           &coordinatetodecimal(
             $aptlondeg . "-" . $aptlonmin . "-00" . $aptlond );
 
-        say "Airport LAT/LON from plate: $airportlatdec $airportlondec";
+        say
+"Airport LAT/LON from plate: $airportLatitudeDec $airportLongitudeDec";
     }
 
 }
 
-if ( $airportlondec eq "" or $airportlatdec eq "" ) {
+if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" ) {
 
     #We didn't get any airport info from the PDF, let's check the database
     #Get airport from database
@@ -183,17 +185,20 @@ if ( $airportlondec eq "" or $airportlatdec eq "" ) {
 
     foreach my $row (@$allSqlQueryResults) {
         my ( $airportFaaId, $airportname );
-        ( $airportFaaId, $airportlatdec, $airportlondec, $airportname ) = @$row;
+        (
+            $airportFaaId, $airportLatitudeDec, $airportLongitudeDec,
+            $airportname
+        ) = @$row;
         say "Airport ID: $airportFaaId";
-        say "Airport Latitude: $airportlatdec";
-        say "Airport Longitude: $airportlondec";
+        say "Airport Latitude: $airportLatitudeDec";
+        say "Airport Longitude: $airportLongitudeDec";
         say "Airport Name: $airportname";
     }
 
 }
 
 die "No airport coordinate information on PDF or database, try   -a <airport> "
-  if ( $airportlondec eq "" or $airportlatdec eq "" );
+  if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" );
 
 #----------------------------------------------------------
 #Get the mediabox size
@@ -206,9 +211,12 @@ die "No output from mutool info.  Is it installed? Return code was $retval"
 foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
     ## Regular expression magic to grab what you want
     if ( $line =~ /([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+)/ ) {
-        $pdfx = $3 - $1;
-        $pdfy = $4 - $2;
+        $pdfx       = $3 - $1;
+        $pdfy       = $4 - $2;
+        $pdfCenterX = $pdfx / 2;
+        $pdfCenterY = $pdfy / 2;
         say "PDF Mediabox size: " . $pdfx . "x" . $pdfy;
+        say "PDF Mediabox center: " . $pdfCenterX . "x" . $pdfCenterY;
     }
 }
 
@@ -364,8 +372,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
             #put them into a hash
             $gpswaypoints{$i}{"X"}          = $tempgpswaypoints[$i];
             $gpswaypoints{$i}{"Y"}          = $tempgpswaypoints[ $i + 1 ];
-            $gpswaypoints{$i}{"CenterPdfX"} = $tempgpswaypoints[$i] + 8;
-            $gpswaypoints{$i}{"CenterPdfY"} = $tempgpswaypoints[ $i + 1 ];
+            $gpswaypoints{$i}{"iconCenterXPdf"} = $tempgpswaypoints[$i] + 8;
+            $gpswaypoints{$i}{"iconCenterYPdf"} = $tempgpswaypoints[ $i + 1 ];
             $gpswaypoints{$i}{"Name"}       = "none";
         }
 
@@ -462,8 +470,8 @@ foreach my $line (@pdftotextbbox) {
         $fixtextboxes{ $1 . $2 }{"Text"}       = $5;
         $fixtextboxes{ $1 . $2 }{"PdfX"}       = $1;
         $fixtextboxes{ $1 . $2 }{"PdfY"}       = $pdfy - $2;
-        $fixtextboxes{ $1 . $2 }{"CenterPdfX"} = $1 + ( ( $3 - $1 ) / 2 );
-        $fixtextboxes{ $1 . $2 }{"CenterPdfY"} = $pdfy - $2;
+        $fixtextboxes{ $1 . $2 }{"iconCenterXPdf"} = $1 + ( ( $3 - $1 ) / 2 );
+        $fixtextboxes{ $1 . $2 }{"iconCenterYPdf"} = $pdfy - $2;
     }
 
 }
@@ -489,16 +497,14 @@ foreach my $line (@pdftotextbbox) {
         $obstacletextboxes{ $1 . $2 }{"Text"}       = $5;
         $obstacletextboxes{ $1 . $2 }{"PdfX"}       = $1;
         $obstacletextboxes{ $1 . $2 }{"PdfY"}       = $pdfy - $2;
-        $obstacletextboxes{ $1 . $2 }{"CenterPdfX"} = $1 + ( ( $3 - $1 ) / 2 );
-        $obstacletextboxes{ $1 . $2 }{"CenterPdfY"} = $pdfy - $2;
+        $obstacletextboxes{ $1 . $2 }{"iconCenterXPdf"} = $1 + ( ( $3 - $1 ) / 2 );
+        $obstacletextboxes{ $1 . $2 }{"iconCenterYPdf"} = $pdfy - $2;
     }
 
 }
 
 #print Dumper ( \%obstacletextboxes );
 say "Found " . keys(%obstacletextboxes) . " Potential obstacle text boxes";
-
-#Match text boxes with their objects
 
 #----------------------------------------------------------------------------------------------------------
 #Modify the PDF
@@ -596,7 +602,7 @@ my @obstacle_heights;
 foreach my $line (@pdftotext) {
 
     #Find 3+ digit numbers that don't end in 0
-    if ( $line =~ m/^(\d\d+[1-9])$/ ) {
+    if ( $line =~ m/^([\d]{2,}[1-9])$/ ) {
         next if $1 > 30000;
         push @obstacle_heights, $1;
     }
@@ -613,7 +619,7 @@ if ($debug) {
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Find obstacles with a certain height in the DB
-my $radius = ".3";    #~15 miles
+my $radius = ".4";    #~15 miles
 
 my %unique_obstacles_from_db = ();
 say
@@ -623,10 +629,10 @@ foreach my $heightmsl (@obstacle_heights) {
     #Query the database for obstacles of $heightmsl within our $radius
     $sth = $dbh->prepare(
         "SELECT * FROM obstacles WHERE (HeightMsl=$heightmsl) and 
-                                       (Latitude >  $airportlatdec - $radius ) and 
-                                       (Latitude < $airportlatdec +$radius ) and 
-                                       (Longitude >  $airportlondec - $radius ) and 
-                                       (Longitude < $airportlondec +$radius )"
+                                       (Latitude >  $airportLatitudeDec - $radius ) and 
+                                       (Latitude < $airportLatitudeDec +$radius ) and 
+                                       (Longitude >  $airportLongitudeDec - $radius ) and 
+                                       (Longitude < $airportLongitudeDec +$radius )"
     );
     $sth->execute();
 
@@ -635,6 +641,15 @@ foreach my $heightmsl (@obstacle_heights) {
 
    #Don't show results of searches that have more than one result, ie not unique
     next if ( $rows != 1 );
+    if ($debug) {
+        my $fields = $sth->{NUM_OF_FIELDS};
+        print "We have selected $fields obstacle field(s)\n";
+
+        my $rows = $sth->rows();
+        print
+          "HeightMsl: $heightmsl.  We have selected $rows obstacle row (s)\n";
+
+    }
 
     foreach my $row (@$all) {
         my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
@@ -646,11 +661,18 @@ foreach my $heightmsl (@obstacle_heights) {
         }
     }
 
-    # my $fields = $sth->{NUM_OF_FIELDS};
-    # print "We have selected $fields field(s)\n";
+}
 
-    # my $rows = $sth->rows();
-    # print "We have selected $rows row(s)\n";
+if ($debug) {
+    my $fields = $sth->{NUM_OF_FIELDS};
+    print "We have selected $fields obstacle field(s)\n";
+
+    my $rows = $sth->rows();
+    print "We have selected $rows obstacle row(s)\n";
+
+    say "Unique obstacles from database lookup";
+    print Dumper ( \%unique_obstacles_from_db );
+
 }
 
 #Find a text box with text that matches the height of each of our unique_obstacles_from_db
@@ -661,9 +683,9 @@ foreach my $key ( keys %unique_obstacles_from_db ) {
             $unique_obstacles_from_db{$key}{"Label"} =
               $obstacletextboxes{$key2}{"Text"};
             $unique_obstacles_from_db{$key}{"TextBoxX"} =
-              $obstacletextboxes{$key2}{"CenterPdfX"};
+              $obstacletextboxes{$key2}{"iconCenterXPdf"};
             $unique_obstacles_from_db{$key}{"TextBoxY"} =
-              $obstacletextboxes{$key2}{"CenterPdfY"};
+              $obstacletextboxes{$key2}{"iconCenterYPdf"};
 
         }
 
@@ -774,17 +796,17 @@ if ($debug) {
 #Find fixes near the airport
 my %fixes_from_db = ();
 say
-"Fixes within $radius degrees of airport  ($airportlondec, $airportlatdec) from database";
+"Fixes within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) from database";
 
 #What type of fixes to look for
 my $type = "%REP-PT";
 
 #Query the database for fixes within our $radius
 $sth = $dbh->prepare(
-    "SELECT * FROM fixes WHERE  (Latitude >  $airportlatdec - $radius ) and 
-                                (Latitude < $airportlatdec +$radius ) and 
-                                (Longitude >  $airportlondec - $radius ) and 
-                                (Longitude < $airportlondec +$radius ) and
+"SELECT * FROM fixes WHERE  (Latitude >  $airportLatitudeDec - $radius ) and 
+                                (Latitude < $airportLatitudeDec +$radius ) and 
+                                (Longitude >  $airportLongitudeDec - $radius ) and 
+                                (Longitude < $airportLongitudeDec +$radius ) and
                                 (Type like '$type')"
 );
 $sth->execute();
@@ -842,9 +864,9 @@ foreach my $key ( sort keys %fixicons ) {
     my $distance_to_closest_fixtextbox = 999999999999;
     foreach my $key2 ( keys %fixtextboxes ) {
         $distance_to_closest_fixtextbox_x =
-          $fixtextboxes{$key2}{"CenterPdfX"} - $fixicons{$key}{"X"};
+          $fixtextboxes{$key2}{"iconCenterXPdf"} - $fixicons{$key}{"X"};
         $distance_to_closest_fixtextbox_y =
-          $fixtextboxes{$key2}{"CenterPdfY"} - $fixicons{$key}{"Y"};
+          $fixtextboxes{$key2}{"iconCenterYPdf"} - $fixicons{$key}{"Y"};
 
         my $hyp = sqrt( $distance_to_closest_fixtextbox_x**2 +
               $distance_to_closest_fixtextbox_y**2 );
@@ -855,8 +877,8 @@ foreach my $key ( sort keys %fixicons ) {
         if ( ( $hyp < $distance_to_closest_fixtextbox ) && ( $hyp < 27 ) ) {
             $distance_to_closest_fixtextbox = $hyp;
             $fixicons{$key}{"Name"} = $fixtextboxes{$key2}{"Text"};
-            $fixicons{$key}{"TextBoxX"} = $fixtextboxes{$key2}{"CenterPdfX"};
-            $fixicons{$key}{"TextBoxY"} = $fixtextboxes{$key2}{"CenterPdfY"};
+            $fixicons{$key}{"TextBoxX"} = $fixtextboxes{$key2}{"iconCenterXPdf"};
+            $fixicons{$key}{"TextBoxY"} = $fixtextboxes{$key2}{"iconCenterYPdf"};
             $fixicons{$key}{"Lat"} =
               $fixes_from_db{ $fixicons{$key}{"Name"} }{"Lat"};
             $fixicons{$key}{"Lon"} =
@@ -906,17 +928,17 @@ foreach my $key ( sort keys %fixicons ) {
 #Find GPS waypoints near the airport
 my %gpswaypoints_from_db = ();
 say
-"GPS waypoints within $radius degrees of airport  ($airportlondec, $airportlatdec) from database";
+"GPS waypoints within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) from database";
 
 #What type of fixes to look for
 $type = "RNAV%";
 
 #Query the database for fixes within our $radius
 $sth = $dbh->prepare(
-    "SELECT * FROM fixes WHERE  (Latitude >  $airportlatdec - $radius ) and 
-                                (Latitude < $airportlatdec +$radius ) and 
-                                (Longitude >  $airportlondec - $radius ) and 
-                                (Longitude < $airportlondec +$radius ) and
+"SELECT * FROM fixes WHERE  (Latitude >  $airportLatitudeDec - $radius ) and 
+                                (Latitude < $airportLatitudeDec +$radius ) and 
+                                (Longitude >  $airportLongitudeDec - $radius ) and 
+                                (Longitude < $airportLongitudeDec +$radius ) and
                                 (Type like '$type')"
 );
 $sth->execute();
@@ -974,9 +996,9 @@ foreach my $key ( sort keys %gpswaypoints ) {
     my $distance_to_closest_fixtextbox = 999999999999;
     foreach my $key2 ( keys %fixtextboxes ) {
         $distance_to_closest_fixtextbox_x =
-          $fixtextboxes{$key2}{"CenterPdfX"} - $gpswaypoints{$key}{"X"};
+          $fixtextboxes{$key2}{"iconCenterXPdf"} - $gpswaypoints{$key}{"X"};
         $distance_to_closest_fixtextbox_y =
-          $fixtextboxes{$key2}{"CenterPdfY"} - $gpswaypoints{$key}{"Y"};
+          $fixtextboxes{$key2}{"iconCenterYPdf"} - $gpswaypoints{$key}{"Y"};
 
         my $hyp = sqrt( $distance_to_closest_fixtextbox_x**2 +
               $distance_to_closest_fixtextbox_y**2 );
@@ -988,9 +1010,9 @@ foreach my $key ( sort keys %gpswaypoints ) {
             $distance_to_closest_fixtextbox = $hyp;
             $gpswaypoints{$key}{"Name"} = $fixtextboxes{$key2}{"Text"};
             $gpswaypoints{$key}{"TextBoxX"} =
-              $fixtextboxes{$key2}{"CenterPdfX"};
+              $fixtextboxes{$key2}{"iconCenterXPdf"};
             $gpswaypoints{$key}{"TextBoxY"} =
-              $fixtextboxes{$key2}{"CenterPdfY"};
+              $fixtextboxes{$key2}{"iconCenterYPdf"};
             $gpswaypoints{$key}{"Lat"} =
               $gpswaypoints_from_db{ $gpswaypoints{$key}{"Name"} }{"Lat"};
             $gpswaypoints{$key}{"Lon"} =
@@ -1001,7 +1023,7 @@ foreach my $key ( sort keys %gpswaypoints ) {
 
 }
 
-#fixes_from_db should now only have fixes that are mentioned on the PDF
+#gpswaypoints_from_db should now only have fixes that are mentioned on the PDF
 if ($debug) {
     say "gpswaypoints_from_db";
     print Dumper ( \%gpswaypoints_from_db );
@@ -1011,8 +1033,8 @@ if ($debug) {
     print Dumper ( \%fixtextboxes );
 }
 
-#clean up fixicons
-#remove entries that have no Icon X or Y
+#clean up gpswaypoints
+#remove entries that have no name
 foreach my $key ( sort keys %gpswaypoints ) {
     unless ( $gpswaypoints{$key}{"Name"} ne "none" )
 
@@ -1026,12 +1048,51 @@ if ($debug) {
     print Dumper ( \%gpswaypoints );
 }
 
+#Remove duplicate gps waypoints, prefer the one closest to the Y center of the PDF
+OUTER:
+foreach my $key ( sort keys %gpswaypoints ) {
+
+ #my $hyp = sqrt( $distance_to_pdf_center_x**2 + $distance_to_pdf_center_y**2 );
+    foreach my $key2 ( sort keys %gpswaypoints ) {
+
+        if (   ( $gpswaypoints{$key}{"Name"} eq $gpswaypoints{$key2}{"Name"} )
+            && ( $key ne $key2 ) )
+        {
+            my $name = $gpswaypoints{$key}{"Name"};
+            say "A ha, I found a duplicate GPS waypoint name: $name";
+            my $distance_to_pdf_center_x1 =
+              abs( $pdfCenterX - $gpswaypoints{$key}{"X"} );
+            my $distance_to_pdf_center_y1 =
+              abs( $pdfCenterY - $gpswaypoints{$key}{"Y"} );
+            say $distance_to_pdf_center_y1;
+            my $distance_to_pdf_center_x2 =
+              abs( $pdfCenterX - $gpswaypoints{$key2}{"X"} );
+            my $distance_to_pdf_center_y2 =
+              abs( $pdfCenterY - $gpswaypoints{$key2}{"Y"} );
+            say $distance_to_pdf_center_y2;
+
+            if ( $distance_to_pdf_center_y1 < $distance_to_pdf_center_y2 ) {
+                delete $gpswaypoints{$key2};
+                say "Deleting the 2nd entry";
+                goto OUTER;
+            }
+            else {
+                delete $gpswaypoints{$key};
+                say "Deleting the first entry";
+                goto OUTER;
+            }
+        }
+
+    }
+
+}
+
 #Draw a line from fix icon to closest text boxes
 my $gpswaypoint_line = $page->gfx;
 
 foreach my $key ( sort keys %gpswaypoints ) {
-    $gpswaypoint_line->move( $gpswaypoints{$key}{"CenterPdfX"},
-        $gpswaypoints{$key}{"CenterPdfY"} );
+    $gpswaypoint_line->move( $gpswaypoints{$key}{"iconCenterXPdf"},
+        $gpswaypoints{$key}{"iconCenterYPdf"} );
     $gpswaypoint_line->line( $gpswaypoints{$key}{"TextBoxX"},
         $gpswaypoints{$key}{"TextBoxY"} );
     $gpswaypoint_line->strokecolor('blue');
