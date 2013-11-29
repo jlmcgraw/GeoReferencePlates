@@ -269,33 +269,74 @@ foreach my $line ( split /[\r\n]+/, $mutoolshowoutput ) {
 }
 say "Object streams: " . $objectstreams;
 
+# #Some regex building blocks
+# my $transformReg = qr/
+                                                    # \A
+                                                      # q 1 0 0 1 (?<transformRegX>[\.0-9]+) (?<transformRegY>[\.0-9]+) cm
+                                                      # \Z
+                                                      # /x;
+# my $originReg = qr/\A0 0 m\Z/;
+# my $coordinateReg =qr/[\.0-9]+ [\.0-9]+/;
+#
+# my $lineReg = qr/\A$coordinateReg l\Z/;
+# my $bezierReg = qr/\A$coordinateReg $coordinateReg $coordinateReg c\Z/;
+
 #Finding each of these icons can be rolled into one loop instead of separate one for each type
 #----------------------------------------------------------------------------------------------------------
 #Find obstacles in the pdf
+#F*  Fill path
+#S     Stroke path
+#cm Scale and translate coordinate space
+#c      Bezier curve
+#q     Save graphics state
+#Q     Restore graphics state
 my $obstacleregex =
 qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) [\.0-9]+ l ([\.0-9]+) [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
 
+# my $obstacleregex =
+# qr/
+# ^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm
+# ^0 0 m
+# ^([\.0-9]+) [\.0-9]+ l
+# ^([\.0-9]+) [\.0-9]+ l
+# ^S
+# ^Q
+# ^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm
+# ^0 0 m
+# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
+# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
+# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
+# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
+# ^f\*
+# ^Q
+# /m;
 my %obstacles = ();
 
-for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
-    $output = qx(mutool show $targetpdf $i x);
+for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
+    
+    $output = qx(mutool show $targetpdf $stream x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
-    my @tempobstacles        = $output =~ /$obstacleregex/ig;
+    #@tempobstacles will have the named captures from the regex, 6 for each one 
+    my @tempobstacles        = $output =~ /$obstacleregex/igm;
     my $tempobstacles_length = 0 + @tempobstacles;
 
     #6 data points for each obstacle
     my $tempobstacles_count = $tempobstacles_length / 6;
 
     if ( $tempobstacles_length >= 6 ) {
+        say "Found $tempobstacles_count obstacles in stream $stream";
         for ( my $i = 0 ; $i < $tempobstacles_length ; $i = $i + 6 ) {
-
-#put them into a hash
+#Note: this code does not accumulate the objects across streams but rather overwrites existing ones
+#This works fine as long as the stream with all of the obstacles in the main section of the drawing comes after the streams
+#with obstacles for the airport diagram (which is a separate scale)
+#Put them into a hash
 #This finds the midpoint X of the obstacle triangle (the X,Y of the dot itself was too far right)
+ 
             $obstacles{$i}{"X"} = $tempobstacles[$i] + $tempobstacles[ $i + 2 ];
             $obstacles{$i}{"Y"} = $tempobstacles[ $i + 1 ];
             $obstacles{$i}{"Height"}             = "unknown";
@@ -307,7 +348,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
 #print Dumper ( \%obstacles );
 say "Found " . keys(%obstacles) . " obstacle icons";
-
+# exit;
 # #-------------------------------------------------------------------------------------------------------
 # #Find fixes in the PDF
 my $fixregex =
@@ -332,6 +373,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     my $tempfixes_count = $tempfixes_length / 4;
 
     if ( $tempfixes_length >= 4 ) {
+        say "Found $tempfixes_count fix icons in stream $i";
         for ( my $i = 0 ; $i < $tempfixes_length ; $i = $i + 4 ) {
 
             #put them into a hash
@@ -367,6 +409,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     my $tempgpswaypoints_count  = $tempgpswaypoints_length / 2;
 
     if ( $tempgpswaypoints_length >= 2 ) {
+        say "Found $tempgpswaypoints_count GPS waypoints in stream $i";
         for ( my $i = 0 ; $i < $tempgpswaypoints_length ; $i = $i + 2 ) {
 
             #put them into a hash
@@ -399,6 +442,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
     my $tempfinalapproachfixes_count  = $tempfinalapproachfixes_length / 2;
 
     if ( $tempfinalapproachfixes_length >= 2 ) {
+        say "Found $tempfinalapproachfixes_count FAFs in stream $i";
         for ( my $i = 0 ; $i < $tempfinalapproachfixes_length ; $i = $i + 2 ) {
 
             #put them into a hash
@@ -1171,7 +1215,14 @@ if ($debug) {
 
 #Try to georeference based on the list of Ground Control Points
 die "Need more Ground Control Points" if 0 + @gcps < 2;
+
+foreach (@gcps) {
+    
+    }
+
+
 my $gdal_translateoutput;
+# $gdal_translateoutput = qx(gdal_translate -of GTiff -a_srs epsg:4326 -a_ullr $lonDistOrigin $latDistUr $lonDistUr $latDistOrigin $targetpng  $targettif  );
 $gdal_translateoutput =
 qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
 $retval = $? >> 8;
