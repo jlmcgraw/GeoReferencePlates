@@ -902,7 +902,7 @@ if ($debug) {
 #clean up fixicons
 #remove entries that have no name
 foreach my $key ( sort keys %fixicons ) {
-    unless ( $fixicons{$key}{"Name"} ne "none" )
+    if ( $fixicons{$key}{"Name"} eq "none" )
 
     {
         delete $fixicons{$key};
@@ -1036,7 +1036,7 @@ if ($debug) {
 #clean up gpswaypoints
 #remove entries that have no name
 foreach my $key ( sort keys %gpswaypoints ) {
-    unless ( $gpswaypoints{$key}{"Name"} ne "none" )
+    if ( $gpswaypoints{$key}{"Name"} eq "none" )
 
     {
         delete $gpswaypoints{$key};
