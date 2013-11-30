@@ -445,7 +445,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
             #put them into a hash
             $gpswaypoints{$i}{"X"}              = $tempgpswaypoints[$i];
             $gpswaypoints{$i}{"Y"}              = $tempgpswaypoints[ $i + 1 ];
-            $gpswaypoints{$i}{"iconCenterXPdf"} = $tempgpswaypoints[$i] + 8;
+            $gpswaypoints{$i}{"iconCenterXPdf"} = $tempgpswaypoints[$i] + 7;  #TODO Calculate this properly
             $gpswaypoints{$i}{"iconCenterYPdf"} = $tempgpswaypoints[ $i + 1 ];
             $gpswaypoints{$i}{"Name"}           = "none";
         }
@@ -606,19 +606,19 @@ my %font = (
 my $page = $pdf->openpage(1);
 
 my $obstacle_box = $page->gfx;
-$obstacle_box->strokecolor('red');
+
 
 my $fix_box = $page->gfx;
-$fix_box->strokecolor('yellow');
+
 
 my $gpswaypoint_box = $page->gfx;
-$gpswaypoint_box->strokecolor('blue');
+
 
 my $faf_box = $page->gfx;
-$faf_box->strokecolor('purple');
+
 
 my $vdp_box = $page->gfx;
-$vdp_box->strokecolor('green');
+
 
 #Draw the various types of boxes on the output PDF
 foreach my $key ( sort keys %obstacles ) {
@@ -627,11 +627,15 @@ foreach my $key ( sort keys %obstacles ) {
         $obstacles{$key}{Y} - 2,
         7, 8
     );
+    $obstacle_box->strokecolor('red');
+    $obstacle_box->linewidth(.1);
     $obstacle_box->stroke;
+
 }
 
 foreach my $key ( sort keys %fixicons ) {
     $fix_box->rect( $fixicons{$key}{X} - 4, $fixicons{$key}{Y} - 4, 9, 9 );
+    $fix_box->strokecolor('yellow');
     $fix_box->stroke;
 }
 foreach my $key ( sort keys %fixtextboxes ) {
@@ -647,6 +651,7 @@ foreach my $key ( sort keys %gpswaypoints ) {
         $gpswaypoints{$key}{Y} - 8,
         17, 16
     );
+    $gpswaypoint_box->strokecolor('blue');
     $gpswaypoint_box->stroke;
 }
 
@@ -656,6 +661,7 @@ foreach my $key ( sort keys %finalapproachfixes ) {
         $finalapproachfixes{$key}{Y} - 5,
         10, 10
     );
+    $faf_box->strokecolor('purple');
     $faf_box->stroke;
 }
 
@@ -665,6 +671,7 @@ foreach my $key ( sort keys %visualdescentpoints ) {
         $visualdescentpoints{$key}{Y} - 7,
         8, 8
     );
+    $vdp_box->strokecolor('green');
     $vdp_box->stroke;
 }
 
@@ -1191,55 +1198,55 @@ $dbh->disconnect();
 my %gcps;
 say "Obstacle Ground Control Points";
 
-# #Add obstacles to Ground Control Points hash
-# foreach my $key ( sort keys %unique_obstacles_from_db ) {
-# my $pngx = $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
-# my $pngy =
-# $pngy - ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
-# my $lon = $unique_obstacles_from_db{$key}{"Lon"};
-# my $lat = $unique_obstacles_from_db{$key}{"Lat"};
-# if ( $pngy && $pngx && $lon && $lat ) {
-# say "$pngx $pngy $lon $lat" if $debug;
-# $gcps{ "obstacle" . $key }{"pngx"} = $pngx;
-# $gcps{ "obstacle" . $key }{"pngy"} = $pngy;
-# $gcps{ "obstacle" . $key }{"lon"}  = $lon;
-# $gcps{ "obstacle" . $key }{"lat"}  = $lat;
-# }
-# }
-
-#Add fixes to Ground Control Points hash
-say "Fix Ground Control Points" if $debug;
-foreach my $key ( sort keys %fixicons ) {
-    my $pngx = $fixicons{$key}{"X"} * $scalefactorx;
-    my $pngy = $pngy - ( $fixicons{$key}{"Y"} * $scalefactory );
-    my $lon  = $fixicons{$key}{"Lon"};
-    my $lat  = $fixicons{$key}{"Lat"};
+#Add obstacles to Ground Control Points hash
+foreach my $key ( sort keys %unique_obstacles_from_db ) {
+    my $pngx = $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
+    my $pngy =
+      $pngy - ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
+    my $lon = $unique_obstacles_from_db{$key}{"Lon"};
+    my $lat = $unique_obstacles_from_db{$key}{"Lat"};
     if ( $pngy && $pngx && $lon && $lat ) {
         say "$pngx $pngy $lon $lat" if $debug;
-        $gcps{ "fix" . $key }{"pngx"} = $pngx;
-        $gcps{ "fix" . $key }{"pngy"} = $pngy;
-        $gcps{ "fix" . $key }{"lon"}  = $lon;
-        $gcps{ "fix" . $key }{"lat"}  = $lat;
+        $gcps{ "obstacle" . $key }{"pngx"} = $pngx;
+        $gcps{ "obstacle" . $key }{"pngy"} = $pngy;
+        $gcps{ "obstacle" . $key }{"lon"}  = $lon;
+        $gcps{ "obstacle" . $key }{"lat"}  = $lat;
     }
 }
 
-#Add GPS waypoints to Ground Control Points hash
-say "GPS waypoint Ground Control Points" if $debug;
-foreach my $key ( sort keys %gpswaypoints ) {
+# #Add fixes to Ground Control Points hash
+# say "Fix Ground Control Points" if $debug;
+# foreach my $key ( sort keys %fixicons ) {
+    # my $pngx = $fixicons{$key}{"X"} * $scalefactorx;
+    # my $pngy = $pngy - ( $fixicons{$key}{"Y"} * $scalefactory );
+    # my $lon  = $fixicons{$key}{"Lon"};
+    # my $lat  = $fixicons{$key}{"Lat"};
+    # if ( $pngy && $pngx && $lon && $lat ) {
+        # say "$pngx $pngy $lon $lat" if $debug;
+        # $gcps{ "fix" . $key }{"pngx"} = $pngx;
+        # $gcps{ "fix" . $key }{"pngy"} = $pngy;
+        # $gcps{ "fix" . $key }{"lon"}  = $lon;
+        # $gcps{ "fix" . $key }{"lat"}  = $lat;
+    # }
+# }
 
-    my $pngx = $gpswaypoints{$key}{"X"} * $scalefactorx;
-    my $pngy = $pngy - ( $gpswaypoints{$key}{"Y"} * $scalefactory );
-    my $lon  = $gpswaypoints{$key}{"Lon"};
-    my $lat  = $gpswaypoints{$key}{"Lat"};
-    if ( $pngy && $pngx && $lon && $lat ) {
+# #Add GPS waypoints to Ground Control Points hash
+# say "GPS waypoint Ground Control Points" if $debug;
+# foreach my $key ( sort keys %gpswaypoints ) {
 
-        say "$pngx $pngy $lon $lat" if $debug;
-        $gcps{ "gps" . $key }{"pngx"} = $pngx;
-        $gcps{ "gps" . $key }{"pngy"} = $pngy;
-        $gcps{ "gps" . $key }{"lon"}  = $lon;
-        $gcps{ "gps" . $key }{"lat"}  = $lat;
-    }
-}
+    # my $pngx = $gpswaypoints{$key}{"X"} * $scalefactorx;
+    # my $pngy = $pngy - ( $gpswaypoints{$key}{"Y"} * $scalefactory );
+    # my $lon  = $gpswaypoints{$key}{"Lon"};
+    # my $lat  = $gpswaypoints{$key}{"Lat"};
+    # if ( $pngy && $pngx && $lon && $lat ) {
+
+        # say "$pngx $pngy $lon $lat" if $debug;
+        # $gcps{ "gps" . $key }{"pngx"} = $pngx;
+        # $gcps{ "gps" . $key }{"pngy"} = $pngy;
+        # $gcps{ "gps" . $key }{"lon"}  = $lon;
+        # $gcps{ "gps" . $key }{"lat"}  = $lat;
+    # }
+# }
 if ($debug) {
     say "GCPs";
     print Dumper ( \%gcps );
@@ -1266,6 +1273,7 @@ if ($debug) {
 say "Found " . scalar( keys(%gcps) ) . " GCPS";
 
 die "Need more Ground Control Points" if ( scalar( keys(%gcps) ) < 2 );
+say '$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY';
 
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Calculate the X and Y scale values
@@ -1290,8 +1298,8 @@ foreach my $key ( sort keys %gcps ) {
         $scaleCounter++;
 
         #build the GCP portion of the command line parameters
-        my $xdiff   = abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
-        my $ydiff   = abs( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} );
+        my $xdiff   = abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} )+.00000000000000001;
+        my $ydiff   = abs( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} )+.00000000000000001;
         my $londiff = abs( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
         my $latdiff = abs( $gcps{$key}{"lat"} - $gcps{$key2}{"lat"} );
         my $xscale  = $londiff / $xdiff;
@@ -1303,7 +1311,8 @@ foreach my $key ( sort keys %gcps ) {
         my $lrY =
           $gcps{$key}{"lat"} - ( abs( $pngy - $gcps{$key}{"pngy"} ) * $yscale );
 
-     #say "$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY";
+        say
+          "$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY";
         push @xScaleAvg, $xscale;
         push @yScaleAvg, $yscale;
         push @ulXAvg,    $ulX;
@@ -1318,7 +1327,7 @@ foreach my $key ( sort keys %gcps ) {
 
 #X-scale average and standard deviation
 my $xAvg    = &average( \@xScaleAvg );
-my $xStdDev = &stdev( \@xScaleAvg );
+my $xStdDev = &stdev( \@xScaleAvg ) /2;
 say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev";
 
 #Delete values from the array that are outside 1st dev
@@ -1333,7 +1342,7 @@ say "X-scale average after deleting outside 1st dev: $xAvg";
 #--------------------
 #Y-scale average and standard deviation
 my $yAvg    = &average( \@yScaleAvg );
-my $yStdDev = &stdev( \@yScaleAvg );
+my $yStdDev = &stdev( \@yScaleAvg )/2;
 say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev";
 
 #Delete values from the array that are outside 1st dev
@@ -1349,7 +1358,7 @@ say "Y-scale average after deleting outside 1st dev: $yAvg";
 #--------------------
 #ulX average and standard deviation
 my $ulXAvrg   = &average( \@ulXAvg );
-my $ulXStdDev = &stdev( \@ulXAvg );
+my $ulXStdDev = &stdev( \@ulXAvg )/2;
 say "Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev";
 
 #Delete values from the array that are outside 1st dev
@@ -1364,7 +1373,7 @@ say "Upper Left X  average after deleting outside 1st dev: $ulXAvrg";
 #------------------------
 #uly average and standard deviation
 my $ulYAvrg   = &average( \@ulYAvg );
-my $ulYStdDev = &stdev( \@ulYAvg );
+my $ulYStdDev = &stdev( \@ulYAvg )/2;
 say "Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev";
 
 #Delete values from the array that are outside 1st dev
@@ -1380,7 +1389,7 @@ say "Upper Left Y average after deleting outside 1st dev: $ulYAvrg";
 #------------------------
 #lrX average and standard deviation
 my $lrXAvrg   = &average( \@lrXAvg );
-my $lrXStdDev = &stdev( \@lrXAvg );
+my $lrXStdDev = &stdev( \@lrXAvg )/2;
 say "Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev";
 
 #Delete values from the array that are outside 1st dev
@@ -1396,7 +1405,7 @@ say "Lower Right X average after deleting outside 1st dev: $lrXAvrg";
 #------------------------
 #lrY average and standard deviation
 my $lrYAvrg   = &average( \@lrYAvg );
-my $lrYStdDev = &stdev( \@lrYAvg );
+my $lrYStdDev = &stdev( \@lrYAvg )/2;
 say "Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev";
 
 #Delete values from the array that are outside 1st dev
