@@ -18,7 +18,7 @@
 
 #Known issues:
 
-#Output some statistics from the process to see which plates are working 
+#Output some statistics from the process to see which plates are working
 #Change the logic for obstacles to find nearest text to icon and not vice versa (the current method)
 #Relies on icons being drawn very specific ways, it won't work if these ever change
 #Relies on text being in PDF.  I've found at least one example that doesn't use text (plates from KSSC)
@@ -54,7 +54,34 @@ use GeoReferencePlatesSubroutines;
 
 use vars qw/ %opt /;
 my $opt_string = 'vs:a:';
-my $arg_num = scalar @ARGV;
+my $arg_num    = scalar @ARGV;
+
+sub average {
+    my ($data) = @_;
+    if ( not @$data ) {
+        die("Empty array\n");
+    }
+    my $total = 0;
+    foreach (@$data) {
+        $total += $_;
+    }
+    my $average = $total / @$data;
+    return $average;
+}
+
+sub stdev {
+    my ($data) = @_;
+    if ( @$data == 1 ) {
+        return 0;
+    }
+    my $average = &average($data);
+    my $sqtotal = 0;
+    foreach (@$data) {
+        $sqtotal += ( $average - $_ )**2;
+    }
+    my $std = ( $sqtotal / ( @$data - 1 ) )**0.5;
+    return $std;
+}
 
 unless ( getopts( "$opt_string", \%opt ) ) {
     say "Usage: $0 -v -a<FAA airport ID> <pdf_file>\n";
@@ -271,10 +298,10 @@ say "Object streams: " . $objectstreams;
 
 # #Some regex building blocks
 # my $transformReg = qr/
-                                                    # \A
-                                                      # q 1 0 0 1 (?<transformRegX>[\.0-9]+) (?<transformRegY>[\.0-9]+) cm
-                                                      # \Z
-                                                      # /x;
+# \A
+# q 1 0 0 1 (?<transformRegX>[\.0-9]+) (?<transformRegY>[\.0-9]+) cm
+# \Z
+# /x;
 # my $originReg = qr/\A0 0 m\Z/;
 # my $coordinateReg =qr/[\.0-9]+ [\.0-9]+/;
 #
@@ -313,7 +340,7 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) [\.0-9]+ l ([\.0-9]+) [\.
 my %obstacles = ();
 
 for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
-    
+
     $output = qx(mutool show $targetpdf $stream x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
@@ -321,7 +348,8 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 
     #Remove new lines
     $output =~ s/\n/ /g;
-    #@tempobstacles will have the named captures from the regex, 6 for each one 
+
+    #@tempobstacles will have the named captures from the regex, 6 for each one
     my @tempobstacles        = $output =~ /$obstacleregex/igm;
     my $tempobstacles_length = 0 + @tempobstacles;
 
@@ -331,12 +359,13 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
     if ( $tempobstacles_length >= 6 ) {
         say "Found $tempobstacles_count obstacles in stream $stream";
         for ( my $i = 0 ; $i < $tempobstacles_length ; $i = $i + 6 ) {
+
 #Note: this code does not accumulate the objects across streams but rather overwrites existing ones
 #This works fine as long as the stream with all of the obstacles in the main section of the drawing comes after the streams
 #with obstacles for the airport diagram (which is a separate scale)
 #Put them into a hash
 #This finds the midpoint X of the obstacle triangle (the X,Y of the dot itself was too far right)
- 
+
             $obstacles{$i}{"X"} = $tempobstacles[$i] + $tempobstacles[ $i + 2 ];
             $obstacles{$i}{"Y"} = $tempobstacles[ $i + 1 ];
             $obstacles{$i}{"Height"}             = "unknown";
@@ -348,6 +377,7 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 
 #print Dumper ( \%obstacles );
 say "Found " . keys(%obstacles) . " obstacle icons";
+
 # exit;
 # #-------------------------------------------------------------------------------------------------------
 # #Find fixes in the PDF
@@ -413,11 +443,11 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
         for ( my $i = 0 ; $i < $tempgpswaypoints_length ; $i = $i + 2 ) {
 
             #put them into a hash
-            $gpswaypoints{$i}{"X"}          = $tempgpswaypoints[$i];
-            $gpswaypoints{$i}{"Y"}          = $tempgpswaypoints[ $i + 1 ];
+            $gpswaypoints{$i}{"X"}              = $tempgpswaypoints[$i];
+            $gpswaypoints{$i}{"Y"}              = $tempgpswaypoints[ $i + 1 ];
             $gpswaypoints{$i}{"iconCenterXPdf"} = $tempgpswaypoints[$i] + 8;
             $gpswaypoints{$i}{"iconCenterYPdf"} = $tempgpswaypoints[ $i + 1 ];
-            $gpswaypoints{$i}{"Name"}       = "none";
+            $gpswaypoints{$i}{"Name"}           = "none";
         }
 
     }
@@ -507,13 +537,13 @@ foreach my $line (@pdftotextbbox) {
 #Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
         next if $5 =~ m/$invalidfixnamesregex/;
 
-        $fixtextboxes{ $1 . $2 }{"RasterX"}    = $1;
-        $fixtextboxes{ $1 . $2 }{"RasterY"}    = $2;
-        $fixtextboxes{ $1 . $2 }{"Width"}      = $3 - $1;
-        $fixtextboxes{ $1 . $2 }{"Height"}     = $4 - $2;
-        $fixtextboxes{ $1 . $2 }{"Text"}       = $5;
-        $fixtextboxes{ $1 . $2 }{"PdfX"}       = $1;
-        $fixtextboxes{ $1 . $2 }{"PdfY"}       = $pdfy - $2;
+        $fixtextboxes{ $1 . $2 }{"RasterX"}        = $1;
+        $fixtextboxes{ $1 . $2 }{"RasterY"}        = $2;
+        $fixtextboxes{ $1 . $2 }{"Width"}          = $3 - $1;
+        $fixtextboxes{ $1 . $2 }{"Height"}         = $4 - $2;
+        $fixtextboxes{ $1 . $2 }{"Text"}           = $5;
+        $fixtextboxes{ $1 . $2 }{"PdfX"}           = $1;
+        $fixtextboxes{ $1 . $2 }{"PdfY"}           = $pdfy - $2;
         $fixtextboxes{ $1 . $2 }{"iconCenterXPdf"} = $1 + ( ( $3 - $1 ) / 2 );
         $fixtextboxes{ $1 . $2 }{"iconCenterYPdf"} = $pdfy - $2;
     }
@@ -534,14 +564,15 @@ my %obstacletextboxes = ();
 
 foreach my $line (@pdftotextbbox) {
     if ( $line =~ m/$obstacletextboxregex/ ) {
-        $obstacletextboxes{ $1 . $2 }{"RasterX"}    = $1;
-        $obstacletextboxes{ $1 . $2 }{"RasterY"}    = $2;
-        $obstacletextboxes{ $1 . $2 }{"Width"}      = $3 - $1;
-        $obstacletextboxes{ $1 . $2 }{"Height"}     = $4 - $2;
-        $obstacletextboxes{ $1 . $2 }{"Text"}       = $5;
-        $obstacletextboxes{ $1 . $2 }{"PdfX"}       = $1;
-        $obstacletextboxes{ $1 . $2 }{"PdfY"}       = $pdfy - $2;
-        $obstacletextboxes{ $1 . $2 }{"iconCenterXPdf"} = $1 + ( ( $3 - $1 ) / 2 );
+        $obstacletextboxes{ $1 . $2 }{"RasterX"} = $1;
+        $obstacletextboxes{ $1 . $2 }{"RasterY"} = $2;
+        $obstacletextboxes{ $1 . $2 }{"Width"}   = $3 - $1;
+        $obstacletextboxes{ $1 . $2 }{"Height"}  = $4 - $2;
+        $obstacletextboxes{ $1 . $2 }{"Text"}    = $5;
+        $obstacletextboxes{ $1 . $2 }{"PdfX"}    = $1;
+        $obstacletextboxes{ $1 . $2 }{"PdfY"}    = $pdfy - $2;
+        $obstacletextboxes{ $1 . $2 }{"iconCenterXPdf"} =
+          $1 + ( ( $3 - $1 ) / 2 );
         $obstacletextboxes{ $1 . $2 }{"iconCenterYPdf"} = $pdfy - $2;
     }
 
@@ -921,8 +952,10 @@ foreach my $key ( sort keys %fixicons ) {
         if ( ( $hyp < $distance_to_closest_fixtextbox ) && ( $hyp < 27 ) ) {
             $distance_to_closest_fixtextbox = $hyp;
             $fixicons{$key}{"Name"} = $fixtextboxes{$key2}{"Text"};
-            $fixicons{$key}{"TextBoxX"} = $fixtextboxes{$key2}{"iconCenterXPdf"};
-            $fixicons{$key}{"TextBoxY"} = $fixtextboxes{$key2}{"iconCenterYPdf"};
+            $fixicons{$key}{"TextBoxX"} =
+              $fixtextboxes{$key2}{"iconCenterXPdf"};
+            $fixicons{$key}{"TextBoxY"} =
+              $fixtextboxes{$key2}{"iconCenterYPdf"};
             $fixicons{$key}{"Lat"} =
               $fixes_from_db{ $fixicons{$key}{"Name"} }{"Lat"};
             $fixicons{$key}{"Lon"} =
@@ -971,11 +1004,12 @@ foreach my $key ( sort keys %fixicons ) {
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Find GPS waypoints near the airport
 my %gpswaypoints_from_db = ();
+$radius = 1;
 say
 "GPS waypoints within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) from database";
 
 #What type of fixes to look for
-$type = "RNAV%";
+$type = "%";
 
 #Query the database for fixes within our $radius
 $sth = $dbh->prepare(
@@ -1135,8 +1169,10 @@ foreach my $key ( sort keys %gpswaypoints ) {
 my $gpswaypoint_line = $page->gfx;
 
 foreach my $key ( sort keys %gpswaypoints ) {
-    $gpswaypoint_line->move( $gpswaypoints{$key}{"iconCenterXPdf"},
-        $gpswaypoints{$key}{"iconCenterYPdf"} );
+    $gpswaypoint_line->move(
+        $gpswaypoints{$key}{"iconCenterXPdf"},
+        $gpswaypoints{$key}{"iconCenterYPdf"}
+    );
     $gpswaypoint_line->line( $gpswaypoints{$key}{"TextBoxX"},
         $gpswaypoints{$key}{"TextBoxY"} );
     $gpswaypoint_line->strokecolor('blue');
@@ -1152,101 +1188,263 @@ $dbh->disconnect();
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Create the list of Ground Control Points
-my @gcps;
-say "Obstacle Ground Control Points (x,y,lon,lat)";
+my %gcps;
+say "Obstacle Ground Control Points";
 
-#Add obstacles to Ground Control Points array
-foreach my $key ( sort keys %unique_obstacles_from_db ) {
+# #Add obstacles to Ground Control Points hash
+# foreach my $key ( sort keys %unique_obstacles_from_db ) {
+# my $pngx = $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
+# my $pngy =
+# $pngy - ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
+# my $lon = $unique_obstacles_from_db{$key}{"Lon"};
+# my $lat = $unique_obstacles_from_db{$key}{"Lat"};
+# if ( $pngy && $pngx && $lon && $lat ) {
+# say "$pngx $pngy $lon $lat" if $debug;
+# $gcps{ "obstacle" . $key }{"pngx"} = $pngx;
+# $gcps{ "obstacle" . $key }{"pngy"} = $pngy;
+# $gcps{ "obstacle" . $key }{"lon"}  = $lon;
+# $gcps{ "obstacle" . $key }{"lat"}  = $lat;
+# }
+# }
 
-#I'm trying rounding vs. not rounding the pixel coordinates.  I thought you might have to round but gdal_translate seems happy without
-#my $rounded = int($float + 0.5);
-# my $roundedpngx =int( $unique_obstacles_from_db{$key}{"ObsIconX"}*$scalefactorx+.5);
-    my $roundedpngx =
-      $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
-
-# my $roundedpngy = int($pngy - $unique_obstacles_from_db{$key}{"ObsIconY"}*$scalefactory+.5);
-    my $roundedpngy =
-      $pngy - ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
-    my $lon = $unique_obstacles_from_db{$key}{"Lon"};
-    my $lat = $unique_obstacles_from_db{$key}{"Lat"};
-    if ( $roundedpngy && $roundedpngx && $lon && $lat ) {
-        say "$roundedpngx $roundedpngy $lon $lat" if $debug;
-        push @gcps, "-gcp $roundedpngx $roundedpngy $lon $lat ";
-    }
-}
-
-#Add fixes to Ground Control Points array
+#Add fixes to Ground Control Points hash
 say "Fix Ground Control Points" if $debug;
 foreach my $key ( sort keys %fixicons ) {
-    my $roundedpngx = $fixicons{$key}{"X"} * $scalefactorx;
-    my $roundedpngy = $pngy - ( $fixicons{$key}{"Y"} * $scalefactory );
-    my $lon         = $fixicons{$key}{"Lon"};
-    my $lat         = $fixicons{$key}{"Lat"};
-    if ( $roundedpngy && $roundedpngx && $lon && $lat ) {
-        say "$roundedpngx $roundedpngy $lon $lat" if $debug;
-        push @gcps, "-gcp $roundedpngx $roundedpngy $lon $lat ";
+    my $pngx = $fixicons{$key}{"X"} * $scalefactorx;
+    my $pngy = $pngy - ( $fixicons{$key}{"Y"} * $scalefactory );
+    my $lon  = $fixicons{$key}{"Lon"};
+    my $lat  = $fixicons{$key}{"Lat"};
+    if ( $pngy && $pngx && $lon && $lat ) {
+        say "$pngx $pngy $lon $lat" if $debug;
+        $gcps{ "fix" . $key }{"pngx"} = $pngx;
+        $gcps{ "fix" . $key }{"pngy"} = $pngy;
+        $gcps{ "fix" . $key }{"lon"}  = $lon;
+        $gcps{ "fix" . $key }{"lat"}  = $lat;
     }
 }
 
-#Add GPS waypoints to Ground Control Points array
+#Add GPS waypoints to Ground Control Points hash
 say "GPS waypoint Ground Control Points" if $debug;
 foreach my $key ( sort keys %gpswaypoints ) {
 
-    my $roundedpngx = $gpswaypoints{$key}{"X"} * $scalefactorx;
-    my $roundedpngy = $pngy - ( $gpswaypoints{$key}{"Y"} * $scalefactory );
-    my $lon         = $gpswaypoints{$key}{"Lon"};
-    my $lat         = $gpswaypoints{$key}{"Lat"};
-    if ( $roundedpngy && $roundedpngx && $lon && $lat ) {
+    my $pngx = $gpswaypoints{$key}{"X"} * $scalefactorx;
+    my $pngy = $pngy - ( $gpswaypoints{$key}{"Y"} * $scalefactory );
+    my $lon  = $gpswaypoints{$key}{"Lon"};
+    my $lat  = $gpswaypoints{$key}{"Lat"};
+    if ( $pngy && $pngx && $lon && $lat ) {
 
-        say "$roundedpngx $roundedpngy $lon $lat" if $debug;
-
-        push @gcps, "-gcp $roundedpngx $roundedpngy $lon $lat ";
+        say "$pngx $pngy $lon $lat" if $debug;
+        $gcps{ "gps" . $key }{"pngx"} = $pngx;
+        $gcps{ "gps" . $key }{"pngy"} = $pngy;
+        $gcps{ "gps" . $key }{"lon"}  = $lon;
+        $gcps{ "gps" . $key }{"lat"}  = $lat;
     }
+}
+if ($debug) {
+    say "GCPs";
+    print Dumper ( \%gcps );
 }
 
 my $gcpstring = "";
-for my $line (@gcps) {
-    $gcpstring = $gcpstring . $line;
+foreach my $key ( keys %gcps ) {
+
+    #build the GCP portion of the command line parameters
+    $gcpstring =
+        $gcpstring
+      . " -gcp "
+      . $gcps{$key}{"pngx"} . " "
+      . $gcps{$key}{"pngy"} . " "
+      . $gcps{$key}{"lon"} . " "
+      . $gcps{$key}{"lat"};
 }
 if ($debug) {
     say "Ground Control Points command line string";
     say $gcpstring;
 }
 
-#Try to georeference based on the list of Ground Control Points
-die "Need more Ground Control Points" if 0 + @gcps < 2;
+#Make sure we have enough GCPs
+say "Found " . scalar( keys(%gcps) ) . " GCPS";
 
-foreach (@gcps) {
-    
+die "Need more Ground Control Points" if ( scalar( keys(%gcps) ) < 2 );
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Calculate the X and Y scale values
+my @xScaleAvg;
+my @yScaleAvg;
+my @ulXAvg;
+my @ulYAvg;
+my @lrXAvg;
+my @lrYAvg;
+my $scaleCounter = 0;
+
+foreach my $key ( sort keys %gcps ) {
+
+    #  $scaleCounter++;
+    # my $gcp1PngX = $gcps{$key}{"pngx"} . " "
+    # . $gcps{$key}{"pngy"} . " "
+    # . $gcps{$key}{"lon"} . " "
+    # . $gcps{$key}{"lat"};
+    #  say $key;
+    foreach my $key2 ( sort keys %gcps ) {
+        next if $key eq $key2;
+        $scaleCounter++;
+
+        #build the GCP portion of the command line parameters
+        my $xdiff   = abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
+        my $ydiff   = abs( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} );
+        my $londiff = abs( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
+        my $latdiff = abs( $gcps{$key}{"lat"} - $gcps{$key2}{"lat"} );
+        my $xscale  = $londiff / $xdiff;
+        my $yscale  = $latdiff / $ydiff;
+        my $ulX     = $gcps{$key}{"lon"} - ( $gcps{$key}{"pngx"} * $xscale );
+        my $ulY     = $gcps{$key}{"lat"} + ( $gcps{$key}{"pngy"} * $yscale );
+        my $lrX =
+          $gcps{$key}{"lon"} + ( abs( $pngx - $gcps{$key}{"pngx"} ) * $xscale );
+        my $lrY =
+          $gcps{$key}{"lat"} - ( abs( $pngy - $gcps{$key}{"pngy"} ) * $yscale );
+
+     #say "$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY";
+        push @xScaleAvg, $xscale;
+        push @yScaleAvg, $yscale;
+        push @ulXAvg,    $ulX;
+        push @ulYAvg,    $ulY;
+        push @lrXAvg,    $lrX;
+        push @lrYAvg,    $lrY;
+
+        # $xScaleAvg=$xScaleAvg+$xscale;
+        # $yScaleAvg=$yScaleAvg+$yscale;
     }
+}
 
+#X-scale average and standard deviation
+my $xAvg    = &average( \@xScaleAvg );
+my $xStdDev = &stdev( \@xScaleAvg );
+say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev";
 
+#Delete values from the array that are outside 1st dev
+for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
+    splice( @xScaleAvg, $i, 1 )
+      if ( $xScaleAvg[$i] < ( $xAvg - $xStdDev )
+        || $xScaleAvg[$i] > ( $xAvg + $xStdDev ) );
+}
+$xAvg = &average( \@xScaleAvg );
+say "X-scale average after deleting outside 1st dev: $xAvg";
+
+#--------------------
+#Y-scale average and standard deviation
+my $yAvg    = &average( \@yScaleAvg );
+my $yStdDev = &stdev( \@yScaleAvg );
+say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev";
+
+#Delete values from the array that are outside 1st dev
+for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
+    splice( @yScaleAvg, $i, 1 )
+      if ( $yScaleAvg[$i] < ( $yAvg - $yStdDev )
+        || $yScaleAvg[$i] > ( $yAvg + $yStdDev ) );
+}
+$yAvg = &average( \@yScaleAvg );
+say "Y-scale average after deleting outside 1st dev: $yAvg";
+
+#------------------------
+#--------------------
+#ulX average and standard deviation
+my $ulXAvrg   = &average( \@ulXAvg );
+my $ulXStdDev = &stdev( \@ulXAvg );
+say "Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev";
+
+#Delete values from the array that are outside 1st dev
+for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
+    splice( @ulXAvg, $i, 1 )
+      if ( $ulXAvg[$i] < ( $ulXAvrg - $ulXStdDev )
+        || $ulXAvg[$i] > ( $ulXAvrg + $ulXStdDev ) );
+}
+$ulXAvrg = &average( \@ulXAvg );
+say "Upper Left X  average after deleting outside 1st dev: $ulXAvrg";
+
+#------------------------
+#uly average and standard deviation
+my $ulYAvrg   = &average( \@ulYAvg );
+my $ulYStdDev = &stdev( \@ulYAvg );
+say "Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev";
+
+#Delete values from the array that are outside 1st dev
+for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
+    splice( @ulYAvg, $i, 1 )
+      if ( $ulYAvg[$i] < ( $ulYAvrg - $ulYStdDev )
+        || $ulYAvg[$i] > ( $ulYAvrg + $ulYStdDev ) );
+}
+$ulYAvrg = &average( \@ulYAvg );
+say "Upper Left Y average after deleting outside 1st dev: $ulYAvrg";
+
+#------------------------
+#------------------------
+#lrX average and standard deviation
+my $lrXAvrg   = &average( \@lrXAvg );
+my $lrXStdDev = &stdev( \@lrXAvg );
+say "Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev";
+
+#Delete values from the array that are outside 1st dev
+for ( my $i = 0 ; $i <= $#lrXAvg ; $i++ ) {
+    splice( @lrXAvg, $i, 1 )
+      if ( $lrXAvg[$i] < ( $lrXAvrg - $lrXStdDev )
+        || $lrXAvg[$i] > ( $lrXAvrg + $lrXStdDev ) );
+}
+$lrXAvrg = &average( \@lrXAvg );
+say "Lower Right X average after deleting outside 1st dev: $lrXAvrg";
+
+#------------------------
+#------------------------
+#lrY average and standard deviation
+my $lrYAvrg   = &average( \@lrYAvg );
+my $lrYStdDev = &stdev( \@lrYAvg );
+say "Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev";
+
+#Delete values from the array that are outside 1st dev
+for ( my $i = 0 ; $i <= $#lrYAvg ; $i++ ) {
+    splice( @lrYAvg, $i, 1 )
+      if ( $lrYAvg[$i] < ( $lrYAvrg - $lrYStdDev )
+        || $lrYAvg[$i] > ( $lrYAvrg + $lrYStdDev ) );
+}
+$lrYAvrg = &average( \@lrYAvg );
+say "Lower Right Y average after deleting outside 1st dev: $lrYAvrg";
+
+#------------------------
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------
+#Try to georeference based on the list of Ground Control Points
 my $gdal_translateoutput;
-# $gdal_translateoutput = qx(gdal_translate -of GTiff -a_srs epsg:4326 -a_ullr $lonDistOrigin $latDistUr $lonDistUr $latDistOrigin $targetpng  $targettif  );
+
+my $upperLeftLon  = $ulXAvrg;
+my $upperLeftLat  = $ulYAvrg;
+my $lowerRightLon = $lrXAvrg;
+my $lowerRightLat = $lrYAvrg;
 $gdal_translateoutput =
-qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
+qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
+
+# $gdal_translateoutput =
+# qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
 $retval = $? >> 8;
 die "No output from gdal_translate  Is it installed? Return code was $retval"
   if ( $gdal_translateoutput eq "" || $retval != 0 );
 say $gdal_translateoutput;
 
-my $gdalwarpoutput;
-$gdalwarpoutput =
-qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
-$retval = $? >> 8;
-die "No output from gdalwarp.  Is it installed? Return code was $retval"
-  if ( $gdalwarpoutput eq "" || $retval != 0 );
+# my $gdalwarpoutput;
+# $gdalwarpoutput =
+# qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
+# $retval = $? >> 8;
+# die "No output from gdalwarp.  Is it installed? Return code was $retval"
+# if ( $gdalwarpoutput eq "" || $retval != 0 );
 
-#command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
-# -refine_gcps tolerance minimum_gcps:
-# (GDAL >= 1.9.0) refines the GCPs by automatically eliminating outliers. Outliers will be
-# eliminated until minimum_gcps are left or when no outliers can be detected. The
-# tolerance is passed to adjust when a GCP will be eliminated. Note that GCP refinement
-# only works with polynomial interpolation. The tolerance is in pixel units if no
-# projection is available, otherwise it is in SRS units. If minimum_gcps is not provided,
-# the minimum GCPs according to the polynomial model is used.
+# #command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
+# # -refine_gcps tolerance minimum_gcps:
+# # (GDAL >= 1.9.0) refines the GCPs by automatically eliminating outliers. Outliers will be
+# # eliminated until minimum_gcps are left or when no outliers can be detected. The
+# # tolerance is passed to adjust when a GCP will be eliminated. Note that GCP refinement
+# # only works with polynomial interpolation. The tolerance is in pixel units if no
+# # projection is available, otherwise it is in SRS units. If minimum_gcps is not provided,
+# # the minimum GCPs according to the polynomial model is used.
 
-say $gdalwarpoutput;
+# say $gdalwarpoutput;
 
 #This version tries using the PDF directly instead of the intermediate PNG
 # say $gcpstring;
@@ -1257,3 +1455,4 @@ say $gdalwarpoutput;
 
 #;
 #;
+
