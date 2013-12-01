@@ -18,6 +18,8 @@
 
 #Known issues:
 
+#Maybe the obstacle center is at the apex of the triangle?
+
 #Output some statistics from the process to see which plates are working
 #Change the logic for obstacles to find nearest text to icon and not vice versa (the current method)
 #Relies on icons being drawn very specific ways, it won't work if these ever change
@@ -114,8 +116,12 @@ my $targetpng = $dir . $filename . ".png";
 my $targettif = $dir . $filename . ".tif";
 my $targetvrt = $dir . $filename . ".vrt";
 
+my $rnavPlate=0;
 die "Source file needs to be a PDF" if !( $ext =~ m/^\.pdf$/i );
-
+if ($filename =~ m/^\d+R/){
+    say "Input is a GPS plate, using only GPS waypoints for references";
+    $rnavPlate=1;
+}
 if ($debug) {
     say "Directory: " . $dir;
     say "File:      " . $filename;
@@ -318,8 +324,8 @@ say "Object streams: " . $objectstreams;
 #q     Save graphics state
 #Q     Restore graphics state
 my $obstacleregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) [\.0-9]+ l ([\.0-9]+) [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
-
+qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) ([\.0-9]+) l [\.0-9]+ [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
+#                           0x               1y                                     2+x         3+y                                                                               4dotX     5dotY
 # my $obstacleregex =
 # qr/
 # ^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm
@@ -367,7 +373,7 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 #This finds the midpoint X of the obstacle triangle (the X,Y of the dot itself was too far right)
 
             $obstacles{$i}{"X"} = $tempobstacles[$i] + $tempobstacles[ $i + 2 ];
-            $obstacles{$i}{"Y"} = $tempobstacles[ $i + 1 ];
+            $obstacles{$i}{"Y"} = $tempobstacles[ $i + 1 ];#+ $tempobstacles[ $i + 3 ];
             $obstacles{$i}{"Height"}             = "unknown";
             $obstacles{$i}{"BoxesThatPointToMe"} = "0";
         }
@@ -445,7 +451,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
             #put them into a hash
             $gpswaypoints{$i}{"X"}              = $tempgpswaypoints[$i];
             $gpswaypoints{$i}{"Y"}              = $tempgpswaypoints[ $i + 1 ];
-            $gpswaypoints{$i}{"iconCenterXPdf"} = $tempgpswaypoints[$i] + 7;  #TODO Calculate this properly
+            $gpswaypoints{$i}{"iconCenterXPdf"} = $tempgpswaypoints[$i] + 8;  #TODO Calculate this properly
             $gpswaypoints{$i}{"iconCenterYPdf"} = $tempgpswaypoints[ $i + 1 ];
             $gpswaypoints{$i}{"Name"}           = "none";
         }
@@ -1081,9 +1087,9 @@ foreach my $key ( sort keys %gpswaypoints ) {
     my $distance_to_closest_fixtextbox = 999999999999;
     foreach my $key2 ( keys %fixtextboxes ) {
         $distance_to_closest_fixtextbox_x =
-          $fixtextboxes{$key2}{"iconCenterXPdf"} - $gpswaypoints{$key}{"X"};
+          $fixtextboxes{$key2}{"iconCenterXPdf"} - $gpswaypoints{$key}{"iconCenterXPdf"};
         $distance_to_closest_fixtextbox_y =
-          $fixtextboxes{$key2}{"iconCenterYPdf"} - $gpswaypoints{$key}{"Y"};
+          $fixtextboxes{$key2}{"iconCenterYPdf"} - $gpswaypoints{$key}{"iconCenterYPdf"};
 
         my $hyp = sqrt( $distance_to_closest_fixtextbox_x**2 +
               $distance_to_closest_fixtextbox_y**2 );
@@ -1146,14 +1152,14 @@ foreach my $key ( sort keys %gpswaypoints ) {
             my $name = $gpswaypoints{$key}{"Name"};
             say "A ha, I found a duplicate GPS waypoint name: $name";
             my $distance_to_pdf_center_x1 =
-              abs( $pdfCenterX - $gpswaypoints{$key}{"X"} );
+              abs( $pdfCenterX - $gpswaypoints{$key}{"iconCenterXPdf"} );
             my $distance_to_pdf_center_y1 =
-              abs( $pdfCenterY - $gpswaypoints{$key}{"Y"} );
+              abs( $pdfCenterY - $gpswaypoints{$key}{"iconCenterYPdf"} );
             say $distance_to_pdf_center_y1;
             my $distance_to_pdf_center_x2 =
-              abs( $pdfCenterX - $gpswaypoints{$key2}{"X"} );
+              abs( $pdfCenterX - $gpswaypoints{$key2}{"iconCenterXPdf"} );
             my $distance_to_pdf_center_y2 =
-              abs( $pdfCenterY - $gpswaypoints{$key2}{"Y"} );
+              abs( $pdfCenterY - $gpswaypoints{$key2}{"iconCenterYPdf"} );
             say $distance_to_pdf_center_y2;
 
             if ( $distance_to_pdf_center_y1 < $distance_to_pdf_center_y2 ) {
@@ -1198,6 +1204,7 @@ $dbh->disconnect();
 my %gcps;
 say "Obstacle Ground Control Points";
 
+if (!$rnavPlate){
 #Add obstacles to Ground Control Points hash
 foreach my $key ( sort keys %unique_obstacles_from_db ) {
     my $pngx = $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
@@ -1213,40 +1220,43 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
         $gcps{ "obstacle" . $key }{"lat"}  = $lat;
     }
 }
+}
 
-# #Add fixes to Ground Control Points hash
-# say "Fix Ground Control Points" if $debug;
-# foreach my $key ( sort keys %fixicons ) {
-    # my $pngx = $fixicons{$key}{"X"} * $scalefactorx;
-    # my $pngy = $pngy - ( $fixicons{$key}{"Y"} * $scalefactory );
-    # my $lon  = $fixicons{$key}{"Lon"};
-    # my $lat  = $fixicons{$key}{"Lat"};
-    # if ( $pngy && $pngx && $lon && $lat ) {
-        # say "$pngx $pngy $lon $lat" if $debug;
-        # $gcps{ "fix" . $key }{"pngx"} = $pngx;
-        # $gcps{ "fix" . $key }{"pngy"} = $pngy;
-        # $gcps{ "fix" . $key }{"lon"}  = $lon;
-        # $gcps{ "fix" . $key }{"lat"}  = $lat;
-    # }
-# }
+if (!$rnavPlate){
+#Add fixes to Ground Control Points hash
+say "Fix Ground Control Points" if $debug;
+foreach my $key ( sort keys %fixicons ) {
+    my $pngx = $fixicons{$key}{"X"} * $scalefactorx;
+    my $pngy = $pngy - ( $fixicons{$key}{"Y"} * $scalefactory );
+    my $lon  = $fixicons{$key}{"Lon"};
+    my $lat  = $fixicons{$key}{"Lat"};
+    if ( $pngy && $pngx && $lon && $lat ) {
+        say "$pngx $pngy $lon $lat" if $debug;
+        $gcps{ "fix" . $key }{"pngx"} = $pngx;
+        $gcps{ "fix" . $key }{"pngy"} = $pngy;
+        $gcps{ "fix" . $key }{"lon"}  = $lon;
+        $gcps{ "fix" . $key }{"lat"}  = $lat;
+    }
+}
+}
 
-# #Add GPS waypoints to Ground Control Points hash
-# say "GPS waypoint Ground Control Points" if $debug;
-# foreach my $key ( sort keys %gpswaypoints ) {
+#Add GPS waypoints to Ground Control Points hash
+say "GPS waypoint Ground Control Points" if $debug;
+foreach my $key ( sort keys %gpswaypoints ) {
 
-    # my $pngx = $gpswaypoints{$key}{"X"} * $scalefactorx;
-    # my $pngy = $pngy - ( $gpswaypoints{$key}{"Y"} * $scalefactory );
-    # my $lon  = $gpswaypoints{$key}{"Lon"};
-    # my $lat  = $gpswaypoints{$key}{"Lat"};
-    # if ( $pngy && $pngx && $lon && $lat ) {
+    my $pngx = $gpswaypoints{$key}{"iconCenterXPdf"} * $scalefactorx;
+    my $pngy = $pngy - ( $gpswaypoints{$key}{"iconCenterYPdf"} * $scalefactory );
+    my $lon  = $gpswaypoints{$key}{"Lon"};
+    my $lat  = $gpswaypoints{$key}{"Lat"};
+    if ( $pngy && $pngx && $lon && $lat ) {
 
-        # say "$pngx $pngy $lon $lat" if $debug;
-        # $gcps{ "gps" . $key }{"pngx"} = $pngx;
-        # $gcps{ "gps" . $key }{"pngy"} = $pngy;
-        # $gcps{ "gps" . $key }{"lon"}  = $lon;
-        # $gcps{ "gps" . $key }{"lat"}  = $lat;
-    # }
-# }
+        say "$pngx $pngy $lon $lat" if $debug;
+        $gcps{ "gps" . $key }{"pngx"} = $pngx;
+        $gcps{ "gps" . $key }{"pngy"} = $pngy;
+        $gcps{ "gps" . $key }{"lon"}  = $lon;
+        $gcps{ "gps" . $key }{"lat"}  = $lat;
+    }
+}
 if ($debug) {
     say "GCPs";
     print Dumper ( \%gcps );
@@ -1286,18 +1296,12 @@ my @lrYAvg;
 my $scaleCounter = 0;
 
 foreach my $key ( sort keys %gcps ) {
-
-    #  $scaleCounter++;
-    # my $gcp1PngX = $gcps{$key}{"pngx"} . " "
-    # . $gcps{$key}{"pngy"} . " "
-    # . $gcps{$key}{"lon"} . " "
-    # . $gcps{$key}{"lat"};
-    #  say $key;
+    #This code is for calculating the PDF x/y and lon/lat differences between every object
+    #to calculate the ratio between the two
     foreach my $key2 ( sort keys %gcps ) {
         next if $key eq $key2;
-        $scaleCounter++;
+        #$scaleCounter++;
 
-        #build the GCP portion of the command line parameters
         my $xdiff   = abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} )+.00000000000000001;
         my $ydiff   = abs( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} )+.00000000000000001;
         my $londiff = abs( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
@@ -1311,17 +1315,13 @@ foreach my $key ( sort keys %gcps ) {
         my $lrY =
           $gcps{$key}{"lat"} - ( abs( $pngy - $gcps{$key}{"pngy"} ) * $yscale );
 
-        say
-          "$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY";
+        #say          "$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY";
         push @xScaleAvg, $xscale;
         push @yScaleAvg, $yscale;
         push @ulXAvg,    $ulX;
         push @ulYAvg,    $ulY;
         push @lrXAvg,    $lrX;
         push @lrYAvg,    $lrY;
-
-        # $xScaleAvg=$xScaleAvg+$xscale;
-        # $yScaleAvg=$yScaleAvg+$yscale;
     }
 }
 
