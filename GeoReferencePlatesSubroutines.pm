@@ -25,7 +25,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 $VERSION     = 1.00;
 @ISA         = qw(Exporter);
-@EXPORT      = qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq);
+@EXPORT      = qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev);
 #@EXPORT_OK   = qw(  coordinatetodecimal );
 
 my $debug = 0;
@@ -115,5 +115,30 @@ sub onlyuniq {
     return @r;
 }
 
+sub average {
+    my ($data) = @_;
+    if ( not @$data ) {
+        die("Empty array\n");
+    }
+    my $total = 0;
+    foreach (@$data) {
+        $total += $_;
+    }
+    my $average = $total / @$data;
+    return $average;
+}
 
+sub stdev {
+    my ($data) = @_;
+    if ( @$data == 1 ) {
+        return 0;
+    }
+    my $average = &average($data);
+    my $sqtotal = 0;
+    foreach (@$data) {
+        $sqtotal += ( $average - $_ )**2;
+    }
+    my $std = ( $sqtotal / ( @$data - 1 ) )**0.5;
+    return $std;
+}
 1;
