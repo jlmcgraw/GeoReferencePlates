@@ -50,6 +50,7 @@ use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
 use Getopt::Std;
+use Carp;
 
 #PDF constants
 use constant mm => 25.4 / 72;
@@ -88,7 +89,7 @@ my $saveMarkedPdf    = $opt{p};
 my $outputStatistics = $opt{s};
 
 my ( $output, $targetpdf );
-my ( $pdfx, $pdfy, $pdfCenterX, $pdfCenterY, $pngx, $pngy );
+
 my $retval;
 
 #Get the target PDF file from command line options
@@ -131,13 +132,7 @@ open my $file, '<', $targetpdf
   or die "can't open '$targetpdf' for reading : $!";
 close $file;
 
-#-----------------------------------------------
-#Get the lat/lon of the airport for the plate we're working on
-#This line will try to pull the lat/lon at the bottom of the drawing instead of a DB query
-#pdftotext  <pdf_name> - | grep -P '\b\d+’[NS]-\d+’[EW]'
-my $airportLatitudeDec  = "";
-my $airportLongitudeDec = "";
-
+#Pull all text out of the PDF
 my @pdftotext;
 @pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
 $retval    = $? >> 8;
@@ -160,90 +155,12 @@ $dbh = DBI->connect(
     "", "", { RaiseError => 1 },
 ) or die $DBI::errstr;
 
-#Try to pull out the lat/lon at the bottom of the chart, die if can't
-foreach my $line (@pdftotext) {
+#Pull airport location from chart or database
+my ( $airportLatitudeDec, $airportLongitudeDec ) =
+  findAirportLatitudeAndLongitude();
 
-    # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
-    if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
-        my (
-            $aptlat,    $aptlon,    $aptlatd,   $aptlond,
-            $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
-        );
-        $aptlat  = $1;
-        $aptlatd = $2;
-        $aptlon  = $3;
-        $aptlond = $4;
-
-        $aptlatdeg = substr( $aptlat, 0,  -2 );
-        $aptlatmin = substr( $aptlat, -2, 2 );
-
-        $aptlondeg = substr( $aptlon, 0,  -2 );
-        $aptlonmin = substr( $aptlon, -2, 2 );
-
-        $airportLatitudeDec =
-          &coordinatetodecimal(
-            $aptlatdeg . "-" . $aptlatmin . "-00" . $aptlatd );
-
-        $airportLongitudeDec =
-          &coordinatetodecimal(
-            $aptlondeg . "-" . $aptlonmin . "-00" . $aptlond );
-
-        say
-"Airport LAT/LON from plate: $airportLatitudeDec $airportLongitudeDec";
-    }
-
-}
-
-if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" ) {
-
-    #We didn't get any airport info from the PDF, let's check the database
-    #Get airport from database
-    die
-"You must specify an airport ID (eg. -a SMF) since there was no info on the PDF"
-      if $airportid eq "";
-
-    #Query the database for airport
-    $sth = $dbh->prepare(
-"SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportid'"
-    );
-    $sth->execute();
-    my $allSqlQueryResults = $sth->fetchall_arrayref();
-
-    foreach my $row (@$allSqlQueryResults) {
-        my ( $airportFaaId, $airportname );
-        (
-            $airportFaaId, $airportLatitudeDec, $airportLongitudeDec,
-            $airportname
-        ) = @$row;
-        say "Airport ID: $airportFaaId";
-        say "Airport Latitude: $airportLatitudeDec";
-        say "Airport Longitude: $airportLongitudeDec";
-        say "Airport Name: $airportname";
-    }
-    die
-"No airport coordinate information on PDF or database, try   -a <airport> "
-      if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" );
-}
-
-#----------------------------------------------------------
 #Get the mediabox size from the PDF
-my $mutoolinfo;
-$mutoolinfo = qx(mutool info $targetpdf);
-$retval     = $? >> 8;
-die "No output from mutool info.  Is it installed? Return code was $retval"
-  if ( $mutoolinfo eq "" || $retval != 0 );
-
-foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
-    ## Regular expression magic to grab what you want
-    if ( $line =~ /([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+)/ ) {
-        $pdfx       = $3 - $1;
-        $pdfy       = $4 - $2;
-        $pdfCenterX = $pdfx / 2;
-        $pdfCenterY = $pdfy / 2;
-        say "PDF Mediabox size: " . $pdfx . "x" . $pdfy;
-        say "PDF Mediabox center: " . $pdfCenterX . "x" . $pdfCenterY;
-    }
-}
+my ( $pdfx, $pdfy, $pdfCenterX, $pdfCenterY ) = getMediaboxSize();
 
 #---------------------------------------------------
 #Convert PDF to a PNG
@@ -253,47 +170,12 @@ $pdftoppmoutput = qx(pdftoppm -png -r 300 $targetpdf > $targetpng);
 $retval = $? >> 8;
 die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 
-#---------------------------------------------------------------------------------------------------------
-#Find the dimensions of the PNG
-my $fileoutput;
-$fileoutput = qx(file $targetpng );
-$retval     = $? >> 8;
-die "No output from file.  Is it installed? Return code was $retval"
-  if ( $fileoutput eq "" || $retval != 0 );
-
-foreach my $line ( split /[\r\n]+/, $fileoutput ) {
-    ## Regular expression magic to grab what you want
-    if ( $line =~ /([-\.0-9]+)\s+x\s+([-\.0-9]+)/ ) {
-        $pngx = $1;
-        $pngy = $2;
-    }
-}
-
-#Calculate the ratios of the PNG/PDF coordinates
-my $scalefactorx = $pngx / $pdfx;
-my $scalefactory = $pngy / $pdfy;
-
-say "PNG size: " . $pngx . "x" . $pngy;
-say "Scalefactor PDF->PNG X:  " . $scalefactorx;
-say "Scalefactor PDF->PNG Y:  " . $scalefactory;
+#Get PNG dimensions and the PDF->PNG scale factors
+my ( $pngx, $pngy, $scalefactorx, $scalefactory ) = getPngSize();
 
 #--------------------------------------------------------------------------------------------------------------
 #Get number of objects/streams in the targetpdf
-my $mutoolshowoutput;
-$mutoolshowoutput = qx(mutool show $targetpdf x);
-$retval           = $? >> 8;
-die "No output from mutool show.  Is it installed? Return code was $retval"
-  if ( $mutoolshowoutput eq "" || $retval != 0 );
-
-my $objectstreams;
-
-foreach my $line ( split /[\r\n]+/, $mutoolshowoutput ) {
-    ## Regular expression magic to grab what you want
-    if ( $line =~ /^(\d+)\s+(\d+)$/ ) {
-        $objectstreams = $2;
-    }
-}
-say "Object streams: " . $objectstreams;
+my $objectstreams = getNumberOfStreams();
 
 # #Some regex building blocks
 # my $transformReg = qr/
@@ -340,6 +222,9 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) ([\.0-9]+) l [\.0-9]+ [\.
 # /m;
 my %obstacleIcons = ();
 
+#%obstacleIcons = findObstacleIcons ($streamText, \@array, $scalar);
+
+#sub findObstacleIcons{
 for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 
     $output = qx(mutool show $targetpdf $stream x);
@@ -379,7 +264,11 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 }
 
 #print Dumper ( \%obstacleIcons );
-say "Found " . keys(%obstacleIcons) . " obstacle icons";
+my $obstacleCount = keys(%obstacleIcons);
+
+say "Found $obstacleCount obstacle icons";
+
+#}
 
 # exit;
 # #-------------------------------------------------------------------------------------------------------
@@ -419,8 +308,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
     }
 }
-
-say "Found " . keys(%fixIcons) . " fix icons";
+my $fixCount = keys(%fixIcons);
+say "Found $fixCount fix icons";
 
 #--------------------------------------------------------------------------------------------------------
 #Find first half of gps waypoint icons
@@ -449,7 +338,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
             $gpsWaypointIcons{$i}{"X"} = $tempgpswaypoints[$i];
             $gpsWaypointIcons{$i}{"Y"} = $tempgpswaypoints[ $i + 1 ];
             $gpsWaypointIcons{$i}{"iconCenterXPdf"} =
-              $tempgpswaypoints[$i] + 7.5;    #TODO Calculate this properly
+              $tempgpswaypoints[$i] +
+              7.5;    #TODO Calculate this properly, this number is a estimation
             $gpsWaypointIcons{$i}{"iconCenterYPdf"} =
               $tempgpswaypoints[ $i + 1 ];
             $gpsWaypointIcons{$i}{"Name"} = "none";
@@ -457,7 +347,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
     }
 }
-say "Found " . keys(%gpsWaypointIcons) . " GPS waypoint icons";
+my $gpsCount = keys(%gpsWaypointIcons);
+say "Found $gpsCount GPS waypoint icons";
 
 #--------------------------------------------------------------------------------------------------------
 #Find Final Approach Fix icon
@@ -490,7 +381,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
     }
 }
-say "Found " . keys(%finalApproachFixIcons) . " Final Approach Fix icons";
+my $finalApproachFixCount = keys(%finalApproachFixIcons);
+say "Found $finalApproachFixCount Final Approach Fix icons";
 
 # #--------------------------------------------------------------------------------------------------------
 # #Find Visual Descent Point icon
@@ -529,7 +421,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
     }
 }
-say "Found " . keys(%visualDescentPointIcons) . " Visual Descent Point icons";
+my $visualDescentPointCount = keys(%visualDescentPointIcons);
+say "Found $visualDescentPointCount Visual Descent Point icons";
 
 #Get all of the text and respective bounding boxes in the PDF
 my @pdftotextbbox = qx(pdftotext $targetpdf -bbox - );
@@ -602,90 +495,11 @@ say "Found " . keys(%fixtextboxes) . " Potential Fix text boxes";
 #Modify the PDF
 my $pdf = PDF::API2->open($targetpdf);
 
-my %font = (
-    Helvetica => {
-        Bold => $pdf->corefont( 'Helvetica-Bold', -encoding => 'latin1' ),
-
-    #      Roman  => $pdf->corefont('Helvetica',         -encoding => 'latin1'),
-    #      Italic => $pdf->corefont('Helvetica-Oblique', -encoding => 'latin1'),
-    },
-    Times => {
-
-    #      Bold   => $pdf->corefont('Times-Bold',        -encoding => 'latin1'),
-        Roman => $pdf->corefont( 'Times', -encoding => 'latin1' ),
-
-    #      Italic => $pdf->corefont('Times-Italic',      -encoding => 'latin1'),
-    },
-);
-
 #Set up the various types of boxes to draw on the output PDF
 my $page = $pdf->openpage(1);
 
-#Draw the various types of boxes on the output PDF
-foreach my $key ( sort keys %obstacleIcons ) {
-    my $obstacle_box = $page->gfx;
-    $obstacle_box->rect(
-        $obstacleIcons{$key}{X} - 4,
-        $obstacleIcons{$key}{Y} - 2,
-        7, 8
-    );
-    $obstacle_box->strokecolor('red');
-    $obstacle_box->linewidth(.1);
-    $obstacle_box->stroke;
-    $obstacle_box->circle( $obstacleIcons{$key}{X},
-        $obstacleIcons{$key}{Y}, 18 );
-    $obstacle_box->strokecolor('pink');
-    $obstacle_box->linewidth(.1);
-    $obstacle_box->stroke;
-
-}
-
-foreach my $key ( sort keys %fixIcons ) {
-    my $fix_box = $page->gfx;
-    $fix_box->rect( $fixIcons{$key}{X} - 4, $fixIcons{$key}{Y} - 4, 9, 9 );
-    $fix_box->strokecolor('yellow');
-    $fix_box->stroke;
-}
-foreach my $key ( sort keys %fixtextboxes ) {
-    my $fix_box = $page->gfx;
-    $fix_box->rect(
-        $fixtextboxes{$key}{PdfX},    $fixtextboxes{$key}{PdfY} + 2,
-        $fixtextboxes{$key}{"Width"}, -( $fixtextboxes{$key}{"Height"} + 2 )
-    );
-    $fix_box->stroke;
-}
-foreach my $key ( sort keys %gpsWaypointIcons ) {
-    my $gpswaypoint_box = $page->gfx;
-    $gpswaypoint_box->rect(
-        $gpsWaypointIcons{$key}{X} - 1,
-        $gpsWaypointIcons{$key}{Y} - 8,
-        17, 16
-    );
-    $gpswaypoint_box->strokecolor('blue');
-    $gpswaypoint_box->stroke;
-}
-
-foreach my $key ( sort keys %finalApproachFixIcons ) {
-    my $faf_box = $page->gfx;
-    $faf_box->rect(
-        $finalApproachFixIcons{$key}{X} - 5,
-        $finalApproachFixIcons{$key}{Y} - 5,
-        10, 10
-    );
-    $faf_box->strokecolor('purple');
-    $faf_box->stroke;
-}
-
-foreach my $key ( sort keys %visualDescentPointIcons ) {
-    my $vdp_box = $page->gfx;
-    $vdp_box->rect(
-        $visualDescentPointIcons{$key}{X} - 3,
-        $visualDescentPointIcons{$key}{Y} - 7,
-        8, 8
-    );
-    $vdp_box->strokecolor('green');
-    $vdp_box->stroke;
-}
+#Draw boxes around what we've found so far
+outlineEverythingWeFound();
 
 #Try to find closest obstacleTextBox to each obstacle icon
 foreach my $key ( sort keys %obstacleIcons ) {
@@ -733,15 +547,7 @@ if ($debug) {
 }
 
 #Draw a line from obstacle icon to closest text boxes
-my $obstacle_line = $page->gfx;
-$obstacle_line->strokecolor('blue');
-foreach my $key ( sort keys %obstacleIcons ) {
-    $obstacle_line->move( $obstacleIcons{$key}{"X"},
-        $obstacleIcons{$key}{"Y"} );
-    $obstacle_line->line( $obstacleIcons{$key}{"TextBoxX"},
-        $obstacleIcons{$key}{"TextBoxY"} );
-    $obstacle_line->stroke;
-}
+drawLineFromEachObstacleToClosestTextBox();
 
 #Save our new PDF since we're done with it
 #$pdf->saveas($outputpdf);
@@ -751,27 +557,8 @@ foreach my $key ( sort keys %obstacleIcons ) {
 #Get a list of potential obstacle heights from the PDF text array
 #(alternately, iterate through each obstacle and find the closest text box
 
-my @obstacle_heights;
-
-foreach my $line (@pdftotext) {
-
-    #Find 3+ digit numbers that don't end in 0
-    if ( $line =~ m/^([1-9][\d]{1,}[1-9])$/ ) {
-        next if $1 > 30000;
-        push @obstacle_heights, $1;
-    }
-
-}
-
-if ($debug) {
-    say "Potential obstacle heights from PDF";
-    print join( " ", @obstacle_heights ), "\n";
-
-    #Remove all entries that aren't unique
-    @obstacle_heights = onlyuniq(@obstacle_heights);
-    say "Unique potential obstacle heights from PDF";
-    print join( " ", @obstacle_heights ), "\n";
-}
+my @obstacle_heights = findObstacleHeightTexts(@pdftotext);
+say @obstacle_heights;
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Find obstacles with a certain height in the DB
@@ -1264,7 +1051,9 @@ foreach my $key ( sort keys %gpsWaypointIcons ) {
 }
 
 #Save our new PDF since we're done with it
-if ($saveMarkedPdf) { $pdf->saveas($outputpdf) }
+if ($saveMarkedPdf) { 
+   $pdf->saveas($outputpdf) 
+   }
 
 #Close the database
 $sth->finish();
@@ -1355,9 +1144,10 @@ if ($debug) {
 }
 
 #Make sure we have enough GCPs
-say "Found " . scalar( keys(%gcps) ) . " GCPS";
+my $gcpCount = scalar( keys(%gcps) );
+say "Found $gcpCount Ground Countrol Points";
 
-die "Need more Ground Control Points" if ( scalar( keys(%gcps) ) < 2 );
+die "Need more Ground Control Points" if ( $gcpCount < 2 );
 say '$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY'
   if $debug;
 
@@ -1512,6 +1302,7 @@ my $upperLeftLon  = $ulXAvrg;
 my $upperLeftLat  = $ulYAvrg;
 my $lowerRightLon = $lrXAvrg;
 my $lowerRightLat = $lrYAvrg;
+if (!$outputStatistics) {
 $gdal_translateoutput =
 qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
 
@@ -1522,6 +1313,7 @@ die "No output from gdal_translate  Is it installed? Return code was $retval"
   if ( $gdal_translateoutput eq "" || $retval != 0 );
 say $gdal_translateoutput;
 
+}
 # my $gdalwarpoutput;
 # $gdalwarpoutput =
 # qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
@@ -1547,6 +1339,304 @@ say $gdal_translateoutput;
 # $output = qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha $targetpdf.vrt $targettif);
 # say $output;
 
-#;
-#;
+
+if ($outputStatistics){
+open my $file, '>', $targetStatistics
+  or die "can't open '$targetStatistics' for writing : $!";
+
+say { $file } '$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount';
+
+say { $file } "$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount"
+    or croak "Cannot write to $targetStatistics: "; #$OS_ERROR
+
+close $file;
+}
+
+#Subroutines
+#------------------------------------------------------------------------------------------------------------------------------------------
+sub findObstacleHeightTexts {
+    my @pdftotext = @_;
+    my @obstacle_heights;
+
+    foreach my $line (@pdftotext) {
+
+   #Find 3+ digit numbers that don't start or end with 0 and are less than 30000
+        if ( $line =~ m/^([1-9][\d]{1,}[1-9])$/ ) {
+            next if $1 > 30000;
+            push @obstacle_heights, $1;
+        }
+
+    }
+
+    if ($debug) {
+        say "Potential obstacle heights from PDF";
+        print join( " ", @obstacle_heights ), "\n";
+
+        #Remove all entries that aren't unique
+        @obstacle_heights = onlyuniq(@obstacle_heights);
+        say "Unique potential obstacle heights from PDF";
+        print join( " ", @obstacle_heights ), "\n";
+    }
+    return @obstacle_heights;
+}
+
+sub findAirportLatitudeAndLongitude {
+
+#-----------------------------------------------
+#Get the lat/lon of the airport for the plate we're working on
+#This line will try to pull the lat/lon at the bottom of the drawing instead of a DB query
+#pdftotext  <pdf_name> - | grep -P '\b\d+’[NS]-\d+’[EW]'
+    my $airportLatitudeDec  = "";
+    my $airportLongitudeDec = "";
+
+    #Try to pull out the lat/lon at the bottom of the chart, die if can't
+    foreach my $line (@pdftotext) {
+
+        # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
+        if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
+            my (
+                $aptlat,    $aptlon,    $aptlatd,   $aptlond,
+                $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
+            );
+            $aptlat  = $1;
+            $aptlatd = $2;
+            $aptlon  = $3;
+            $aptlond = $4;
+
+            $aptlatdeg = substr( $aptlat, 0,  -2 );
+            $aptlatmin = substr( $aptlat, -2, 2 );
+
+            $aptlondeg = substr( $aptlon, 0,  -2 );
+            $aptlonmin = substr( $aptlon, -2, 2 );
+
+            $airportLatitudeDec =
+              &coordinatetodecimal(
+                $aptlatdeg . "-" . $aptlatmin . "-00" . $aptlatd );
+
+            $airportLongitudeDec =
+              &coordinatetodecimal(
+                $aptlondeg . "-" . $aptlonmin . "-00" . $aptlond );
+
+            say
+"Airport LAT/LON from plate: $airportLatitudeDec $airportLongitudeDec"
+              if $debug;
+            return ( $airportLatitudeDec, $airportLongitudeDec );
+        }
+
+    }
+
+    if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" ) {
+
+        #We didn't get any airport info from the PDF, let's check the database
+        #Get airport from database
+        die
+"You must specify an airport ID (eg. -a SMF) since there was no info on the PDF"
+          if $airportid eq "";
+
+        #Query the database for airport
+        $sth = $dbh->prepare(
+"SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportid'"
+        );
+        $sth->execute();
+        my $allSqlQueryResults = $sth->fetchall_arrayref();
+
+        foreach my $row (@$allSqlQueryResults) {
+            my ( $airportFaaId, $airportname );
+            (
+                $airportFaaId, $airportLatitudeDec, $airportLongitudeDec,
+                $airportname
+            ) = @$row;
+            say "Airport ID: $airportFaaId";
+            say "Airport Latitude: $airportLatitudeDec";
+            say "Airport Longitude: $airportLongitudeDec";
+            say "Airport Name: $airportname";
+        }
+        die
+"No airport coordinate information on PDF or database, try   -a <airport> "
+          if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" );
+    }
+}
+
+sub getMediaboxSize {
+
+    #----------------------------------------------------------
+    #Get the mediabox size from the PDF
+    my $mutoolinfo;
+    $mutoolinfo = qx(mutool info $targetpdf);
+    $retval     = $? >> 8;
+    die "No output from mutool info.  Is it installed? Return code was $retval"
+      if ( $mutoolinfo eq "" || $retval != 0 );
+
+    foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
+        ## Regular expression magic to grab what you want
+        if ( $line =~ /([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+)/ ) {
+            $pdfx       = $3 - $1;
+            $pdfy       = $4 - $2;
+            $pdfCenterX = $pdfx / 2;
+            $pdfCenterY = $pdfy / 2;
+            if ($debug) {
+                say "PDF Mediabox size: " . $pdfx . "x" . $pdfy;
+                say "PDF Mediabox center: " . $pdfCenterX . "x" . $pdfCenterY;
+            }
+            return ( $pdfx, $pdfy, $pdfCenterX, $pdfCenterY );
+        }
+    }
+}
+
+sub getPngSize {
+
+#---------------------------------------------------------------------------------------------------------
+#Find the dimensions of the PNG
+    my $fileoutput;
+
+    $fileoutput = qx(file $targetpng );
+    my $retval = $? >> 8;
+    die "No output from file.  Is it installed? Return code was $retval"
+      if ( $fileoutput eq "" || $retval != 0 );
+
+    foreach my $line ( split /[\r\n]+/, $fileoutput ) {
+        ## Regular expression magic to grab what you want
+        if ( $line =~ /([-\.0-9]+)\s+x\s+([-\.0-9]+)/ ) {
+            $pngx = $1;
+            $pngy = $2;
+        }
+    }
+
+    #Calculate the ratios of the PNG/PDF coordinates
+    my $scalefactorx = $pngx / $pdfx;
+    my $scalefactory = $pngy / $pdfy;
+    if ($debug) {
+        say "PNG size: " . $pngx . "x" . $pngy;
+        say "Scalefactor PDF->PNG X:  " . $scalefactorx;
+        say "Scalefactor PDF->PNG Y:  " . $scalefactory;
+    }
+    return ( $pngx, $pngy, $scalefactorx, $scalefactory );
+}
+
+sub getNumberOfStreams {
+
+#--------------------------------------------------------------------------------------------------------------
+#Get number of objects/streams in the targetpdf
+    my $mutoolshowoutput;
+    $mutoolshowoutput = qx(mutool show $targetpdf x);
+    $retval           = $? >> 8;
+    die "No output from mutool show.  Is it installed? Return code was $retval"
+      if ( $mutoolshowoutput eq "" || $retval != 0 );
+
+    my $objectstreams;
+
+    foreach my $line ( split /[\r\n]+/, $mutoolshowoutput ) {
+        ## Regular expression magic to grab what you want
+        if ( $line =~ /^(\d+)\s+(\d+)$/ ) {
+            $objectstreams = $2;
+        }
+    }
+    say "Object streams: " . $objectstreams;
+    return $objectstreams;
+}
+
+sub outlineEverythingWeFound {
+
+#-------------------------------------------------------------------------------------------------------------------------------
+#Draw the various types of boxes on the output PDF
+
+    my %font = (
+        Helvetica => {
+            Bold => $pdf->corefont( 'Helvetica-Bold', -encoding => 'latin1' ),
+
+    #      Roman  => $pdf->corefont('Helvetica',         -encoding => 'latin1'),
+    #      Italic => $pdf->corefont('Helvetica-Oblique', -encoding => 'latin1'),
+        },
+        Times => {
+
+    #      Bold   => $pdf->corefont('Times-Bold',        -encoding => 'latin1'),
+            Roman => $pdf->corefont( 'Times', -encoding => 'latin1' ),
+
+    #      Italic => $pdf->corefont('Times-Italic',      -encoding => 'latin1'),
+        },
+    );
+
+    foreach my $key ( sort keys %obstacleIcons ) {
+        my $obstacle_box = $page->gfx;
+        $obstacle_box->rect(
+            $obstacleIcons{$key}{X} - 4,
+            $obstacleIcons{$key}{Y} - 2,
+            7, 8
+        );
+        $obstacle_box->strokecolor('red');
+        $obstacle_box->linewidth(.1);
+        $obstacle_box->stroke;
+        $obstacle_box->circle( $obstacleIcons{$key}{X},
+            $obstacleIcons{$key}{Y}, 18 );
+        $obstacle_box->strokecolor('pink');
+        $obstacle_box->linewidth(.1);
+        $obstacle_box->stroke;
+
+    }
+
+    foreach my $key ( sort keys %fixIcons ) {
+        my $fix_box = $page->gfx;
+        $fix_box->rect( $fixIcons{$key}{X} - 4, $fixIcons{$key}{Y} - 4, 9, 9 );
+        $fix_box->strokecolor('yellow');
+        $fix_box->stroke;
+    }
+    foreach my $key ( sort keys %fixtextboxes ) {
+        my $fix_box = $page->gfx;
+        $fix_box->rect(
+            $fixtextboxes{$key}{PdfX},
+            $fixtextboxes{$key}{PdfY} + 2,
+            $fixtextboxes{$key}{"Width"},
+            -( $fixtextboxes{$key}{"Height"} + 2 )
+        );
+        $fix_box->stroke;
+    }
+    foreach my $key ( sort keys %gpsWaypointIcons ) {
+        my $gpswaypoint_box = $page->gfx;
+        $gpswaypoint_box->rect(
+            $gpsWaypointIcons{$key}{X} - 1,
+            $gpsWaypointIcons{$key}{Y} - 8,
+            17, 16
+        );
+        $gpswaypoint_box->strokecolor('blue');
+        $gpswaypoint_box->stroke;
+    }
+
+    foreach my $key ( sort keys %finalApproachFixIcons ) {
+        my $faf_box = $page->gfx;
+        $faf_box->rect(
+            $finalApproachFixIcons{$key}{X} - 5,
+            $finalApproachFixIcons{$key}{Y} - 5,
+            10, 10
+        );
+        $faf_box->strokecolor('purple');
+        $faf_box->stroke;
+    }
+
+    foreach my $key ( sort keys %visualDescentPointIcons ) {
+        my $vdp_box = $page->gfx;
+        $vdp_box->rect(
+            $visualDescentPointIcons{$key}{X} - 3,
+            $visualDescentPointIcons{$key}{Y} - 7,
+            8, 8
+        );
+        $vdp_box->strokecolor('green');
+        $vdp_box->stroke;
+    }
+}
+
+sub drawLineFromEachObstacleToClosestTextBox {
+
+    #Draw a line from obstacle icon to closest text boxes
+    my $obstacle_line = $page->gfx;
+    $obstacle_line->strokecolor('blue');
+    foreach my $key ( sort keys %obstacleIcons ) {
+        $obstacle_line->move( $obstacleIcons{$key}{"X"},
+            $obstacleIcons{$key}{"Y"} );
+        $obstacle_line->line(
+            $obstacleIcons{$key}{"TextBoxX"},
+            $obstacleIcons{$key}{"TextBoxY"}
+        );
+        $obstacle_line->stroke;
+    }
+}
 
