@@ -107,12 +107,15 @@ my $outputpdf        = $dir . "marked-" . $filename . ".pdf";
 my $targetpng        = $dir . $filename . ".png";
 my $targettif        = $dir . $filename . ".tif";
 my $targetvrt        = $dir . $filename . ".vrt";
-my $targetStatistics = $dir . $filename . ".csv";
+my $targetStatistics = "./statistics.csv";
 
 my $rnavPlate = 0;
-die "Source file needs to be a PDF" if !( $ext =~ m/^\.pdf$/i );
+if (!$ext =~ m/^\.pdf$/i ) {
+    say "Source file needs to be a PDF";
+      exit(1);
+  }
 
-if ( $filename =~ m/^\d+R/ ) {
+  if ( $filename =~ m/^\d+R/ ) {
     say "Input is a GPS plate, using only GPS waypoints for references";
     $rnavPlate = 1;
 }
@@ -136,13 +139,17 @@ close $file;
 my @pdftotext;
 @pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
 $retval    = $? >> 8;
-die "No output from pdftotext.  Is it installed?  Return code was $retval"
-  if ( @pdftotext eq "" || $retval != 0 );
+
+if ( @pdftotext eq "" || $retval != 0 ) {
+    say "No output from pdftotext.  Is it installed?  Return code was $retval";
+    exit(1);
+}
 
 #Die if the chart says it's not to scale
 foreach my $line (@pdftotext) {
     if ( $line =~ m/chartnott/i ) {
-        die "Chart not to scale, can't georeference";
+        say "Chart not to scale, can't georeference";
+        exit(1);
     }
 
 }
@@ -549,10 +556,6 @@ if ($debug) {
 #Draw a line from obstacle icon to closest text boxes
 drawLineFromEachObstacleToClosestTextBox();
 
-#Save our new PDF since we're done with it
-#$pdf->saveas($outputpdf);
-#exit(1);
-#--------------------------------------------
 #--------------------------------------------------------------------------
 #Get a list of potential obstacle heights from the PDF text array
 #(alternately, iterate through each obstacle and find the closest text box
@@ -565,7 +568,7 @@ say @obstacle_heights;
 my $radius = ".2";    #~15 miles
 
 my %unique_obstacles_from_db = ();
-
+my $unique_obstacles_from_dbCount;
 foreach my $heightmsl (@obstacle_heights) {
 
     #Query the database for obstacles of $heightmsl within our $radius
@@ -595,19 +598,15 @@ foreach my $heightmsl (@obstacle_heights) {
     }
 
 }
-
+$unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
 if ($debug) {
-    my $fields = $sth->{NUM_OF_FIELDS};
-    print "We have selected $fields obstacle field(s)\n";
-
-    my $rows = $sth->rows();
-    print "We have selected $rows obstacle row(s)\n";
     say
-"Found $rows OBSTACLES with unique heights within $radius degrees of airport from database";
-    say "Unique obstacles from database lookup";
+"Found $unique_obstacles_from_dbCount OBSTACLES with unique heights within $radius degrees of airport from database";
+    say "unique_obstacles_from_db:";
     print Dumper ( \%unique_obstacles_from_db );
 
 }
+$unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
 
 #Find a text box with text that matches the height of each of our unique_obstacles_from_db
 #Add the center coordinates of that box to unique_obstacles_from_db hash
@@ -1051,9 +1050,9 @@ foreach my $key ( sort keys %gpsWaypointIcons ) {
 }
 
 #Save our new PDF since we're done with it
-if ($saveMarkedPdf) { 
-   $pdf->saveas($outputpdf) 
-   }
+if ($saveMarkedPdf) {
+    $pdf->saveas($outputpdf);
+}
 
 #Close the database
 $sth->finish();
@@ -1302,18 +1301,20 @@ my $upperLeftLon  = $ulXAvrg;
 my $upperLeftLat  = $ulYAvrg;
 my $lowerRightLon = $lrXAvrg;
 my $lowerRightLat = $lrYAvrg;
-if (!$outputStatistics) {
-$gdal_translateoutput =
+if ( !$outputStatistics ) {
+    $gdal_translateoutput =
 qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
 
 # $gdal_translateoutput =
 # qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
-$retval = $? >> 8;
-die "No output from gdal_translate  Is it installed? Return code was $retval"
-  if ( $gdal_translateoutput eq "" || $retval != 0 );
-say $gdal_translateoutput;
+    $retval = $? >> 8;
+    die
+      "No output from gdal_translate  Is it installed? Return code was $retval"
+      if ( $gdal_translateoutput eq "" || $retval != 0 );
+    say $gdal_translateoutput;
 
 }
+
 # my $gdalwarpoutput;
 # $gdalwarpoutput =
 # qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
@@ -1339,17 +1340,18 @@ say $gdal_translateoutput;
 # $output = qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha $targetpdf.vrt $targettif);
 # say $output;
 
+if ($outputStatistics) {
+    open my $file, '>>', $targetStatistics
+      or die "can't open '$targetStatistics' for writing : $!";
 
-if ($outputStatistics){
-open my $file, '>', $targetStatistics
-  or die "can't open '$targetStatistics' for writing : $!";
+    say {$file}
+'$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount';
 
-say { $file } '$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount';
+    say {$file}
+"$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount"
+      or croak "Cannot write to $targetStatistics: ";    #$OS_ERROR
 
-say { $file } "$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount"
-    or croak "Cannot write to $targetStatistics: "; #$OS_ERROR
-
-close $file;
+    close $file;
 }
 
 #Subroutines
