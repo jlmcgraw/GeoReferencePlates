@@ -236,7 +236,7 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 
     $output = qx(mutool show $targetpdf $stream x);
     $retval = $? >> 8;
-    die "No output from mutool show.  Is it installed? Return code was $retval"
+     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
@@ -558,14 +558,14 @@ drawLineFromEachObstacleToClosestTextBox();
 
 #--------------------------------------------------------------------------
 #Get a list of potential obstacle heights from the PDF text array
-#(alternately, iterate through each obstacle and find the closest text box
-
 my @obstacle_heights = findObstacleHeightTexts(@pdftotext);
-say @obstacle_heights;
+
+#Remove any duplicates
+onlyuniq(@obstacle_heights);
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Find obstacles with a certain height in the DB
-my $radius = ".2";    #~15 miles
+my $radius = ".3";    #~15 miles
 
 my %unique_obstacles_from_db = ();
 my $unique_obstacles_from_dbCount;
@@ -583,7 +583,7 @@ foreach my $heightmsl (@obstacle_heights) {
 
     my $all  = $sth->fetchall_arrayref();
     my $rows = $sth->rows();
-
+   say "Found $rows objects of height $heightmsl";
    #Don't show results of searches that have more than one result, ie not unique
     next if ( $rows != 1 );
 
@@ -599,6 +599,7 @@ foreach my $heightmsl (@obstacle_heights) {
 
 }
 $unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
+
 if ($debug) {
     say
 "Found $unique_obstacles_from_dbCount OBSTACLES with unique heights within $radius degrees of airport from database";
@@ -606,7 +607,7 @@ if ($debug) {
     print Dumper ( \%unique_obstacles_from_db );
 
 }
-$unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
+
 
 #Find a text box with text that matches the height of each of our unique_obstacles_from_db
 #Add the center coordinates of that box to unique_obstacles_from_db hash
@@ -625,7 +626,7 @@ foreach my $key ( keys %unique_obstacles_from_db ) {
     }
 }
 
-#Only outline our unique potential obstacle_heights with orange
+#Only outline our unique potential obstacle_heights with green
 foreach my $key ( sort keys %obstacleTextBoxes ) {
 
     #Is there a obstacletextbox with the same text as our obstacle's height?
@@ -1147,7 +1148,7 @@ my $gcpCount = scalar( keys(%gcps) );
 say "Found $gcpCount Ground Countrol Points";
 
 die "Need more Ground Control Points" if ( $gcpCount < 2 );
-say '$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY'
+say '$object1,$object2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY'
   if $debug;
 
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1199,8 +1200,9 @@ foreach my $key ( sort keys %gcps ) {
 
 #X-scale average and standard deviation
 my $xAvg    = &average( \@xScaleAvg );
+my $xmedian   = &median( \@xScaleAvg );
 my $xStdDev = &stdev( \@xScaleAvg ) / 2;
-say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev" if $debug;
+say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev\tmedian: $xmedian" if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
@@ -1214,8 +1216,9 @@ say "X-scale average after deleting outside 1st dev: $xAvg" if $debug;
 #--------------------
 #Y-scale average and standard deviation
 my $yAvg    = &average( \@yScaleAvg );
+my $ymedian   = &median( \@yScaleAvg );
 my $yStdDev = &stdev( \@yScaleAvg ) / 2;
-say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev" if $debug;
+say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev\tmedian: $ymedian" if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
@@ -1230,8 +1233,9 @@ say "Y-scale average after deleting outside 1st dev: $yAvg" if $debug;
 #--------------------
 #ulX average and standard deviation
 my $ulXAvrg   = &average( \@ulXAvg );
+my $ulXmedian  = &median( \@ulXAvg );
 my $ulXStdDev = &stdev( \@ulXAvg ) / 2;
-say "Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev" if $debug;
+say "Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev\tmedian: $ulXmedian" if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
@@ -1245,8 +1249,9 @@ say "Upper Left X  average after deleting outside 1st dev: $ulXAvrg" if $debug;
 #------------------------
 #uly average and standard deviation
 my $ulYAvrg   = &average( \@ulYAvg );
+my $ulYmedian  = &median( \@ulYAvg );
 my $ulYStdDev = &stdev( \@ulYAvg ) / 2;
-say "Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev" if $debug;
+say "Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev\tmedian: $ulYmedian" if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
@@ -1261,8 +1266,9 @@ say "Upper Left Y average after deleting outside 1st dev: $ulYAvrg" if $debug;
 #------------------------
 #lrX average and standard deviation
 my $lrXAvrg   = &average( \@lrXAvg );
+my $lrXmedian   = &median( \@lrXAvg );
 my $lrXStdDev = &stdev( \@lrXAvg ) / 2;
-say "Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev"
+say "Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev\tmedian: $lrXmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1278,8 +1284,9 @@ say "Lower Right X average after deleting outside 1st dev: $lrXAvrg" if $debug;
 #------------------------
 #lrY average and standard deviation
 my $lrYAvrg   = &average( \@lrYAvg );
+my $lrYmedian   = &median( \@lrYAvg );
 my $lrYStdDev = &stdev( \@lrYAvg ) / 2;
-say "Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev"
+say "Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev\tmedian: $lrYmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1297,10 +1304,14 @@ say "Lower Right Y average after deleting outside 1st dev: $lrYAvrg" if $debug;
 #Try to georeference based on the list of Ground Control Points
 my $gdal_translateoutput;
 
-my $upperLeftLon  = $ulXAvrg;
-my $upperLeftLat  = $ulYAvrg;
-my $lowerRightLon = $lrXAvrg;
-my $lowerRightLat = $lrYAvrg;
+# my $upperLeftLon  = $ulXAvrg;
+# my $upperLeftLat  = $ulYAvrg;
+# my $lowerRightLon = $lrXAvrg;
+# my $lowerRightLat = $lrYAvrg;
+my $upperLeftLon  = $ulXmedian;
+my $upperLeftLat  = $ulYmedian;
+my $lowerRightLon = $lrXmedian;
+my $lowerRightLat = $lrYmedian;
 if ( !$outputStatistics ) {
     $gdal_translateoutput =
 qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );

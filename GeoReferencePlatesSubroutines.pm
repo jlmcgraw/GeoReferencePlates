@@ -25,7 +25,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 $VERSION     = 1.00;
 @ISA         = qw(Exporter);
-@EXPORT      = qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev);
+@EXPORT      = qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev median);
 #@EXPORT_OK   = qw(  coordinatetodecimal );
 
 my $debug = 0;
@@ -141,4 +141,23 @@ sub stdev {
     my $std = ( $sqtotal / ( @$data - 1 ) )**0.5;
     return $std;
 }
+
+sub median {
+    my ($data) = @_;
+  my $median;
+  my $mid = int @$data/2;
+ my @sorted_values = sort by_number @$data;
+if (@$data % 2) {
+    $median = $sorted_values[ $mid ];
+} else {
+    $median = ($sorted_values[$mid-1] + $sorted_values[$mid])/2;
+    
+}    
+    return $median;
+}
+
+sub by_number {
+    if ($a < $b){ -1 } elsif ($a > $b) { 1 } else { 0 }
+}
+ 
 1;
