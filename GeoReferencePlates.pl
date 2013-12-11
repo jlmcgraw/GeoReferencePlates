@@ -110,12 +110,14 @@ my $targetvrt        = $dir . $filename . ".vrt";
 my $targetStatistics = "./statistics.csv";
 
 my $rnavPlate = 0;
-if (!$ext =~ m/^\.pdf$/i ) {
-    say "Source file needs to be a PDF";
-      exit(1);
-  }
+if ( !$ext =~ m/^\.pdf$/i ) {
 
-  if ( $filename =~ m/^\d+R/ ) {
+    #Check that suffix is PDF for input file
+    say "Source file needs to be a PDF";
+    exit(1);
+}
+
+if ( $filename =~ m/^\d+R/ ) {
     say "Input is a GPS plate, using only GPS waypoints for references";
     $rnavPlate = 1;
 }
@@ -124,7 +126,6 @@ if ($debug) {
     say "File:      " . $filename;
     say "Suffix:    " . $ext;
 
-    #Check that suffix is PDF for input file
     say "OutputPdf: $outputpdf";
     say "TargetPng: $targetpng";
     say "TargetTif: $targettif";
@@ -236,7 +237,7 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 
     $output = qx(mutool show $targetpdf $stream x);
     $retval = $? >> 8;
-     die "No output from mutool show.  Is it installed? Return code was $retval"
+    die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
@@ -583,7 +584,8 @@ foreach my $heightmsl (@obstacle_heights) {
 
     my $all  = $sth->fetchall_arrayref();
     my $rows = $sth->rows();
-   say "Found $rows objects of height $heightmsl";
+    say "Found $rows objects of height $heightmsl";
+
    #Don't show results of searches that have more than one result, ie not unique
     next if ( $rows != 1 );
 
@@ -607,7 +609,6 @@ if ($debug) {
     print Dumper ( \%unique_obstacles_from_db );
 
 }
-
 
 #Find a text box with text that matches the height of each of our unique_obstacles_from_db
 #Add the center coordinates of that box to unique_obstacles_from_db hash
@@ -660,7 +661,7 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
         my $hyp = sqrt( $distance_to_closest_obstacle_icon_x**2 +
               $distance_to_closest_obstacle_icon_y**2 );
-        if ( ( $hyp < $distance_to_closest_obstacle_icon ) && ( $hyp < 10 ) ) {
+        if ( ( $hyp < $distance_to_closest_obstacle_icon ) && ( $hyp < 12 ) ) {
             $distance_to_closest_obstacle_icon = $hyp;
             $unique_obstacles_from_db{$key}{"ObsIconX"} =
               $obstacleIcons{$key2}{"X"};
@@ -671,6 +672,8 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
     }
 
 }
+say "unique_obstacles_from_db before deleting entries with no ObsIconX or Y:";
+print Dumper ( \%unique_obstacles_from_db );
 
 #clean up unique_obstacles_from_db
 #remove entries that have no ObsIconX or Y
@@ -681,6 +684,10 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
         delete $unique_obstacles_from_db{$key};
     }
 }
+
+say
+  "unique_obstacles_from_db before deleting entries that share ObsIconX or Y:";
+print Dumper ( \%unique_obstacles_from_db );
 
 #Remove entries that share an ObsIconX and ObsIconY with another entry
 my @a;
@@ -1148,7 +1155,8 @@ my $gcpCount = scalar( keys(%gcps) );
 say "Found $gcpCount Ground Countrol Points";
 
 die "Need more Ground Control Points" if ( $gcpCount < 2 );
-say '$object1,$object2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY'
+say
+'$object1,$object2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY'
   if $debug;
 
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1200,9 +1208,10 @@ foreach my $key ( sort keys %gcps ) {
 
 #X-scale average and standard deviation
 my $xAvg    = &average( \@xScaleAvg );
-my $xmedian   = &median( \@xScaleAvg );
+my $xmedian = &median( \@xScaleAvg );
 my $xStdDev = &stdev( \@xScaleAvg ) / 2;
-say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev\tmedian: $xmedian" if $debug;
+say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev\tmedian: $xmedian"
+  if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
@@ -1216,9 +1225,10 @@ say "X-scale average after deleting outside 1st dev: $xAvg" if $debug;
 #--------------------
 #Y-scale average and standard deviation
 my $yAvg    = &average( \@yScaleAvg );
-my $ymedian   = &median( \@yScaleAvg );
+my $ymedian = &median( \@yScaleAvg );
 my $yStdDev = &stdev( \@yScaleAvg ) / 2;
-say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev\tmedian: $ymedian" if $debug;
+say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev\tmedian: $ymedian"
+  if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
@@ -1233,9 +1243,11 @@ say "Y-scale average after deleting outside 1st dev: $yAvg" if $debug;
 #--------------------
 #ulX average and standard deviation
 my $ulXAvrg   = &average( \@ulXAvg );
-my $ulXmedian  = &median( \@ulXAvg );
+my $ulXmedian = &median( \@ulXAvg );
 my $ulXStdDev = &stdev( \@ulXAvg ) / 2;
-say "Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev\tmedian: $ulXmedian" if $debug;
+say
+"Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev\tmedian: $ulXmedian"
+  if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
@@ -1249,9 +1261,11 @@ say "Upper Left X  average after deleting outside 1st dev: $ulXAvrg" if $debug;
 #------------------------
 #uly average and standard deviation
 my $ulYAvrg   = &average( \@ulYAvg );
-my $ulYmedian  = &median( \@ulYAvg );
+my $ulYmedian = &median( \@ulYAvg );
 my $ulYStdDev = &stdev( \@ulYAvg ) / 2;
-say "Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev\tmedian: $ulYmedian" if $debug;
+say
+"Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev\tmedian: $ulYmedian"
+  if $debug;
 
 #Delete values from the array that are outside 1st dev
 for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
@@ -1266,9 +1280,10 @@ say "Upper Left Y average after deleting outside 1st dev: $ulYAvrg" if $debug;
 #------------------------
 #lrX average and standard deviation
 my $lrXAvrg   = &average( \@lrXAvg );
-my $lrXmedian   = &median( \@lrXAvg );
+my $lrXmedian = &median( \@lrXAvg );
 my $lrXStdDev = &stdev( \@lrXAvg ) / 2;
-say "Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev\tmedian: $lrXmedian"
+say
+"Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev\tmedian: $lrXmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1284,9 +1299,10 @@ say "Lower Right X average after deleting outside 1st dev: $lrXAvrg" if $debug;
 #------------------------
 #lrY average and standard deviation
 my $lrYAvrg   = &average( \@lrYAvg );
-my $lrYmedian   = &median( \@lrYAvg );
+my $lrYmedian = &median( \@lrYAvg );
 my $lrYStdDev = &stdev( \@lrYAvg ) / 2;
-say "Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev\tmedian: $lrYmedian"
+say
+"Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev\tmedian: $lrYmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1395,7 +1411,6 @@ sub findObstacleHeightTexts {
 
 sub findAirportLatitudeAndLongitude {
 
-#-----------------------------------------------
 #Get the lat/lon of the airport for the plate we're working on
 #This line will try to pull the lat/lon at the bottom of the drawing instead of a DB query
 #pdftotext  <pdf_name> - | grep -P '\b\d+’[NS]-\d+’[EW]'
@@ -1406,7 +1421,8 @@ sub findAirportLatitudeAndLongitude {
     foreach my $line (@pdftotext) {
 
         # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
-        if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
+        #   if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
+        if ( $line =~ m/([\d ]{4}).*([NS])\s?-\s?([\d ]{4}).*([EW])/ ) {
             my (
                 $aptlat,    $aptlon,    $aptlatd,   $aptlond,
                 $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
