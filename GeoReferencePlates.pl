@@ -17,25 +17,15 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 
 #Known issues:
-#Output some statistics from the process to see which plates are working
-
-#Change the logic for obstacles to find nearest text to icon and not vice versa (the current method)
-
-#Relies on icons being drawn very specific ways, it won't work if these ever change
-
-#Relies on text being in PDF.  I've found at least one example that doesn't use text (plates from KSSC)
-
-#Plates from KCDN are coming out of gdalwarp way too big.  Why?  the same command line works fine elsewhere
-
-#There has been no attempt to optimize anything yet or make code modular
-
-#Investigate not creating the intermediate PNG
-
-#Accumulate GCPs across the streams
-
-#Discard outliers (eg obstacles in the airport view box, or missed approach waypoints
-
-#Very easy to mismatch obstacles with their height text.  How to weed out false ones?
+#-Change the logic for obstacles to find nearest textbox to icon and not vice versa (the current method)
+#-Relies on icons being drawn very specific ways, it won't work if these ever change
+#-Relies on text being in PDF.  It seems that most, if not all, military plates have no text in them
+#-There has been no attempt to optimize anything yet or make code modular
+#-Investigate not creating the intermediate PNG
+#-Accumulate GCPs across the streams
+#-The biggest issue now is matching icons with their identifying textboxes
+#  How  best to guess right most of the time?
+#  and when we guess wrong, how to detect and discard invalid guesses?
 
 use 5.010;
 
@@ -130,6 +120,7 @@ if ($debug) {
     say "TargetPng: $targetpng";
     say "TargetTif: $targettif";
     say "TargetVrt: $targetvrt";
+    say "targetStatistics: $targetStatistics";
 }
 
 open my $file, '<', $targetpdf
@@ -146,8 +137,9 @@ if ( @pdftotext eq "" || $retval != 0 ) {
     exit(1);
 }
 
-#Die if the chart says it's not to scale
+#Abort if the chart says it's not to scale
 foreach my $line (@pdftotext) {
+    $line =~ s/\s//g;
     if ( $line =~ m/chartnott/i ) {
         say "Chart not to scale, can't georeference";
         exit(1);
@@ -200,51 +192,48 @@ my $obstacleHeightRegex = qr/[1-9]\d{2,}/;
 
 #Finding each of these icons can be rolled into one loop instead of separate one for each type
 #----------------------------------------------------------------------------------------------------------
-#Find obstacles in the pdf
+#Find obstacle icons in the pdf
 #F*  Fill path
 #S     Stroke path
 #cm Scale and translate coordinate space
 #c      Bezier curve
 #q     Save graphics state
 #Q     Restore graphics state
-my $obstacleregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) ([\.0-9]+) l [\.0-9]+ [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
+# my $obstacleregex =
+# qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([\.0-9]+) ([\.0-9]+) l [\.0-9]+ [\.0-9]+ l S Q q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c f\* Q/;
 
 #                           0x               1y                                     2+x         3+y                                                                               4dotX     5dotY
-# my $obstacleregex =
-# qr/
-# ^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm
-# ^0 0 m
-# ^([\.0-9]+) [\.0-9]+ l
-# ^([\.0-9]+) [\.0-9]+ l
-# ^S
-# ^Q
-# ^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm
-# ^0 0 m
-# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
-# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
-# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
-# ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c
-# ^f\*
-# ^Q
-# /m;
+
 my %obstacleIcons = ();
 
 #%obstacleIcons = findObstacleIcons ($streamText, \@array, $scalar);
 
 #sub findObstacleIcons{
 for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
-
+    my $obstacleregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^([\.0-9]+) [\.0-9]+ l$
+^([\.0-9]+) [\.0-9]+ l$
+^S$
+^Q$
+^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^f\*$
+^Q$/m;
     $output = qx(mutool show $targetpdf $stream x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
-    $output =~ s/\n/ /g;
+    # $output =~ s/\n/ /g;
 
-#each entry in @tempobstacles will have the named captures from the regex, 6 for each one
-    my @tempobstacles        = $output =~ /$obstacleregex/igm;
+#each entry in @tempobstacles will have the numbered captures from the regex, 6 for each one
+    my @tempobstacles        = $output =~ /$obstacleregex/ig;
     my $tempobstacles_length = 0 + @tempobstacles;
 
     #6 data points for each obstacle
@@ -280,18 +269,27 @@ say "Found $obstacleCount obstacle icons";
 
 # exit;
 # #-------------------------------------------------------------------------------------------------------
-# #Find fixes in the PDF
-my $fixregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([-\.0-9]+) [\.0-9]+ l [-\.0-9]+ ([\.0-9]+) l 0 0 l S Q/;
+
 my %fixIcons = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+
+#Find fixes in the PDF
+# my $fixregex =
+# qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([-\.0-9]+) [\.0-9]+ l [-\.0-9]+ ([\.0-9]+) l 0 0 l S Q/;
+    my $fixregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^([-\.0-9]+) [\.0-9]+ l$
+^[-\.0-9]+ ([\.0-9]+) l$
+^0 0 l$
+^S$
+^Q$/m;
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
-    $output =~ s/\n/ /g;
+    # $output =~ s/\n/ /g;
     my @tempfixes        = $output =~ /$fixregex/ig;
     my $tempfixes_length = 0 + @tempfixes;
 
@@ -319,21 +317,44 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 my $fixCount = keys(%fixIcons);
 say "Found $fixCount fix icons";
 
-#--------------------------------------------------------------------------------------------------------
-#Find first half of gps waypoint icons
-my $gpswaypointregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+0 0 l\s+f\*\s+Q/;
-
 my %gpsWaypointIcons = ();
 
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+
+#Find first half of gps waypoint icons
+# my $gpswaypointregex =
+# qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+0 0 l\s+f\*\s+Q/;
+    my $gpswaypointregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^0 0 l$
+^f\*$
+^Q$/m;
+
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
-    $output =~ s/\n/ /g;
+    #$output =~ s/\n/ /g;
     my @tempgpswaypoints        = $output =~ /$gpswaypointregex/ig;
     my $tempgpswaypoints_length = 0 + @tempgpswaypoints;
     my $tempgpswaypoints_count  = $tempgpswaypoints_length / 2;
@@ -347,7 +368,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
             $gpsWaypointIcons{$i}{"Y"} = $tempgpswaypoints[ $i + 1 ];
             $gpsWaypointIcons{$i}{"iconCenterXPdf"} =
               $tempgpswaypoints[$i] +
-              7.5;    #TODO Calculate this properly, this number is a estimation
+              7.5;   #TODO Calculate this properly, this number is an estimation
             $gpsWaypointIcons{$i}{"iconCenterYPdf"} =
               $tempgpswaypoints[ $i + 1 ];
             $gpsWaypointIcons{$i}{"Name"} = "none";
@@ -358,19 +379,56 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 my $gpsCount = keys(%gpsWaypointIcons);
 say "Found $gpsCount GPS waypoint icons";
 
-#--------------------------------------------------------------------------------------------------------
-#Find Final Approach Fix icon
-my $fafregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q/;
 my %finalApproachFixIcons = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+
+#Find Final Approach Fix icon
+#my $fafregex =
+#qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q/;
+    my $fafregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$/m;
+
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
-    $output =~ s/\n/ /g;
+    #$output =~ s/\n/ /g;
     my @tempfinalApproachFixIcons        = $output =~ /$fafregex/ig;
     my $tempfinalApproachFixIcons_length = 0 + @tempfinalApproachFixIcons;
     my $tempfinalApproachFixIcons_count = $tempfinalApproachFixIcons_length / 2;
@@ -393,12 +451,27 @@ my $finalApproachFixCount = keys(%finalApproachFixIcons);
 say "Found $finalApproachFixCount Final Approach Fix icons";
 
 # #--------------------------------------------------------------------------------------------------------
-# #Find Visual Descent Point icon
-my $vdpregex =
-qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+0.72 w \[\]0 d/;
 
 my %visualDescentPointIcons = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+
+    #Find Visual Descent Point icon
+    my $vdpregex =
+qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+0.72 w \[\]0 d/;
+
+    #my $vdpregex =
+    #qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+
+    #0 0 m\s+
+    #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+    #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+    #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+    #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+    #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+    #0 0 l\s+
+    #f\*\s+
+    #Q\s+
+    #0.72 w \[\]0 d/m;
+
     $output = qx(mutool show $targetpdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
@@ -1176,18 +1249,18 @@ foreach my $key ( sort keys %gcps ) {
     foreach my $key2 ( sort keys %gcps ) {
         next if $key eq $key2;
 
-        #$scaleCounter++;
-
         my $xdiff = abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} ) +
           .00000000000000001;
         my $ydiff = abs( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} ) +
           .00000000000000001;
         my $londiff = abs( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
         my $latdiff = abs( $gcps{$key}{"lat"} - $gcps{$key2}{"lat"} );
-        my $xscale  = $londiff / $xdiff;
-        my $yscale  = $latdiff / $ydiff;
-        my $ulX     = $gcps{$key}{"lon"} - ( $gcps{$key}{"pngx"} * $xscale );
-        my $ulY     = $gcps{$key}{"lat"} + ( $gcps{$key}{"pngy"} * $yscale );
+
+        my $xscale = $londiff / $xdiff;
+        my $yscale = $latdiff / $ydiff;
+
+        my $ulX = $gcps{$key}{"lon"} - ( $gcps{$key}{"pngx"} * $xscale );
+        my $ulY = $gcps{$key}{"lat"} + ( $gcps{$key}{"pngy"} * $yscale );
         my $lrX =
           $gcps{$key}{"lon"} + ( abs( $pngx - $gcps{$key}{"pngx"} ) * $xscale );
         my $lrY =
@@ -1197,6 +1270,7 @@ foreach my $key ( sort keys %gcps ) {
 "$key,$key2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY"
           if $debug;
 
+        #Save the output of this iteration to average out later
         push @xScaleAvg, $xscale;
         push @yScaleAvg, $yscale;
         push @ulXAvg,    $ulX;
@@ -1328,7 +1402,10 @@ my $upperLeftLon  = $ulXmedian;
 my $upperLeftLat  = $ulYmedian;
 my $lowerRightLon = $lrXmedian;
 my $lowerRightLat = $lrYmedian;
+
 if ( !$outputStatistics ) {
+
+    #Don't actually generate the .tif if we're just collecting statistics
     $gdal_translateoutput =
 qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
 
@@ -1411,18 +1488,19 @@ sub findObstacleHeightTexts {
 
 sub findAirportLatitudeAndLongitude {
 
-#Get the lat/lon of the airport for the plate we're working on
-#This line will try to pull the lat/lon at the bottom of the drawing instead of a DB query
-#pdftotext  <pdf_name> - | grep -P '\b\d+’[NS]-\d+’[EW]'
+    #Get the lat/lon of the airport for the plate we're working on
+
     my $airportLatitudeDec  = "";
     my $airportLongitudeDec = "";
 
-    #Try to pull out the lat/lon at the bottom of the chart, die if can't
     foreach my $line (@pdftotext) {
+
+        #Remove all the whitespace
+        $line =~ s/\s//g;
 
         # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
         #   if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
-        if ( $line =~ m/([\d ]{4}).*([NS])\s?-\s?([\d ]{4}).*([EW])/ ) {
+        if ( $line =~ m/([\d ]{4}).?([NS])-([\d ]{4}).?([EW])/ ) {
             my (
                 $aptlat,    $aptlon,    $aptlatd,   $aptlond,
                 $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
@@ -1447,7 +1525,7 @@ sub findAirportLatitudeAndLongitude {
                 $aptlondeg . "-" . $aptlonmin . "-00" . $aptlond );
 
             say
-"Airport LAT/LON from plate: $airportLatitudeDec $airportLongitudeDec"
+"Airport LAT/LON from plate: $aptlatdeg-$aptlatmin-$aptlatd, $aptlondeg-$aptlonmin-$aptlond->$airportLatitudeDec $airportLongitudeDec"
               if $debug;
             return ( $airportLatitudeDec, $airportLongitudeDec );
         }
@@ -1458,9 +1536,11 @@ sub findAirportLatitudeAndLongitude {
 
         #We didn't get any airport info from the PDF, let's check the database
         #Get airport from database
-        die
-"You must specify an airport ID (eg. -a SMF) since there was no info on the PDF"
-          if $airportid eq "";
+        if ( $airportid eq "" ) {
+            say
+"You must specify an airport ID (eg. -a SMF) since there was no info on the PDF";
+            exit(1);
+        }
 
         #Query the database for airport
         $sth = $dbh->prepare(
@@ -1480,9 +1560,12 @@ sub findAirportLatitudeAndLongitude {
             say "Airport Longitude: $airportLongitudeDec";
             say "Airport Name: $airportname";
         }
-        die
-"No airport coordinate information on PDF or database, try   -a <airport> "
-          if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" );
+        if ( $airportLongitudeDec eq "" or $airportLatitudeDec eq "" ) {
+            say
+"No airport coordinate information on PDF or database, try   -a <airport> ";
+            exit(1);
+        }
+
     }
 }
 
@@ -1490,9 +1573,9 @@ sub getMediaboxSize {
 
     #----------------------------------------------------------
     #Get the mediabox size from the PDF
-    my $mutoolinfo;
-    $mutoolinfo = qx(mutool info $targetpdf);
-    $retval     = $? >> 8;
+
+    my $mutoolinfo = qx(mutool info $targetpdf);
+    $retval = $? >> 8;
     die "No output from mutool info.  Is it installed? Return code was $retval"
       if ( $mutoolinfo eq "" || $retval != 0 );
 
@@ -1514,12 +1597,9 @@ sub getMediaboxSize {
 
 sub getPngSize {
 
-#---------------------------------------------------------------------------------------------------------
-#Find the dimensions of the PNG
-    my $fileoutput;
-
-    $fileoutput = qx(file $targetpng );
-    my $retval = $? >> 8;
+    #Find the dimensions of the PNG
+    my $fileoutput = qx(file $targetpng );
+    my $retval     = $? >> 8;
     die "No output from file.  Is it installed? Return code was $retval"
       if ( $fileoutput eq "" || $retval != 0 );
 
@@ -1544,11 +1624,10 @@ sub getPngSize {
 
 sub getNumberOfStreams {
 
-#--------------------------------------------------------------------------------------------------------------
-#Get number of objects/streams in the targetpdf
-    my $mutoolshowoutput;
-    $mutoolshowoutput = qx(mutool show $targetpdf x);
-    $retval           = $? >> 8;
+    #Get number of objects/streams in the targetpdf
+
+    my $mutoolshowoutput = qx(mutool show $targetpdf x);
+    $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $mutoolshowoutput eq "" || $retval != 0 );
 
@@ -1566,8 +1645,7 @@ sub getNumberOfStreams {
 
 sub outlineEverythingWeFound {
 
-#-------------------------------------------------------------------------------------------------------------------------------
-#Draw the various types of boxes on the output PDF
+    #Draw the various types of boxes on the output PDF
 
     my %font = (
         Helvetica => {
