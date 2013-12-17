@@ -584,41 +584,41 @@ outlineEverythingWeFound();
 
 #Try to find closest obstacleTextBox to each obstacle icon
 foreach my $key ( sort keys %obstacleIcons ) {
-    my $distance_to_closest_obstacletextbox_x;
-    my $distance_to_closest_obstacletextbox_y;
-
-    #Initialize this to a very high number so everything is closer than it
-    my $distance_to_closest_obstacletextbox = 999999999999;
+    my $distance_to_closest_obstacletextbox = 999999999999;  #Start with a very high number so initially is closer than it
+    
     foreach my $key2 ( keys %obstacleTextBoxes ) {
-        $distance_to_closest_obstacletextbox_x =
+        my $distanceToObstacletextboxX;
+        my $distanceToObstacletextboxY;  
+         
+        $distanceToObstacletextboxX =
           $obstacleTextBoxes{$key2}{"iconCenterXPdf"} -
           $obstacleIcons{$key}{"X"};
-        $distance_to_closest_obstacletextbox_y =
+        $distanceToObstacletextboxY =
           $obstacleTextBoxes{$key2}{"iconCenterYPdf"} -
           $obstacleIcons{$key}{"Y"};
 
-        my $hyp = sqrt( $distance_to_closest_obstacletextbox_x**2 +
-              $distance_to_closest_obstacletextbox_y**2 );
+        my $hypotenuse = sqrt( $distanceToObstacletextboxX**2 +
+              $distanceToObstacletextboxY**2 );
 
 #The 27 here was chosen to make one particular sample work, it's not universally valid
 #Need to improve the icon -> textbox mapping
 #say "Hypotenuse: $hyp" if $debug;
-        if ( ( $hyp < $distance_to_closest_obstacletextbox ) && ( $hyp < 27 ) )
+        if ( ( $hypotenuse < $distance_to_closest_obstacletextbox ) && ( $hypotenuse < 27 ) )
         {
-            $distance_to_closest_obstacletextbox = $hyp;
+            $distance_to_closest_obstacletextbox = $hypotenuse;
             $obstacleIcons{$key}{"Name"} = $obstacleTextBoxes{$key2}{"Text"};
             $obstacleIcons{$key}{"TextBoxX"} =
               $obstacleTextBoxes{$key2}{"iconCenterXPdf"};
             $obstacleIcons{$key}{"TextBoxY"} =
               $obstacleTextBoxes{$key2}{"iconCenterYPdf"};
-            $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} =
-              $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} + 1;
-            $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} =
-              $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} + 1;
+         # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} =
+              # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} + 1;   
         }
 
     }
 
+            #$obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} =
+              # $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} + 1;
 }
 if ($debug) {
     say "obstacleIcons";
@@ -1406,8 +1406,12 @@ my $lowerRightLat = $lrYmedian;
 if ( !$outputStatistics ) {
 
     #Don't actually generate the .tif if we're just collecting statistics
+    # $gdal_translateoutput =
+# qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs " -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
     $gdal_translateoutput =
-qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
+qx(gdal_translate -of GTiff  -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
+
+
 
 # $gdal_translateoutput =
 # qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
@@ -1500,7 +1504,7 @@ sub findAirportLatitudeAndLongitude {
 
         # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
         #   if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
-        if ( $line =~ m/([\d ]{4}).?([NS])-([\d ]{4}).?([EW])/ ) {
+        if ( $line =~ m/([\d ]{3,4}).?([NS])-([\d ]{3,5}).?([EW])/ ) {
             my (
                 $aptlat,    $aptlon,    $aptlatd,   $aptlond,
                 $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
