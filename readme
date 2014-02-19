@@ -7,14 +7,14 @@ Requires a database containing lat/lon info
 
 Requires the following external programs
 	GDAL
-	mupdf-tools
+	mupdf-tools (sudo apt-get install mupdf-tools)
 	pdftotext
-	sqlite3
+	sqlite3 (sudo apt-get install sqlite3)
 
 Requires Perl > 5.010
 
 Requires the follwing CPAN modules
-	PDF::API2
+	PDF::API2   (sudo apt-get install libpdf-api2-perl)
 	DBI
 	Data::Dumper
 	File::Basename

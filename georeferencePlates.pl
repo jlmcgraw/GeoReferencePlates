@@ -26,6 +26,7 @@
 #-The biggest issue now is matching icons with their identifying textboxes
 #  How  best to guess right most of the time?
 #  and when we guess wrong, how to detect and discard invalid guesses?
+#  -Could check that aspect ratio using our ULLR matches the original image?  Abort if it doesn't
 
 use 5.010;
 
@@ -78,22 +79,22 @@ my $debug            = $opt{v};
 my $saveMarkedPdf    = $opt{p};
 my $outputStatistics = $opt{s};
 
-my ( $output, $targetpdf );
+my ( $output, $targetPdf );
 
 my $retval;
 
 #Get the target PDF file from command line options
-$targetpdf = $ARGV[0];
+$targetPdf = $ARGV[0];
 
 #Get the airport ID in case we can't guess it from PDF (KSSC is an example)
-my $airportid = $opt{a};
-if ($airportid) {
-    say "Supplied airport ID: $airportid";
+my $airportId = $opt{a};
+if ($airportId) {
+    say "Supplied airport ID: $airportId";
 }
 
-say $targetpdf;
-my ( $filename, $dir, $ext ) = fileparse( $targetpdf, qr/\.[^.]*/ );
-my $outputpdf        = $dir . "marked-" . $filename . ".pdf";
+say $targetPdf;
+my ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/ );
+my $outputPdf        = $dir . "marked-" . $filename . ".pdf";
 my $targetpng        = $dir . $filename . ".png";
 my $targettif        = $dir . $filename . ".tif";
 my $targetvrt        = $dir . $filename . ".vrt";
@@ -116,20 +117,20 @@ if ($debug) {
     say "File:      " . $filename;
     say "Suffix:    " . $ext;
 
-    say "OutputPdf: $outputpdf";
+    say "OutputPdf: $outputPdf";
     say "TargetPng: $targetpng";
     say "TargetTif: $targettif";
     say "TargetVrt: $targetvrt";
     say "targetStatistics: $targetStatistics";
 }
 
-open my $file, '<', $targetpdf
-  or die "can't open '$targetpdf' for reading : $!";
+open my $file, '<', $targetPdf
+  or die "can't open '$targetPdf' for reading : $!";
 close $file;
 
 #Pull all text out of the PDF
 my @pdftotext;
-@pdftotext = qx(pdftotext $targetpdf  -enc ASCII7 -);
+@pdftotext = qx(pdftotext $targetPdf  -enc ASCII7 -);
 $retval    = $? >> 8;
 
 if ( @pdftotext eq "" || $retval != 0 ) {
@@ -160,18 +161,18 @@ my ( $airportLatitudeDec, $airportLongitudeDec ) =
   findAirportLatitudeAndLongitude();
 
 #Get the mediabox size from the PDF
-my ( $pdfx, $pdfy, $pdfCenterX, $pdfCenterY ) = getMediaboxSize();
+my ( $pdfXSize, $pdfYSize, $pdfCenterX, $pdfCenterY, $pdfXYRatio ) = getMediaboxSize();
 
 #---------------------------------------------------
 #Convert PDF to a PNG
-my $pdftoppmoutput;
-$pdftoppmoutput = qx(pdftoppm -png -r 300 $targetpdf > $targetpng);
+my $pdfToPpmOutput;
+$pdfToPpmOutput = qx(pdftoppm -png -r 300 $targetPdf > $targetpng);
 
 $retval = $? >> 8;
 die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 
 #Get PNG dimensions and the PDF->PNG scale factors
-my ( $pngx, $pngy, $scalefactorx, $scalefactory ) = getPngSize();
+my ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) = getPngSize();
 
 #--------------------------------------------------------------------------------------------------------------
 #Get number of objects/streams in the targetpdf
@@ -224,7 +225,7 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
 ^f\*$
 ^Q$/m;
-    $output = qx(mutool show $targetpdf $stream x);
+    $output = qx(mutool show $targetPdf $stream x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
@@ -283,7 +284,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 ^0 0 l$
 ^S$
 ^Q$/m;
-    $output = qx(mutool show $targetpdf $i x);
+    $output = qx(mutool show $targetPdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
@@ -348,7 +349,7 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 ^f\*$
 ^Q$/m;
 
-    $output = qx(mutool show $targetpdf $i x);
+    $output = qx(mutool show $targetPdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
@@ -367,8 +368,8 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
             $gpsWaypointIcons{$i}{"X"} = $tempgpswaypoints[$i];
             $gpsWaypointIcons{$i}{"Y"} = $tempgpswaypoints[ $i + 1 ];
             $gpsWaypointIcons{$i}{"iconCenterXPdf"} =
-              $tempgpswaypoints[$i] +
-              7.5;   #TODO Calculate this properly, this number is an estimation
+            #TODO Calculate this properly, this number is an estimation
+              $tempgpswaypoints[$i] + 7.5;   
             $gpsWaypointIcons{$i}{"iconCenterYPdf"} =
               $tempgpswaypoints[ $i + 1 ];
             $gpsWaypointIcons{$i}{"Name"} = "none";
@@ -383,9 +384,9 @@ my %finalApproachFixIcons = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
 #Find Final Approach Fix icon
-#my $fafregex =
+#my $fafRegex =
 #qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q/;
-    my $fafregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+    my $fafRegex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
 ^0 0 m$
 ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
 ^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
@@ -422,14 +423,14 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 ^f\*$
 ^Q$/m;
 
-    $output = qx(mutool show $targetpdf $i x);
+    $output = qx(mutool show $targetPdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     #$output =~ s/\n/ /g;
-    my @tempfinalApproachFixIcons        = $output =~ /$fafregex/ig;
+    my @tempfinalApproachFixIcons        = $output =~ /$fafRegex/ig;
     my $tempfinalApproachFixIcons_length = 0 + @tempfinalApproachFixIcons;
     my $tempfinalApproachFixIcons_count = $tempfinalApproachFixIcons_length / 2;
 
@@ -456,10 +457,10 @@ my %visualDescentPointIcons = ();
 for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
     #Find Visual Descent Point icon
-    my $vdpregex =
+    my $vdpRegex =
 qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+0.72 w \[\]0 d/;
 
-    #my $vdpregex =
+    #my $vdpRegex =
     #qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+
     #0 0 m\s+
     #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
@@ -472,14 +473,14 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.
     #Q\s+
     #0.72 w \[\]0 d/m;
 
-    $output = qx(mutool show $targetpdf $i x);
+    $output = qx(mutool show $targetPdf $i x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $output eq "" || $retval != 0 );
 
     #Remove new lines
     $output =~ s/\n/ /g;
-    my @tempvisualDescentPointIcons        = $output =~ /$vdpregex/ig;
+    my @tempvisualDescentPointIcons        = $output =~ /$vdpRegex/ig;
     my $tempvisualDescentPointIcons_length = 0 + @tempvisualDescentPointIcons;
     my $tempvisualDescentPointIcons_count =
       $tempvisualDescentPointIcons_length / 2;
@@ -506,10 +507,10 @@ my $visualDescentPointCount = keys(%visualDescentPointIcons);
 say "Found $visualDescentPointCount Visual Descent Point icons";
 
 #Get all of the text and respective bounding boxes in the PDF
-my @pdftotextbbox = qx(pdftotext $targetpdf -bbox - );
+my @pdfToTextBbox = qx(pdftotext $targetPdf -bbox - );
 $retval = $? >> 8;
 die "No output from pdftotext -bbox.  Is it installed? Return code was $retval"
-  if ( @pdftotextbbox eq "" || $retval != 0 );
+  if ( @pdfToTextBbox eq "" || $retval != 0 );
 
 #-----------------------------------------------------------------------------------------------------------
 #Get list of potential obstacle height textboxes
@@ -520,7 +521,7 @@ qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">($obstacl
 
 my %obstacleTextBoxes = ();
 
-foreach my $line (@pdftotextbbox) {
+foreach my $line (@pdfToTextBbox) {
     if ( $line =~ m/$obstacletextboxregex/ ) {
         $obstacleTextBoxes{ $1 . $2 }{"RasterX"} = $1;
         $obstacleTextBoxes{ $1 . $2 }{"RasterY"} = $2;
@@ -528,10 +529,10 @@ foreach my $line (@pdftotextbbox) {
         $obstacleTextBoxes{ $1 . $2 }{"Height"}  = $4 - $2;
         $obstacleTextBoxes{ $1 . $2 }{"Text"}    = $5;
         $obstacleTextBoxes{ $1 . $2 }{"PdfX"}    = $1;
-        $obstacleTextBoxes{ $1 . $2 }{"PdfY"}    = $pdfy - $2;
+        $obstacleTextBoxes{ $1 . $2 }{"PdfY"}    = $pdfYSize - $2;
         $obstacleTextBoxes{ $1 . $2 }{"iconCenterXPdf"} =
           $1 + ( ( $3 - $1 ) / 2 );
-        $obstacleTextBoxes{ $1 . $2 }{"iconCenterYPdf"}     = $pdfy - $2;
+        $obstacleTextBoxes{ $1 . $2 }{"iconCenterYPdf"}     = $pdfYSize - $2;
         $obstacleTextBoxes{ $1 . $2 }{"IconsThatPointToMe"} = 0;
     }
 
@@ -550,7 +551,7 @@ qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">([A-Z]{5}
 my $invalidfixnamesregex = qr/tower|south/i;
 my %fixtextboxes         = ();
 
-foreach my $line (@pdftotextbbox) {
+foreach my $line (@pdfToTextBbox) {
     if ( $line =~ m/$fixtextboxregex/ ) {
 
 #Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
@@ -562,9 +563,9 @@ foreach my $line (@pdftotextbbox) {
         $fixtextboxes{ $1 . $2 }{"Height"}         = $4 - $2;
         $fixtextboxes{ $1 . $2 }{"Text"}           = $5;
         $fixtextboxes{ $1 . $2 }{"PdfX"}           = $1;
-        $fixtextboxes{ $1 . $2 }{"PdfY"}           = $pdfy - $2;
+        $fixtextboxes{ $1 . $2 }{"PdfY"}           = $pdfYSize - $2;
         $fixtextboxes{ $1 . $2 }{"iconCenterXPdf"} = $1 + ( ( $3 - $1 ) / 2 );
-        $fixtextboxes{ $1 . $2 }{"iconCenterYPdf"} = $pdfy - $2;
+        $fixtextboxes{ $1 . $2 }{"iconCenterYPdf"} = $pdfYSize - $2;
     }
 
 }
@@ -574,7 +575,7 @@ say "Found " . keys(%fixtextboxes) . " Potential Fix text boxes";
 
 #----------------------------------------------------------------------------------------------------------
 #Modify the PDF
-my $pdf = PDF::API2->open($targetpdf);
+my $pdf = PDF::API2->open($targetPdf);
 
 #Set up the various types of boxes to draw on the output PDF
 my $page = $pdf->openpage(1);
@@ -1132,7 +1133,7 @@ foreach my $key ( sort keys %gpsWaypointIcons ) {
 
 #Save our new PDF since we're done with it
 if ($saveMarkedPdf) {
-    $pdf->saveas($outputpdf);
+    $pdf->saveas($outputPdf);
 }
 
 #Close the database
@@ -1148,16 +1149,16 @@ if ( !$rnavPlate ) {
 
     #Add obstacles to Ground Control Points hash
     foreach my $key ( sort keys %unique_obstacles_from_db ) {
-        my $pngx = $unique_obstacles_from_db{$key}{"ObsIconX"} * $scalefactorx;
-        my $pngy =
-          $pngy -
-          ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scalefactory );
+        my $pngXSize = $unique_obstacles_from_db{$key}{"ObsIconX"} * $scaleFactorX;
+        my $pngYSize =
+          $pngYSize -
+          ( $unique_obstacles_from_db{$key}{"ObsIconY"} * $scaleFactorY );
         my $lon = $unique_obstacles_from_db{$key}{"Lon"};
         my $lat = $unique_obstacles_from_db{$key}{"Lat"};
-        if ( $pngy && $pngx && $lon && $lat ) {
-            say "$pngx $pngy $lon $lat" if $debug;
-            $gcps{ "obstacle" . $key }{"pngx"} = $pngx;
-            $gcps{ "obstacle" . $key }{"pngy"} = $pngy;
+        if ( $pngYSize && $pngXSize && $lon && $lat ) {
+            say "$pngXSize $pngYSize $lon $lat" if $debug;
+            $gcps{ "obstacle" . $key }{"pngx"} = $pngXSize;
+            $gcps{ "obstacle" . $key }{"pngy"} = $pngYSize;
             $gcps{ "obstacle" . $key }{"lon"}  = $lon;
             $gcps{ "obstacle" . $key }{"lat"}  = $lat;
         }
@@ -1169,14 +1170,14 @@ if ( !$rnavPlate ) {
     #Add fixes to Ground Control Points hash
     say "Fix Ground Control Points" if $debug;
     foreach my $key ( sort keys %fixIcons ) {
-        my $pngx = $fixIcons{$key}{"X"} * $scalefactorx;
-        my $pngy = $pngy - ( $fixIcons{$key}{"Y"} * $scalefactory );
+        my $pngXSize = $fixIcons{$key}{"X"} * $scaleFactorX;
+        my $pngYSize = $pngYSize - ( $fixIcons{$key}{"Y"} * $scaleFactorY );
         my $lon  = $fixIcons{$key}{"Lon"};
         my $lat  = $fixIcons{$key}{"Lat"};
-        if ( $pngy && $pngx && $lon && $lat ) {
-            say "$pngx $pngy $lon $lat" if $debug;
-            $gcps{ "fix" . $key }{"pngx"} = $pngx;
-            $gcps{ "fix" . $key }{"pngy"} = $pngy;
+        if ( $pngYSize && $pngXSize && $lon && $lat ) {
+            say "$pngXSize $pngYSize $lon $lat" if $debug;
+            $gcps{ "fix" . $key }{"pngx"} = $pngXSize;
+            $gcps{ "fix" . $key }{"pngy"} = $pngYSize;
             $gcps{ "fix" . $key }{"lon"}  = $lon;
             $gcps{ "fix" . $key }{"lat"}  = $lat;
         }
@@ -1187,16 +1188,16 @@ if ( !$rnavPlate ) {
 say "GPS waypoint Ground Control Points" if $debug;
 foreach my $key ( sort keys %gpsWaypointIcons ) {
 
-    my $pngx = $gpsWaypointIcons{$key}{"iconCenterXPdf"} * $scalefactorx;
-    my $pngy =
-      $pngy - ( $gpsWaypointIcons{$key}{"iconCenterYPdf"} * $scalefactory );
+    my $pngXSize = $gpsWaypointIcons{$key}{"iconCenterXPdf"} * $scaleFactorX;
+    my $pngYSize =
+      $pngYSize - ( $gpsWaypointIcons{$key}{"iconCenterYPdf"} * $scaleFactorY );
     my $lon = $gpsWaypointIcons{$key}{"Lon"};
     my $lat = $gpsWaypointIcons{$key}{"Lat"};
-    if ( $pngy && $pngx && $lon && $lat ) {
+    if ( $pngYSize && $pngXSize && $lon && $lat ) {
 
-        say "$pngx $pngy $lon $lat" if $debug;
-        $gcps{ "gps" . $key }{"pngx"} = $pngx;
-        $gcps{ "gps" . $key }{"pngy"} = $pngy;
+        say "$pngXSize $pngYSize $lon $lat" if $debug;
+        $gcps{ "gps" . $key }{"pngx"} = $pngXSize;
+        $gcps{ "gps" . $key }{"pngy"} = $pngYSize;
         $gcps{ "gps" . $key }{"lon"}  = $lon;
         $gcps{ "gps" . $key }{"lat"}  = $lat;
     }
@@ -1229,7 +1230,7 @@ say "Found $gcpCount Ground Countrol Points";
 
 die "Need more Ground Control Points" if ( $gcpCount < 2 );
 say
-'$object1,$object2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY'
+'$object1,$object2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY,$xYRatio'
   if $debug;
 
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1243,7 +1244,6 @@ my @lrYAvg;
 my $scaleCounter = 0;
 
 foreach my $key ( sort keys %gcps ) {
-
 #This code is for calculating the PDF x/y and lon/lat differences between every object
 #to calculate the ratio between the two
     foreach my $key2 ( sort keys %gcps ) {
@@ -1262,12 +1262,15 @@ foreach my $key ( sort keys %gcps ) {
         my $ulX = $gcps{$key}{"lon"} - ( $gcps{$key}{"pngx"} * $xscale );
         my $ulY = $gcps{$key}{"lat"} + ( $gcps{$key}{"pngy"} * $yscale );
         my $lrX =
-          $gcps{$key}{"lon"} + ( abs( $pngx - $gcps{$key}{"pngx"} ) * $xscale );
+          $gcps{$key}{"lon"} + ( abs( $pngXSize - $gcps{$key}{"pngx"} ) * $xscale );
         my $lrY =
-          $gcps{$key}{"lat"} - ( abs( $pngy - $gcps{$key}{"pngy"} ) * $yscale );
-
+          $gcps{$key}{"lat"} - ( abs( $pngYSize - $gcps{$key}{"pngy"} ) * $yscale );
+        
+        #The X/Y (or Longitude/Latitude) ratio that would result from using this particular scaleCounter
+        #It should be very close to the XY ratio of the input PDF if we marked all GCPs correctly (I think?)
+        my $xYRatio = ($ulX - $lrX) / ($ulY - $lrY);
         say
-"$key,$key2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY"
+"$key,$key2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY,$xYRatio"
           if $debug;
 
         #Save the output of this iteration to average out later
@@ -1282,9 +1285,9 @@ foreach my $key ( sort keys %gcps ) {
 
 #X-scale average and standard deviation
 my $xAvg    = &average( \@xScaleAvg );
-my $xmedian = &median( \@xScaleAvg );
-my $xStdDev = &stdev( \@xScaleAvg ) / 2;
-say "X-scale average:  $xAvg\tX-scale stdev: $xStdDev\tmedian: $xmedian"
+my $xMedian = &median( \@xScaleAvg );
+my $xStdDev = &stdev( \@xScaleAvg );
+say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1294,14 +1297,15 @@ for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
         || $xScaleAvg[$i] > ( $xAvg + $xStdDev ) );
 }
 $xAvg = &average( \@xScaleAvg );
-say "X-scale average after deleting outside 1st dev: $xAvg" if $debug;
+$xMedian = &median( \@xScaleAvg );
+say "X-scale after deleting outside 1st dev: average: $xAvg\tmedian: $xMedian" if $debug;
 
 #--------------------
 #Y-scale average and standard deviation
 my $yAvg    = &average( \@yScaleAvg );
-my $ymedian = &median( \@yScaleAvg );
-my $yStdDev = &stdev( \@yScaleAvg ) / 2;
-say "Y-scale average:  $yAvg\tY-scale stdev: $yStdDev\tmedian: $ymedian"
+my $yMedian = &median( \@yScaleAvg );
+my $yStdDev = &stdev( \@yScaleAvg ) ;
+say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1311,16 +1315,17 @@ for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
         || $yScaleAvg[$i] > ( $yAvg + $yStdDev ) );
 }
 $yAvg = &average( \@yScaleAvg );
-say "Y-scale average after deleting outside 1st dev: $yAvg" if $debug;
+$yMedian = &median( \@yScaleAvg );
+say "Y-scale after deleting outside 1st dev: Average $yAvg\tMedian: $yMedian" if $debug;
 
 #------------------------
 #--------------------
 #ulX average and standard deviation
 my $ulXAvrg   = &average( \@ulXAvg );
 my $ulXmedian = &median( \@ulXAvg );
-my $ulXStdDev = &stdev( \@ulXAvg ) / 2;
+my $ulXStdDev = &stdev( \@ulXAvg ) ;
 say
-"Upper Left X average:  $ulXAvrg\tUpper Left X stdev: $ulXStdDev\tmedian: $ulXmedian"
+"Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1330,15 +1335,16 @@ for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
         || $ulXAvg[$i] > ( $ulXAvrg + $ulXStdDev ) );
 }
 $ulXAvrg = &average( \@ulXAvg );
-say "Upper Left X  average after deleting outside 1st dev: $ulXAvrg" if $debug;
+$ulXmedian = &median( \@ulXAvg );
+say "Upper Left X  after deleting outside 1st dev: average: $ulXAvrg\tmedian: $ulXmedian" if $debug;
 
 #------------------------
 #uly average and standard deviation
 my $ulYAvrg   = &average( \@ulYAvg );
 my $ulYmedian = &median( \@ulYAvg );
-my $ulYStdDev = &stdev( \@ulYAvg ) / 2;
+my $ulYStdDev = &stdev( \@ulYAvg ) ;
 say
-"Upper Left Y average:  $ulYAvrg\tUpper Left Y stdev: $ulYStdDev\tmedian: $ulYmedian"
+"Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1348,16 +1354,17 @@ for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
         || $ulYAvg[$i] > ( $ulYAvrg + $ulYStdDev ) );
 }
 $ulYAvrg = &average( \@ulYAvg );
-say "Upper Left Y average after deleting outside 1st dev: $ulYAvrg" if $debug;
+$ulYmedian = &median( \@ulYAvg );
+say "Upper Left Y after deleting outside 1st dev: average: $ulYAvrg\tmedian: $ulYmedian" if $debug;
 
 #------------------------
 #------------------------
 #lrX average and standard deviation
 my $lrXAvrg   = &average( \@lrXAvg );
 my $lrXmedian = &median( \@lrXAvg );
-my $lrXStdDev = &stdev( \@lrXAvg ) / 2;
+my $lrXStdDev = &stdev( \@lrXAvg ) ;
 say
-"Lower Right X average:  $lrXAvrg\tLower Right X stdev: $lrXStdDev\tmedian: $lrXmedian"
+"Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1367,16 +1374,17 @@ for ( my $i = 0 ; $i <= $#lrXAvg ; $i++ ) {
         || $lrXAvg[$i] > ( $lrXAvrg + $lrXStdDev ) );
 }
 $lrXAvrg = &average( \@lrXAvg );
-say "Lower Right X average after deleting outside 1st dev: $lrXAvrg" if $debug;
+$lrXmedian = &median( \@lrXAvg );
+say "Lower Right X  after deleting outside 1st dev: average: $lrXAvrg\tmedian: $lrXmedian" if $debug;
 
 #------------------------
 #------------------------
 #lrY average and standard deviation
 my $lrYAvrg   = &average( \@lrYAvg );
 my $lrYmedian = &median( \@lrYAvg );
-my $lrYStdDev = &stdev( \@lrYAvg ) / 2;
+my $lrYStdDev = &stdev( \@lrYAvg ) ;
 say
-"Lower Right Y average:  $lrYAvrg\tLower Right Y stdev: $lrYStdDev\tmedian: $lrYmedian"
+"Lower Right Y: average:  $lrYAvrg\tstdev: $lrYStdDev\tmedian: $lrYmedian"
   if $debug;
 
 #Delete values from the array that are outside 1st dev
@@ -1386,7 +1394,8 @@ for ( my $i = 0 ; $i <= $#lrYAvg ; $i++ ) {
         || $lrYAvg[$i] > ( $lrYAvrg + $lrYStdDev ) );
 }
 $lrYAvrg = &average( \@lrYAvg );
-say "Lower Right Y average after deleting outside 1st dev: $lrYAvrg" if $debug;
+$lrYmedian = &median( \@lrYAvg );
+say "Lower Right Y after deleting outside 1st dev: average: $lrYAvrg\tmedian: $lrYmedian" if $debug;
 
 #------------------------
 
@@ -1403,13 +1412,21 @@ my $upperLeftLat  = $ulYmedian;
 my $lowerRightLon = $lrXmedian;
 my $lowerRightLat = $lrYmedian;
 
+my $medianLonDiff = $ulXmedian - $lrXmedian;
+my $medianLatDiff = $ulYmedian - $lrYmedian;
+my $latLonRatio = $medianLonDiff / $medianLatDiff;
+say "Output Longitude/Latitude Ratio: " . $latLonRatio;
+say "Input PDF ratio: " . $pdfXYRatio;
+
 if ( !$outputStatistics ) {
 
     #Don't actually generate the .tif if we're just collecting statistics
     # $gdal_translateoutput =
 # qx(gdal_translate -of GTiff -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs " -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
+my $gdal_translateCommand = "gdal_translate -of GTiff  -a_srs \"+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs\" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif ";
+say $gdal_translateCommand if $debug;
     $gdal_translateoutput =
-qx(gdal_translate -of GTiff  -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targettif  );
+qx($gdal_translateCommand);
 
 
 
@@ -1443,9 +1460,9 @@ qx(gdal_translate -of GTiff  -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no
 
 #This version tries using the PDF directly instead of the intermediate PNG
 # say $gcpstring;
-# $output = qx(gdal_translate -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpdf $targetpdf.vrt);
+# $output = qx(gdal_translate -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetPdf $targetPdf.vrt);
 # say $output;
-# $output = qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha $targetpdf.vrt $targettif);
+# $output = qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha $targetPdf.vrt $targettif);
 # say $output;
 
 if ($outputStatistics) {
@@ -1471,7 +1488,9 @@ sub findObstacleHeightTexts {
     foreach my $line (@pdftotext) {
 
    #Find 3+ digit numbers that don't start or end with 0 and are less than 30000
-        if ( $line =~ m/^([1-9][\d]{1,}[1-9])$/ ) {
+
+        #if ( $line =~ m/^([1-9][\d]{1,}[1-9])$/ ) {
+        if ( $line =~ m/^($obstacleHeightRegex)$/ ) {
             next if $1 > 30000;
             push @obstacle_heights, $1;
         }
@@ -1540,7 +1559,7 @@ sub findAirportLatitudeAndLongitude {
 
         #We didn't get any airport info from the PDF, let's check the database
         #Get airport from database
-        if ( $airportid eq "" ) {
+        if ( $airportId eq "" ) {
             say
 "You must specify an airport ID (eg. -a SMF) since there was no info on the PDF";
             exit(1);
@@ -1548,7 +1567,7 @@ sub findAirportLatitudeAndLongitude {
 
         #Query the database for airport
         $sth = $dbh->prepare(
-"SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportid'"
+"SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportId'"
         );
         $sth->execute();
         my $allSqlQueryResults = $sth->fetchall_arrayref();
@@ -1574,11 +1593,8 @@ sub findAirportLatitudeAndLongitude {
 }
 
 sub getMediaboxSize {
-
-    #----------------------------------------------------------
     #Get the mediabox size from the PDF
-
-    my $mutoolinfo = qx(mutool info $targetpdf);
+    my $mutoolinfo = qx(mutool info $targetPdf);
     $retval = $? >> 8;
     die "No output from mutool info.  Is it installed? Return code was $retval"
       if ( $mutoolinfo eq "" || $retval != 0 );
@@ -1586,15 +1602,17 @@ sub getMediaboxSize {
     foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
         ## Regular expression magic to grab what you want
         if ( $line =~ /([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+)/ ) {
-            $pdfx       = $3 - $1;
-            $pdfy       = $4 - $2;
-            $pdfCenterX = $pdfx / 2;
-            $pdfCenterY = $pdfy / 2;
+            my $pdfXSize       = $3 - $1;
+            my $pdfYSize       = $4 - $2;
+            my $pdfCenterX = $pdfXSize / 2;
+            my $pdfCenterY = $pdfYSize / 2;
+            my $pdfXYRatio = $pdfXSize / $pdfYSize;
             if ($debug) {
-                say "PDF Mediabox size: " . $pdfx . "x" . $pdfy;
+                say "PDF Mediabox size: " . $pdfXSize . "x" . $pdfYSize;
                 say "PDF Mediabox center: " . $pdfCenterX . "x" . $pdfCenterY;
+                say "PDF X/Y Ratio: " . $pdfXYRatio;
             }
-            return ( $pdfx, $pdfy, $pdfCenterX, $pdfCenterY );
+            return ( $pdfXSize, $pdfYSize, $pdfCenterX, $pdfCenterY, $pdfXYRatio );
         }
     }
 }
@@ -1610,27 +1628,29 @@ sub getPngSize {
     foreach my $line ( split /[\r\n]+/, $fileoutput ) {
         ## Regular expression magic to grab what you want
         if ( $line =~ /([-\.0-9]+)\s+x\s+([-\.0-9]+)/ ) {
-            $pngx = $1;
-            $pngy = $2;
+            $pngXSize = $1;
+            $pngYSize = $2;
         }
     }
 
     #Calculate the ratios of the PNG/PDF coordinates
-    my $scalefactorx = $pngx / $pdfx;
-    my $scalefactory = $pngy / $pdfy;
+    my $scaleFactorX = $pngXSize / $pdfXSize;
+    my $scaleFactorY = $pngYSize / $pdfYSize;
+    my $pngXYRatio = $pngXSize / $pngYSize;
     if ($debug) {
-        say "PNG size: " . $pngx . "x" . $pngy;
-        say "Scalefactor PDF->PNG X:  " . $scalefactorx;
-        say "Scalefactor PDF->PNG Y:  " . $scalefactory;
+        say "PNG size: " . $pngXSize . "x" . $pngYSize;
+        say "Scalefactor PDF->PNG X:  " . $scaleFactorX;
+        say "Scalefactor PDF->PNG Y:  " . $scaleFactorY;
+         say "PNG X/Y Ratio:  " . $pngXYRatio;
     }
-    return ( $pngx, $pngy, $scalefactorx, $scalefactory );
+    return ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio );
 }
 
 sub getNumberOfStreams {
 
     #Get number of objects/streams in the targetpdf
 
-    my $mutoolshowoutput = qx(mutool show $targetpdf x);
+    my $mutoolshowoutput = qx(mutool show $targetPdf x);
     $retval = $? >> 8;
     die "No output from mutool show.  Is it installed? Return code was $retval"
       if ( $mutoolshowoutput eq "" || $retval != 0 );
@@ -1677,8 +1697,7 @@ sub outlineEverythingWeFound {
         $obstacle_box->strokecolor('red');
         $obstacle_box->linewidth(.1);
         $obstacle_box->stroke;
-        $obstacle_box->circle( $obstacleIcons{$key}{X},
-            $obstacleIcons{$key}{Y}, 18 );
+        #$obstacle_box->circle( $obstacleIcons{$key}{X},$obstacleIcons{$key}{Y}, 18 );
         $obstacle_box->strokecolor('pink');
         $obstacle_box->linewidth(.1);
         $obstacle_box->stroke;
