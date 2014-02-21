@@ -101,6 +101,8 @@ my $targetvrt        = $dir . $filename . ".vrt";
 my $targetStatistics = "./statistics.csv";
 
 my $rnavPlate = 0;
+
+#Check that the source is a PDF
 if ( !$ext =~ m/^\.pdf$/i ) {
 
     #Check that suffix is PDF for input file
@@ -108,6 +110,7 @@ if ( !$ext =~ m/^\.pdf$/i ) {
     exit(1);
 }
 
+#Try using only GPS fixes on RNAV plates
 if ( $filename =~ m/^\d+R/ ) {
     say "Input is a GPS plate, using only GPS waypoints for references";
     $rnavPlate = 1;
@@ -211,6 +214,7 @@ my %obstacleIcons = ();
 
 #sub findObstacleIcons{
 for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
+    #A regex that matches how an obstacle is drawn in the PDF
     my $obstacleregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
 ^0 0 m$
 ^([\.0-9]+) [\.0-9]+ l$
@@ -233,12 +237,13 @@ for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
     #Remove new lines
     # $output =~ s/\n/ /g;
 
-#each entry in @tempobstacles will have the numbered captures from the regex, 6 for each one
+    #each entry in @tempobstacles will have the numbered captures from the regex, 6 for each one
     my @tempobstacles        = $output =~ /$obstacleregex/ig;
     my $tempobstacles_length = 0 + @tempobstacles;
 
     #6 data points for each obstacle
     my $tempobstacles_count = $tempobstacles_length / 6;
+
 
     if ( $tempobstacles_length >= 6 ) {
         say "Found $tempobstacles_count obstacles in stream $stream";
@@ -523,8 +528,8 @@ my %obstacleTextBoxes = ();
 
 foreach my $line (@pdfToTextBbox) {
     if ( $line =~ m/$obstacletextboxregex/ ) {
-        $obstacleTextBoxes{ $1 . $2 }{"RasterX"} = $1;
-        $obstacleTextBoxes{ $1 . $2 }{"RasterY"} = $2;
+        $obstacleTextBoxes{ $1 . $2 }{"RasterX"} = $1 * $scaleFactorX; #BUG TODO
+        $obstacleTextBoxes{ $1 . $2 }{"RasterY"} = $2 * $scaleFactorY; #BUG TODO
         $obstacleTextBoxes{ $1 . $2 }{"Width"}   = $3 - $1;
         $obstacleTextBoxes{ $1 . $2 }{"Height"}  = $4 - $2;
         $obstacleTextBoxes{ $1 . $2 }{"Text"}    = $5;
@@ -554,7 +559,7 @@ my %fixtextboxes         = ();
 foreach my $line (@pdfToTextBbox) {
     if ( $line =~ m/$fixtextboxregex/ ) {
 
-#Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
+        #Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
         next if $5 =~ m/$invalidfixnamesregex/;
 
         $fixtextboxes{ $1 . $2 }{"RasterX"}        = $1;
@@ -640,7 +645,7 @@ onlyuniq(@obstacle_heights);
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Find obstacles with a certain height in the DB
-my $radius = ".3";    #~15 miles
+my $radius = ".3";    # +/- degrees of longitude or latitude (~15 miles)
 
 my %unique_obstacles_from_db = ();
 my $unique_obstacles_from_dbCount;
@@ -664,6 +669,7 @@ foreach my $heightmsl (@obstacle_heights) {
     next if ( $rows != 1 );
 
     foreach my $row (@$all) {
+        #Populate variables from our database lookup
         my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
         foreach my $pdf_obstacle_height (@obstacle_heights) {
             if ( $pdf_obstacle_height == $heightmsl ) {
@@ -735,7 +741,8 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
         my $hyp = sqrt( $distance_to_closest_obstacle_icon_x**2 +
               $distance_to_closest_obstacle_icon_y**2 );
-        if ( ( $hyp < $distance_to_closest_obstacle_icon ) && ( $hyp < 12 ) ) {
+              
+        if ( ( $hyp < $distance_to_closest_obstacle_icon ) && ( $hyp < 15 ) ) {
             $distance_to_closest_obstacle_icon = $hyp;
             $unique_obstacles_from_db{$key}{"ObsIconX"} =
               $obstacleIcons{$key2}{"X"};
@@ -763,7 +770,7 @@ say
   "unique_obstacles_from_db before deleting entries that share ObsIconX or Y:";
 print Dumper ( \%unique_obstacles_from_db );
 
-#Remove entries that share an ObsIconX and ObsIconY with another entry
+#Find entries that share an ObsIconX and ObsIconY with another entry and create an array of them
 my @a;
 foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
@@ -784,6 +791,7 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
     }
 }
+#Actually delete the entries
 foreach my $entry (@a) {
     delete $unique_obstacles_from_db{$entry};
 }
@@ -804,7 +812,7 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
 }
 
 if ($debug) {
-    say "Unique obstacles from database lookup";
+    say "Unique obstacles from database lookup that match with textboxes in PDF";
     print Dumper ( \%unique_obstacles_from_db );
 }
 
@@ -818,7 +826,7 @@ my $type = "%REP-PT";
 #Query the database for fixes within our $radius
 $sth = $dbh->prepare(
 "SELECT * FROM fixes WHERE  (Latitude >  $airportLatitudeDec - $radius ) and 
-                                (Latitude < $airportLatitudeDec +$radius ) and 
+                                (Latitude < $airportLatitudeDec + $radius ) and 
                                 (Longitude >  $airportLongitudeDec - $radius ) and 
                                 (Longitude < $airportLongitudeDec +$radius ) and
                                 (Type like '$type')"
@@ -1265,21 +1273,28 @@ foreach my $key ( sort keys %gcps ) {
           $gcps{$key}{"lon"} + ( abs( $pngXSize - $gcps{$key}{"pngx"} ) * $xscale );
         my $lrY =
           $gcps{$key}{"lat"} - ( abs( $pngYSize - $gcps{$key}{"pngy"} ) * $yscale );
+
+         #Go to next object pair if we've somehow gotten zero for any of these numbers
+        next if ($xdiff == 0 || $ydiff == 0 || $londiff == 0 || $latdiff == 0);        
         
         #The X/Y (or Longitude/Latitude) ratio that would result from using this particular scaleCounter
         #It should be very close to the XY ratio of the input PDF if we marked all GCPs correctly (I think?)
-        my $xYRatio = ($ulX - $lrX) / ($ulY - $lrY);
+        my $xYRatio = abs(($ulX - $lrX) / ($ulY - $lrY));      
+        
         say
 "$key,$key2,$xdiff,$ydiff,$londiff,$latdiff,$xscale,$yscale,$ulX,$ulY,$lrX,$lrY,$xYRatio"
           if $debug;
-
-        #Save the output of this iteration to average out later
-        push @xScaleAvg, $xscale;
-        push @yScaleAvg, $yscale;
-        push @ulXAvg,    $ulX;
-        push @ulYAvg,    $ulY;
-        push @lrXAvg,    $lrX;
-        push @lrYAvg,    $lrY;
+   
+         #If our XYRatio seems to be out of whack for this object pair then don't use the info we derived 
+        unless($xYRatio < .65 || $xYRatio > .9){
+                #Save the output of this iteration to average out later
+                push @xScaleAvg, $xscale;
+                push @yScaleAvg, $yscale;
+                push @ulXAvg,    $ulX;
+                push @ulYAvg,    $ulY;
+                push @lrXAvg,    $lrX;
+                push @lrYAvg,    $lrY;
+                }
     }
 }
 
@@ -1414,9 +1429,13 @@ my $lowerRightLat = $lrYmedian;
 
 my $medianLonDiff = $ulXmedian - $lrXmedian;
 my $medianLatDiff = $ulYmedian - $lrYmedian;
-my $latLonRatio = $medianLonDiff / $medianLatDiff;
+my $latLonRatio = abs($medianLonDiff / $medianLatDiff);
 say "Output Longitude/Latitude Ratio: " . $latLonRatio;
 say "Input PDF ratio: " . $pdfXYRatio;
+
+if (abs($pdfXYRatio - $latLonRatio) > .25) {
+    die "Output image ratio is way out of whack, we probably picked bad ground control points";
+    }
 
 if ( !$outputStatistics ) {
 
@@ -1559,7 +1578,7 @@ sub findAirportLatitudeAndLongitude {
 
         #We didn't get any airport info from the PDF, let's check the database
         #Get airport from database
-        if ( $airportId eq "" ) {
+        if ( !$airportId ) {
             say
 "You must specify an airport ID (eg. -a SMF) since there was no info on the PDF";
             exit(1);
