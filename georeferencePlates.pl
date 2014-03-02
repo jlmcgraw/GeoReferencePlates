@@ -56,7 +56,6 @@
 #-150.8658748280883799          -1.5084643779054099e+02
 #61.54208634064045924           6.1555378096972902e+01          .23c
 
-
 use 5.010;
 
 use strict;
@@ -173,10 +172,15 @@ if ($debug) {
     say "";
 }
 
-#Open the input PDF
-open my $file, '<', $targetPdf
-  or croak "can't open '$targetPdf' for reading : $!";
-close $file;
+#This is a quick hack to abort if we've already created a .vrt for this plate
+ if (-e $targetvrt){
+     say "$targetvrt exists, exiting";
+     exit(1)};
+
+# #Open the input PDF
+# open my $file, '<', $targetPdf
+  # or croak "can't open '$targetPdf' for reading : $!";
+# close $file;
 
 #Pull all text out of the PDF
 my @pdftotext;
@@ -210,25 +214,15 @@ $dbh = DBI->connect(
 my ( $airportLatitudeDec, $airportLongitudeDec ) =
   findAirportLatitudeAndLongitude();
 
+#Testing a way to normalize scales by latitude
 my $fudge = ( cos( deg2rad($airportLatitudeDec) ) )**2;
-say "Fudge $fudge at Latitude $airportLatitudeDec";
-
-# $cosine =  cos($radians);
-# $fudge = $cosine**2;
-# #$fudge = Math.pow(Math.cos(Math.toRadians(<lat>)),2);
+#say "Fudge $fudge at Latitude $airportLatitudeDec";
 
 #Get the mediabox size and other variables from the PDF
 my ( $pdfXSize, $pdfYSize, $pdfCenterX, $pdfCenterY, $pdfXYRatio ) =
   getMediaboxSize();
 
-#---------------------------------------------------
-#Convert the PDF to a PNG
-my $pdfToPpmOutput;
-
-$pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetpng);
-
-$retval = $? >> 8;
-die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
+convertPdfToPng();
 
 #Get PNG dimensions and the PDF->PNG scale factors
 my ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
@@ -249,11 +243,13 @@ my $objectstreams = getNumberOfStreams();
 #
 # my $lineReg = qr/\A$coordinateReg l\Z/;
 # my $bezierReg = qr/\A$coordinateReg $coordinateReg $coordinateReg c\Z/;
+
+#numbers that start with 1-9 followed by 2 or more digits
 my $obstacleHeightRegex = qr/[1-9]\d{2,}/;
 
 #Finding each of these icon types can be rolled into one loop per stream instead of separate one for each type
 #----------------------------------------------------------------------------------------------------------
-#Find obstacle icons in the pdf
+
 #F*  Fill path
 #S     Stroke path
 #cm Scale and translate coordinate space
@@ -265,34 +261,20 @@ my $obstacleHeightRegex = qr/[1-9]\d{2,}/;
 
 #                           0x               1y                                     2+x         3+y                                                                               4dotX     5dotY
 
-my %obstacleIcons = ();
-my $obstacleCount = 0;
-#%obstacleIcons = findObstacleIcons ($streamText, \@array, $scalar);
-findObstacleIcons();
-
-#Find all of the FIX icons
-my %fixIcons = ();
-my $fixCount = 0;
-findFixIcons();
-
-#Find all of the GPS waypoint icons
-my %gpsWaypointIcons = ();
-my $gpsCount         = 0;
-findGpsWaypointIcons();
-
-#Find Final Approach Fix icons
-my %finalApproachFixIcons = ();
-my $finalApproachFixCount = 0;
-findFinalApproachFixIcons();
-
-
-# #--------------------------------------------------------------------------------------------------------
-
-#Find Visual Descent Point icons
+#Global variables filled in by the "findAllIcons" subroutine.  At somepoint I'll convert the subroutines to return values instead
+my %obstacleIcons           = ();
+my $obstacleCount           = 0;
+my %fixIcons                = ();
+my $fixCount                = 0;
+my %gpsWaypointIcons        = ();
+my $gpsCount                = 0;
+my %finalApproachFixIcons   = ();
+my $finalApproachFixCount   = 0;
 my %visualDescentPointIcons = ();
-my $visualDescentPointCount =0;
-findVisualDescentPointIcons();
+my $visualDescentPointCount = 0;
 
+#Loop through each of the streams in the PDF and find all of the icons we're interested in
+findAllIcons();
 
 #Get all of the text and respective bounding boxes in the PDF
 my @pdfToTextBbox = qx(pdftotext $targetPdf -bbox - );
@@ -303,14 +285,13 @@ die "No output from pdftotext -bbox.  Is it installed? Return code was $retval"
 #-----------------------------------------------------------------------------------------------------------
 #Get list of potential obstacle height textboxes
 #For whatever dumb reason they're in raster coordinates (0,0 is top left, Y increases downwards)
-#Look for 3+ digit numbers not starting or ending in 0
-my $obstacletextboxregex =
+my $obstacleTextBoxRegex =
 qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">($obstacleHeightRegex)</;
 
 my %obstacleTextBoxes = ();
 
 foreach my $line (@pdfToTextBbox) {
-    if ( $line =~ m/$obstacletextboxregex/ ) {
+    if ( $line =~ m/$obstacleTextBoxRegex/ ) {
         $obstacleTextBoxes{ $1 . $2 }{"RasterX"} = $1 * $scaleFactorX; #BUG TODO
         $obstacleTextBoxes{ $1 . $2 }{"RasterY"} = $2 * $scaleFactorY; #BUG TODO
         $obstacleTextBoxes{ $1 . $2 }{"Width"}   = $3 - $1;
@@ -327,21 +308,23 @@ foreach my $line (@pdfToTextBbox) {
 }
 
 #print Dumper ( \%obstacleTextBoxes );
+
+if ($debug) {
 say "Found " . keys(%obstacleTextBoxes) . " Potential obstacle text boxes";
 say "";
-
+}
 #--------------------------------------------------------------------------
 #Get list of potential fix/intersection/GPS waypoint  textboxes
 #For whatever dumb reason they're in raster coordinates (0,0 is top left, Y increases downwards)
 #We'll convert them to PDF coordinates
-my $fixtextboxregex =
+my $fixTextBoxRegex =
 qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">([A-Z]{5})</;
 
-my $invalidfixnamesregex = qr/tower|south|radar/i;
+my $invalidFixNamesRegex = qr/tower|south|radar/i;
 my %fixtextboxes         = ();
 
 foreach my $line (@pdfToTextBbox) {
-    if ( $line =~ m/$fixtextboxregex/ ) {
+    if ( $line =~ m/$fixTextBoxRegex/ ) {
         my $_fixXMin = $1;
         my $_fixYMin = $2;
         my $_fixXMax = $3;
@@ -349,7 +332,7 @@ foreach my $line (@pdfToTextBbox) {
         my $_fixName = $5;
 
 #Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
-        next if $_fixName =~ m/$invalidfixnamesregex/;
+        next if $_fixName =~ m/$invalidFixNamesRegex/;
 
         $fixtextboxes{ $_fixXMin . $_fixYMin }{"RasterX"} =
           $_fixXMin * $scaleFactorX;    #BUG TODO;
@@ -368,11 +351,11 @@ foreach my $line (@pdfToTextBbox) {
     }
 
 }
-
+if ($debug) {
 #print Dumper ( \%fixtextboxes );
 say "Found " . keys(%fixtextboxes) . " Potential Fix/GPS Waypoint text boxes";
 say "";
-
+}
 #----------------------------------------------------------------------------------------------------------
 #Modify the PDF
 my $pdf = PDF::API2->open($targetPdf);
@@ -384,66 +367,7 @@ my $page = $pdf->openpage(1);
 outlineEverythingWeFound();
 
 #Try to find closest obstacleTextBox center to each obstacleIcon
-foreach my $key ( sort keys %obstacleIcons ) {
-    my $distance_to_closest_obstacletextbox = 999999999999
-      ;    #Start with a very high number so initially is closer than it
-
-    foreach my $key2 ( keys %obstacleTextBoxes ) {
-        my $distanceToObstacletextboxX;
-        my $distanceToObstacletextboxY;
-
-        $distanceToObstacletextboxX =
-          $obstacleTextBoxes{$key2}{"boxCenterXPdf"} -
-          $obstacleIcons{$key}{"X"};
-        $distanceToObstacletextboxY =
-          $obstacleTextBoxes{$key2}{"boxCenterYPdf"} -
-          $obstacleIcons{$key}{"Y"};
-
-        my $hypotenuse = sqrt(
-            $distanceToObstacletextboxX**2 + $distanceToObstacletextboxY**2 );
-
-       #Ignore this textbox if it's further away than our max distance variables
-        next if ( !( $hypotenuse < $maxDistanceFromObstacleIconToTextBox ) );
-
-#Count the number of potential textbox matches.  If this is > 1 then we should consider this matchup to be less reliable
-        $obstacleIcons{$key}{"potentialTextBoxes"} =
-          $obstacleIcons{$key}{"potentialTextBoxes"} + 1;
-
-#The 27 here was chosen to make one particular sample work, it's not universally valid
-#Need to improve the icon -> textbox mapping
-#say "Hypotenuse: $hyp" if $debug;
-        if ( ( $hypotenuse < $distance_to_closest_obstacletextbox ) ) {
-
-            #Update the distance to the closest obstacleTextBox center
-            $distance_to_closest_obstacletextbox = $hypotenuse;
-
-#Set the "name" of this obstacleIcon to the text from obstacleTextBox
-#This is where we kind of guess (and can go wrong) since the closest height text is often not what should be associated with the icon
-
-            $obstacleIcons{$key}{"Name"} = $obstacleTextBoxes{$key2}{"Text"};
-
-            $obstacleIcons{$key}{"TextBoxX"} =
-              $obstacleTextBoxes{$key2}{"boxCenterXPdf"};
-
-            $obstacleIcons{$key}{"TextBoxY"} =
-              $obstacleTextBoxes{$key2}{"boxCenterYPdf"};
-
-            # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} =
-            # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} + 1;
-        }
-
-    }
-
-    #$obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} =
-    # $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} + 1;
-}
-if ($debug) {
-    say "obstacleIcons";
-    print Dumper ( \%obstacleIcons );
-    say "";
-    say "obstacleTextBoxes";
-    print Dumper ( \%obstacleTextBoxes );
-}
+findClosestObstacleTextBoxToObstacleIcon();
 
 #Draw a line from obstacle icon to closest text boxes
 drawLineFromEachObstacleToClosestTextBox();
@@ -455,58 +379,15 @@ my @obstacle_heights = findObstacleHeightTexts(@pdftotext);
 #Remove any duplicates
 onlyuniq(@obstacle_heights);
 
-#---------------------------------------------------------------------------------------------------------------------------------------------------
-#Find obstacles with a certain height in the DB
-my $radius = ".3";    # +/- degrees of longitude or latitude (~15 miles)
-
+#Find all obstacles within our defined distance from the airport that have a height in the list of potential obstacleTextBoxes and are unique
+my $radius = ".3"
+  ; # +/- degrees of longitude or latitude (~15 miles) from airport to limit our search for objects  to
 my %unique_obstacles_from_db = ();
 my $unique_obstacles_from_dbCount;
-foreach my $heightmsl (@obstacle_heights) {
-
-    #Query the database for obstacles of $heightmsl within our $radius
-    $sth = $dbh->prepare(
-        "SELECT * FROM obstacles WHERE (HeightMsl=$heightmsl) and 
-                                       (Latitude >  $airportLatitudeDec - $radius ) and 
-                                       (Latitude < $airportLatitudeDec +$radius ) and 
-                                       (Longitude >  $airportLongitudeDec - $radius ) and 
-                                       (Longitude < $airportLongitudeDec +$radius )"
-    );
-    $sth->execute();
-
-    my $all  = $sth->fetchall_arrayref();
-    my $rows = $sth->rows();
-    say "Found $rows objects of height $heightmsl" if $debug;
-
-   #Don't show results of searches that have more than one result, ie not unique
-    next if ( $rows != 1 );
-
-    foreach my $row (@$all) {
-
-        #Populate variables from our database lookup
-        my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
-        foreach my $pdf_obstacle_height (@obstacle_heights) {
-            if ( $pdf_obstacle_height == $heightmsl ) {
-                $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
-                $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
-            }
-        }
-    }
-
-}
-
-#How many obstacles with unique heights did we find
-$unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
-
-if ($debug) {
-    say
-"Found $unique_obstacles_from_dbCount OBSTACLES with unique heights within $radius degrees of airport from database";
-    say "unique_obstacles_from_db:";
-    print Dumper ( \%unique_obstacles_from_db );
-    say "";
-}
+findObstaclesInDatabase();
 
 #Find a obstacle icon with text that matches the height of each of our unique_obstacles_from_db
-#Add the center coordinates its closest height text box to unique_obstacles_from_db hash
+#Add the center coordinates of its closest height text box to unique_obstacles_from_db hash
 #
 #The key for %unique_obstacles_from_db is the height of each obstacle
 foreach my $key ( keys %unique_obstacles_from_db ) {
@@ -676,11 +557,14 @@ foreach my $key ( sort keys %unique_obstacles_from_db ) {
         $countOfObstaclesWithOnePotentialTextbox++;
     }
 }
+
+if ($debug){
 say
 "$countOfObstaclesWithOnePotentialTextbox Obtacles that have only 1 potentialTextBoxes";
+}
 
 if ( $countOfObstaclesWithOnePotentialTextbox > 2 ) {
-    say "Gleefully deleting objects that have more than one potentialTextBoxes";
+    #say "Gleefully deleting objects that have more than one potentialTextBoxes";
 
     # foreach my $key ( sort keys %unique_obstacles_from_db ) {
     # if  (!($unique_obstacles_from_db{$key}{"potentialTextBoxes"} == 1))
@@ -1003,7 +887,7 @@ foreach my $key ( sort keys %gpsWaypointIcons ) {
           )
         {
             my $name = $gpsWaypointIcons{$key}{"Name"};
-            say "A ha, I found a duplicate GPS waypoint name: $name";
+            say "A ha, I found a duplicate GPS waypoint name: $name" if $debug;
             my $distance_to_pdf_center_x1 =
               abs( $pdfCenterX - $gpsWaypointIcons{$key}{"iconCenterXPdf"} );
             my $distance_to_pdf_center_y1 =
@@ -1017,12 +901,12 @@ foreach my $key ( sort keys %gpsWaypointIcons ) {
 
             if ( $distance_to_pdf_center_y1 < $distance_to_pdf_center_y2 ) {
                 delete $gpsWaypointIcons{$key2};
-                say "Deleting the 2nd entry";
+                say "Deleting the 2nd entry" if $debug;
                 goto OUTER;
             }
             else {
                 delete $gpsWaypointIcons{$key};
-                say "Deleting the first entry";
+                say "Deleting the first entry" if $debug;
                 goto OUTER;
             }
         }
@@ -1157,7 +1041,10 @@ if ($debug) {
 #Make sure we have enough GCPs
 my $gcpCount = scalar( keys(%gcps) );
 say "Found $gcpCount potential Ground Control Points";
-die "Need more Ground Control Points" if ( $gcpCount < 2 );
+if ( $gcpCount < 2 ) {
+say "Need more Ground Control Points" ;
+exit (1);
+}
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------
 # #Try to georeference based on the list of Ground Control Points
@@ -1197,6 +1084,7 @@ my @lrXAvg;
 my @lrYAvg;
 my $scaleCounter = 0;
 
+#This is where we finally generate the real information for each plate
 foreach my $key ( sort keys %gcps ) {
 
 #This code is for calculating the PDF x/y and lon/lat differences between every object
@@ -1252,8 +1140,10 @@ foreach my $key ( sort keys %gcps ) {
             || $latitudeDiff == 0 );
 
 #The X/Y (or Longitude/Latitude) ratio that would result from using this particular pair
-#It should be very close to the XY ratio of the input PDF if we marked all GCPs correctly (I think?)
+
         my $longitudeToLatitudeRatio = abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
+
+        #Testing a way to normalize the varying longitudeToPixelRatio
         my $longitudeToLatitudeRatio2 =
           abs( ( ( $ulX - $lrX ) / $fudge ) / ( $ulY - $lrY ) );
 
@@ -1266,11 +1156,11 @@ foreach my $key ( sort keys %gcps ) {
         if (   $longitudeToLatitudeRatio < .65
             || $longitudeToLatitudeRatio > 1.45 )
         {
-            say "Bad xYRatio $longitudeToLatitudeRatio on $key-$key2 pair";
+            say "Bad longitudeToLatitudeRatio $longitudeToLatitudeRatio on $key-$key2 pair";
             next;
         }
 
-        if ( $latitudeToPixelRatio < .0003 || $latitudeToPixelRatio > .0008 ) {
+        if ( $latitudeToPixelRatio < .0003 || $latitudeToPixelRatio > .0006 ) {
             say
 "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key-$key2 pair";
             next;
@@ -1312,12 +1202,15 @@ my ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
 calculateLRY();
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------
-#Try to georeference based on Upper Left and Lower Right extents
+#Try to georeference based on Upper Left and Lower Right extents of longitude and latitude
 
+#Uncomment these to use the average values for each
 # my $upperLeftLon  = $ulXAvrg;
 # my $upperLeftLat  = $ulYAvrg;
 # my $lowerRightLon = $lrXAvrg;
 # my $lowerRightLat = $lrYAvrg;
+
+#Uncomment these to use the median values for each
 my $upperLeftLon  = $ulXmedian;
 my $upperLeftLat  = $ulYmedian;
 my $lowerRightLon = $lrXmedian;
@@ -1326,9 +1219,12 @@ my $lowerRightLat = $lrYmedian;
 my $medianLonDiff = $ulXmedian - $lrXmedian;
 my $medianLatDiff = $ulYmedian - $lrYmedian;
 my $lonLatRatio   = abs( $medianLonDiff / $medianLatDiff );
+
+if ($debug){
 say "Output Longitude/Latitude Ratio: " . $lonLatRatio;
 say "Input PDF ratio: " . $pdfXYRatio;
 say "";
+}
 
 #Check that our determined scales and x/y ratios seem to make sense.  A
 #if (abs($pdfXYRatio - $lonLatRatio) > .25) {
@@ -1337,7 +1233,7 @@ if ( abs($lonLatRatio) < .65 || abs($lonLatRatio) > 1.45 ) {
 "Longitude/Latitude output ratio is  out of whack ($lonLatRatio), we probably picked bad ground control points";
 }
 
-if ( abs($xMedian) < .0002 || abs($xMedian) > .0008) {
+if ( abs($xMedian) < .0002 || abs($xMedian) > .0008 ) {
 
     #These test values are based on 300 dpi
     say
@@ -1361,7 +1257,7 @@ if ( abs($xYMedianScaleRatio) < 1.15 || abs($xYMedianScaleRatio) > 1.6 ) {
 }
 
 my $gdal_translateCommand =
-"gdal_translate -of VRT -strict -a_srs \"+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs\" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targetvrt ";
+"gdal_translate -q -of VRT -strict -a_srs \"+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs\" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat $targetpng  $targetvrt ";
 
 if ($debug) {
     say $gdal_translateCommand;
@@ -1375,8 +1271,8 @@ my $gdal_translateoutput = qx($gdal_translateCommand);
 # $gdal_translateoutput =
 # qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
 $retval = $? >> 8;
-croak "No output from gdal_translate  Is it installed? Return code was $retval"
-  if ( $gdal_translateoutput eq "" || $retval != 0 );
+croak "Error executing gdal_translate.  Is it installed? Return code was $retval"
+  if ( $retval != 0 );
 say $gdal_translateoutput;
 
 # my $gdalwarpoutput;
@@ -1613,7 +1509,9 @@ sub getNumberOfStreams {
             $objectstreams = $2;
         }
     }
+    if ($debug) {
     say "Object streams: " . $objectstreams;
+}
     return $objectstreams;
 }
 
@@ -1874,7 +1772,27 @@ sub calculateLRY {
     return;
 }
 
-sub findGpsWaypointIcons {
+sub findAllIcons {
+
+    #Loop through each "stream" in the pdf looking for our various icons
+    my $output;
+    for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+        $output = qx(mutool show $targetPdf $i x);
+        $retval = $? >> 8;
+        die
+"No output from mutool show.  Is it installed? Return code was $retval"
+          if ( $output eq "" || $retval != 0 );
+        #ay "Stream $i";
+        newfindObstacleIcons($output);
+        newfindFixIcons($output);
+        newfindGpsWaypointIcons($output);
+        newfindFinalApproachFixIcons($output);
+        newfindVisualDescentPointIcons($output);
+    }
+
+}
+
+sub oldfindGpsWaypointIcons {
     for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
 #Find first half of gps waypoint icons
@@ -1940,7 +1858,7 @@ sub findGpsWaypointIcons {
     return;
 }
 
-sub findObstacleIcons {
+sub oldfindObstacleIcons {
     for ( my $stream = 0 ; $stream < ( $objectstreams - 1 ) ; $stream++ ) {
 
         #A regex that matches how an obstacle is drawn in the PDF
@@ -2010,7 +1928,7 @@ sub findObstacleIcons {
 
 }
 
-sub findFixIcons {
+sub oldfindFixIcons {
     for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 
 #Find fixes in the PDF
@@ -2061,8 +1979,431 @@ sub findFixIcons {
     say "";
 }
 
-sub findFinalApproachFixIcons {
-for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+sub oldfindFinalApproachFixIcons {
+    for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+
+#Find Final Approach Fix icon
+#my $fafRegex =
+#qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q/;
+        my $fafRegex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$
+^q 1 0 0 1 [\.0-9]+ [\.0-9]+ cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ l$
+^0 0 l$
+^f\*$
+^Q$/m;
+
+        $output = qx(mutool show $targetPdf $i x);
+        $retval = $? >> 8;
+        die
+"No output from mutool show.  Is it installed? Return code was $retval"
+          if ( $output eq "" || $retval != 0 );
+
+        #Remove new lines
+        #$output =~ s/\n/ /g;
+        my @tempfinalApproachFixIcons = $output =~ /$fafRegex/ig;
+        my $tempfinalApproachFixIcons_length = 0 + @tempfinalApproachFixIcons;
+        my $tempfinalApproachFixIcons_count =
+          $tempfinalApproachFixIcons_length / 2;
+
+        if ( $tempfinalApproachFixIcons_length >= 2 ) {
+            say "Found $tempfinalApproachFixIcons_count FAFs in stream $i";
+            for (
+                my $i = 0 ;
+                $i < $tempfinalApproachFixIcons_length ;
+                $i = $i + 2
+              )
+            {
+
+                #put them into a hash
+                $finalApproachFixIcons{$i}{"X"} =
+                  $tempfinalApproachFixIcons[$i];
+                $finalApproachFixIcons{$i}{"Y"} =
+                  $tempfinalApproachFixIcons[ $i + 1 ];
+                $finalApproachFixIcons{$i}{"Name"} = "none";
+            }
+
+        }
+    }
+    $finalApproachFixCount = keys(%finalApproachFixIcons);
+    say "Found $finalApproachFixCount Final Approach Fix icons";
+    say "";
+}
+
+sub oldfindVisualDescentPointIcons {
+    for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+
+        #Find Visual Descent Point icon
+        my $vdpRegex =
+qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+0 0 l\s+f\*\s+Q\s+0.72 w \[\]0 d/;
+
+        #my $vdpRegex =
+        #qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+
+        #0 0 m\s+
+        #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+        #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+        #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+        #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+        #[-\.0-9]+\s+[-\.0-9]+\s+l\s+
+        #0 0 l\s+
+        #f\*\s+
+        #Q\s+
+        #0.72 w \[\]0 d/m;
+
+        $output = qx(mutool show $targetPdf $i x);
+        $retval = $? >> 8;
+        die
+"No output from mutool show.  Is it installed? Return code was $retval"
+          if ( $output eq "" || $retval != 0 );
+
+        #Remove new lines
+        $output =~ s/\n/ /g;
+        my @tempvisualDescentPointIcons = $output =~ /$vdpRegex/ig;
+        my $tempvisualDescentPointIcons_length =
+          0 + @tempvisualDescentPointIcons;
+        my $tempvisualDescentPointIcons_count =
+          $tempvisualDescentPointIcons_length / 2;
+
+        if ( $tempvisualDescentPointIcons_length >= 2 ) {
+            for (
+                my $i = 0 ;
+                $i < $tempvisualDescentPointIcons_length ;
+                $i = $i + 2
+              )
+            {
+
+                #put them into a hash
+                $visualDescentPointIcons{$i}{"X"} =
+                  $tempvisualDescentPointIcons[$i];
+                $visualDescentPointIcons{$i}{"Y"} =
+                  $tempvisualDescentPointIcons[ $i + 1 ];
+                $visualDescentPointIcons{$i}{"Name"} = "none";
+            }
+
+        }
+    }
+    $visualDescentPointCount = keys(%visualDescentPointIcons);
+    say "Found $visualDescentPointCount Visual Descent Point icons";
+    say "";
+}
+
+sub findClosestObstacleTextBoxToObstacleIcon {
+    foreach my $key ( sort keys %obstacleIcons ) {
+
+        #Start with a very high number so initially is closer than it
+        my $distance_to_closest_obstacletextbox = 999999999999;
+
+        foreach my $key2 ( keys %obstacleTextBoxes ) {
+            my $distanceToObstacletextboxX;
+            my $distanceToObstacletextboxY;
+
+            $distanceToObstacletextboxX =
+              $obstacleTextBoxes{$key2}{"boxCenterXPdf"} -
+              $obstacleIcons{$key}{"X"};
+            $distanceToObstacletextboxY =
+              $obstacleTextBoxes{$key2}{"boxCenterYPdf"} -
+              $obstacleIcons{$key}{"Y"};
+
+            my $hypotenuse = sqrt( $distanceToObstacletextboxX**2 +
+                  $distanceToObstacletextboxY**2 );
+
+       #Ignore this textbox if it's further away than our max distance variables
+            next
+              if ( !( $hypotenuse < $maxDistanceFromObstacleIconToTextBox ) );
+
+#Count the number of potential textbox matches.  If this is > 1 then we should consider this matchup to be less reliable
+            $obstacleIcons{$key}{"potentialTextBoxes"} =
+              $obstacleIcons{$key}{"potentialTextBoxes"} + 1;
+
+#The 27 here was chosen to make one particular sample work, it's not universally valid
+#Need to improve the icon -> textbox mapping
+#say "Hypotenuse: $hyp" if $debug;
+            if ( ( $hypotenuse < $distance_to_closest_obstacletextbox ) ) {
+
+                #Update the distance to the closest obstacleTextBox center
+                $distance_to_closest_obstacletextbox = $hypotenuse;
+
+#Set the "name" of this obstacleIcon to the text from obstacleTextBox
+#This is where we kind of guess (and can go wrong) since the closest height text is often not what should be associated with the icon
+
+                $obstacleIcons{$key}{"Name"} =
+                  $obstacleTextBoxes{$key2}{"Text"};
+
+                $obstacleIcons{$key}{"TextBoxX"} =
+                  $obstacleTextBoxes{$key2}{"boxCenterXPdf"};
+
+                $obstacleIcons{$key}{"TextBoxY"} =
+                  $obstacleTextBoxes{$key2}{"boxCenterYPdf"};
+
+                # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} =
+                # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} + 1;
+            }
+
+        }
+
+        #$obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} =
+        # $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} + 1;
+    }
+    if ($debug) {
+        say "obstacleIcons";
+        print Dumper ( \%obstacleIcons );
+        say "";
+        say "obstacleTextBoxes";
+        print Dumper ( \%obstacleTextBoxes );
+    }
+}
+
+sub findObstaclesInDatabase {
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------
+#Find obstacles with a certain height in the database
+
+    foreach my $heightmsl (@obstacle_heights) {
+
+        #Query the database for obstacles of $heightmsl within our $radius
+        $sth = $dbh->prepare(
+            "SELECT * FROM obstacles WHERE (HeightMsl=$heightmsl) and 
+                                       (Latitude >  $airportLatitudeDec - $radius ) and 
+                                       (Latitude < $airportLatitudeDec +$radius ) and 
+                                       (Longitude >  $airportLongitudeDec - $radius ) and 
+                                       (Longitude < $airportLongitudeDec +$radius )"
+        );
+        $sth->execute();
+
+        my $all  = $sth->fetchall_arrayref();
+        my $rows = $sth->rows();
+        say "Found $rows objects of height $heightmsl" if $debug;
+
+   #Don't show results of searches that have more than one result, ie not unique
+        next if ( $rows != 1 );
+
+        foreach my $row (@$all) {
+
+            #Populate variables from our database lookup
+            my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+            foreach my $pdf_obstacle_height (@obstacle_heights) {
+                if ( $pdf_obstacle_height == $heightmsl ) {
+                    $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
+                    $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
+                }
+            }
+        }
+
+    }
+
+    #How many obstacles with unique heights did we find
+    $unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
+
+    if ($debug) {
+        say
+"Found $unique_obstacles_from_dbCount OBSTACLES with unique heights within $radius degrees of airport from database";
+        say "unique_obstacles_from_db:";
+        print Dumper ( \%unique_obstacles_from_db );
+        say "";
+    }
+}
+
+#--------------------------------------------------------------------------------------------------------------------------------------
+sub newfindGpsWaypointIcons {
+    my ($output) = @_;
+
+#Find first half of gps waypoint icons
+# my $gpswaypointregex =
+# qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+[-\.0-9]+\s+c\s+0 0 l\s+f\*\s+Q/;
+    my $gpswaypointregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ l$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^0 0 l$
+^f\*$
+^Q$/m;
+
+    my @tempgpswaypoints        = $output =~ /$gpswaypointregex/ig;
+    my $tempgpswaypoints_length = 0 + @tempgpswaypoints;
+    my $tempgpswaypoints_count  = $tempgpswaypoints_length / 2;
+
+    if ( $tempgpswaypoints_length >= 2 ) {
+
+        #say "Found $tempgpswaypoints_count GPS waypoints in stream $i";
+        for ( my $i = 0 ; $i < $tempgpswaypoints_length ; $i = $i + 2 ) {
+
+            #put them into a hash
+            $gpsWaypointIcons{$i}{"X"} = $tempgpswaypoints[$i];
+            $gpsWaypointIcons{$i}{"Y"} = $tempgpswaypoints[ $i + 1 ];
+            $gpsWaypointIcons{$i}{"iconCenterXPdf"} =
+
+#TODO Calculate the midpoint properly, this number is an estimation (although a good one)
+              $tempgpswaypoints[$i] + 7.5;
+            $gpsWaypointIcons{$i}{"iconCenterYPdf"} =
+              $tempgpswaypoints[ $i + 1 ];
+            $gpsWaypointIcons{$i}{"Name"} = "none";
+        }
+
+    }
+
+    $gpsCount = keys(%gpsWaypointIcons);
+    if ($debug) {
+        say "Found $gpsCount GPS waypoint icons";
+        say "";
+    }
+    return;
+}
+
+sub newfindObstacleIcons {
+    my ($output) = @_;
+
+    #A regex that matches how an obstacle is drawn in the PDF
+    my $obstacleregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^([\.0-9]+) [\.0-9]+ l$
+^([\.0-9]+) [\.0-9]+ l$
+^S$
+^Q$
+^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^[-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ [-\.0-9]+ c$
+^f\*$
+^Q$/m;
+
+#each entry in @tempobstacles will have the numbered captures from the regex, 6 for each one
+    my @tempobstacles = $output =~ /$obstacleregex/ig;
+    my $tempobstacles_length = 0 + @tempobstacles;
+
+#Divide length of array by 6 data points for each obstacle to get count of obstacles
+    my $tempobstacles_count = $tempobstacles_length / 6;
+
+    if ( $tempobstacles_length >= 6 ) {
+
+        #say "Found $tempobstacles_count obstacles in stream $stream";
+
+        for ( my $i = 0 ; $i < $tempobstacles_length ; $i = $i + 6 ) {
+
+#Note: this code does not accumulate the objects across streams but rather overwrites existing ones
+#This works fine as long as the stream with all of the obstacles in the main section of the drawing comes after the streams
+#with obstacles for the airport diagram (which is a separate scale)
+#Put the info for each obstscle icon into a hash
+#This finds the midpoint X of the obstacle triangle (basically the X,Y of the dot but the X,Y of the dot itself was too far right)
+#For each icon: Offset      0: Starting X
+#                                               1: Starting Y
+#                                               2: X of top of triangle
+#                                               3: Y of top of triangle
+#                                               4: X of dot
+#                                               5: Y of dot
+            $obstacleIcons{$i}{"X"} =
+              $tempobstacles[$i] + $tempobstacles[ $i + 2 ];
+            $obstacleIcons{$i}{"Y"} =
+              $tempobstacles[ $i + 1 ];    #+ $tempobstacles[ $i + 3 ];
+            $obstacleIcons{$i}{"Height"}                         = "unknown";
+            $obstacleIcons{$i}{"ObstacleTextBoxesThatPointToMe"} = 0;
+            $obstacleIcons{$i}{"potentialTextBoxes"}             = 0;
+        }
+
+    }
+
+    #print Dumper ( \%obstacleIcons );
+    $obstacleCount = keys(%obstacleIcons);
+    if ($debug) {
+        say "Found $obstacleCount obstacle icons";
+        say "";
+    }
+}
+
+sub newfindFixIcons {
+    my ($output) = @_;
+
+#Find fixes in the PDF
+# my $fixregex =
+# qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm 0 0 m ([-\.0-9]+) [\.0-9]+ l [-\.0-9]+ ([\.0-9]+) l 0 0 l S Q/;
+    my $fixregex = qr/^q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm$
+^0 0 m$
+^([-\.0-9]+) [\.0-9]+ l$
+^[-\.0-9]+ ([\.0-9]+) l$
+^0 0 l$
+^S$
+^Q$/m;
+
+    my @tempfixes = $output =~ /$fixregex/ig;
+    my $tempfixes_length = 0 + @tempfixes;
+
+    #4 data points for each fix
+    #$1 = x
+    #$2 = y
+    #$3 = delta x (will be negative)
+    #$4 = delta y (will be negative)
+    my $tempfixes_count = $tempfixes_length / 4;
+
+    if ( $tempfixes_length >= 4 ) {
+
+        #say "Found $tempfixes_count fix icons in stream $i";
+        for ( my $i = 0 ; $i < $tempfixes_length ; $i = $i + 4 ) {
+
+            #put them into a hash
+            #code here is making the x/y the center of the triangle
+            $fixIcons{$i}{"X"} = $tempfixes[$i] + ( $tempfixes[ $i + 2 ] / 2 );
+            $fixIcons{$i}{"Y"} =
+              $tempfixes[ $i + 1 ] + ( $tempfixes[ $i + 3 ] / 2 );
+            $fixIcons{$i}{"Name"} = "none";
+        }
+
+    }
+
+    $fixCount = keys(%fixIcons);
+    if ($debug) {
+        say "Found $fixCount fix icons";
+        say "";
+    }
+}
+
+sub newfindFinalApproachFixIcons {
+    my ($output) = @_;
 
 #Find Final Approach Fix icon
 #my $fafRegex =
@@ -2104,19 +2445,13 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
 ^f\*$
 ^Q$/m;
 
-    $output = qx(mutool show $targetPdf $i x);
-    $retval = $? >> 8;
-    die "No output from mutool show.  Is it installed? Return code was $retval"
-      if ( $output eq "" || $retval != 0 );
-
-    #Remove new lines
-    #$output =~ s/\n/ /g;
     my @tempfinalApproachFixIcons = $output =~ /$fafRegex/ig;
     my $tempfinalApproachFixIcons_length = 0 + @tempfinalApproachFixIcons;
     my $tempfinalApproachFixIcons_count = $tempfinalApproachFixIcons_length / 2;
 
     if ( $tempfinalApproachFixIcons_length >= 2 ) {
-        say "Found $tempfinalApproachFixIcons_count FAFs in stream $i";
+
+        #say "Found $tempfinalApproachFixIcons_count FAFs in stream $i";
         for ( my $i = 0 ; $i < $tempfinalApproachFixIcons_length ; $i = $i + 2 )
         {
 
@@ -2128,14 +2463,16 @@ for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
         }
 
     }
-}
-$finalApproachFixCount = keys(%finalApproachFixIcons);
-say "Found $finalApproachFixCount Final Approach Fix icons";
-say "";
+
+    $finalApproachFixCount = keys(%finalApproachFixIcons);
+    if ($debug) {
+        say "Found $finalApproachFixCount Final Approach Fix icons";
+        say "";
+    }
 }
 
-sub findVisualDescentPointIcons {
-for ( my $i = 0 ; $i < ( $objectstreams - 1 ) ; $i++ ) {
+sub newfindVisualDescentPointIcons {
+    my ($output) = @_;
 
     #Find Visual Descent Point icon
     my $vdpRegex =
@@ -2154,13 +2491,6 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.
     #Q\s+
     #0.72 w \[\]0 d/m;
 
-    $output = qx(mutool show $targetPdf $i x);
-    $retval = $? >> 8;
-    die "No output from mutool show.  Is it installed? Return code was $retval"
-      if ( $output eq "" || $retval != 0 );
-
-    #Remove new lines
-    $output =~ s/\n/ /g;
     my @tempvisualDescentPointIcons = $output =~ /$vdpRegex/ig;
     my $tempvisualDescentPointIcons_length = 0 + @tempvisualDescentPointIcons;
     my $tempvisualDescentPointIcons_count =
@@ -2183,8 +2513,24 @@ qr/q 1 0 0 1 ([\.0-9]+) ([\.0-9]+) cm\s+0 0 m\s+[-\.0-9]+\s+[-\.0-9]+\s+l\s+[-\.
         }
 
     }
+    $visualDescentPointCount = keys(%visualDescentPointIcons);
+    if ($debug) {
+        say "Found $visualDescentPointCount Visual Descent Point icons";
+        say "";
+    }
 }
-$visualDescentPointCount = keys(%visualDescentPointIcons);
-say "Found $visualDescentPointCount Visual Descent Point icons";
-say "";
+
+sub convertPdfToPng {
+
+    #---------------------------------------------------
+    #Convert the PDF to a PNG
+    my $pdfToPpmOutput;
+    if ( -e $targetpng ) {
+        say "$targetpng already exists";
+        return;
+    }
+    $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetpng);
+
+    $retval = $? >> 8;
+    die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
 }
