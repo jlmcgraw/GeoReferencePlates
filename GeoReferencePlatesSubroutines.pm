@@ -22,6 +22,7 @@ use warnings;
 
 use Exporter;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+use Carp;
 
 $VERSION = 1.00;
 @ISA     = qw(Exporter);
@@ -127,7 +128,8 @@ sub onlyuniq {
 sub average {
     my ($data) = @_;
     if ( not @$data ) {
-        die("Empty array\n");
+        croak ("Average: Empty array\n");
+        
     }
     my $total = 0;
     foreach (@$data) {
