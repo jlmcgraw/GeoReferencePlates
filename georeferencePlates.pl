@@ -26,7 +26,10 @@
 #Our pixel/RealWorld ratios are hardcoded now for 300dpi, need to make dynamic per our DPI setting
 #
 #TODO
-#Have a two-way check for icon to textbox matching
+#Fix so vortac names only matches vortac icons, likewise with vordme
+#       see marked-TX-DFW-CONVERGING-ILS-RWY-35L for a problem example
+#
+#Integrate OCR so we can process miltary plates too
 #
 #Try to somehow discard objects outside of our central drawing box
 #       A crude way to do this would be to find largest and 2nd largest horizontal lines closest to Y center and
@@ -121,11 +124,12 @@ say $targetPdf;
 my ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
 
 #Set some output file names based on the input filename
-my $outputPdf        = $dir . "marked-" . $filename . ".pdf";
-my $targetpng        = $dir . $filename . ".png";
-my $targettif        = $dir . $filename . ".tif";
-my $targetvrt        = $dir . $filename . ".vrt";
-my $targetStatistics = "./statistics.csv";
+my $outputPdf         = $dir . "marked-" . $filename . ".pdf";
+my $outputPdfOutlines = $dir . "outlines-" . $filename . ".pdf";
+my $targetpng         = $dir . $filename . ".png";
+my $targettif         = $dir . $filename . ".tif";
+my $targetvrt         = $dir . $filename . ".vrt";
+my $targetStatistics  = "./statistics.csv";
 
 # #Non-zero if we only want to use GPS waypoints for GCPs on this plate
 # my $rnavPlate = 0;
@@ -209,10 +213,10 @@ convertPdfToPng();
 my ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
   getPngSize();
 
-#--------------------------------------------------------------------------------------------------------------
 #Get number of objects/streams in the targetpdf
 my $objectstreams = getNumberOfStreams();
 
+#--------------------------------------------------------------------------------------------------------------
 # #Some regex building blocks to be used elsewhere
 #numbers that start with 1-9 followed by 2 or more digits
 my $obstacleHeightRegex = qr/[1-9]\d{2,}/x;
@@ -274,6 +278,9 @@ my $horizontalAndVerticalLinesCount = 0;
 my %insetBoxes      = ();
 my $insetBoxesCount = 0;
 
+my %largeBoxes      = ();
+my $largeBoxesCount = 0;
+
 my %insetCircles      = ();
 my $insetCirclesCount = 0;
 
@@ -284,6 +291,7 @@ my @pdfToTextBbox     = ();
 my %fixTextboxes      = ();
 my %obstacleTextBoxes = ();
 my %vorTextboxes      = ();
+#
 findAllTextboxes();
 
 #----------------------------------------------------------------------------------------------------------
@@ -299,6 +307,32 @@ $page = $pdf->openpage(1) if $saveMarkedPdf;
 #Draw boxes around the icons and textboxes we've found so far
 outlineEverythingWeFound() if $saveMarkedPdf;
 
+my ( $pdfOutlines, $pageOutlines );
+$pdfOutlines = PDF::API2->new() if $saveMarkedPdf;
+
+#Set up the various types of boxes to draw on the output PDF
+$pageOutlines = $pdfOutlines->page() if $saveMarkedPdf;
+
+# Set the page size
+$pageOutlines->mediabox( $pdfXSize, $pdfYSize );
+my ( $lowerYCutoff, $upperYCutoff ) = findHorizontalCutoff();
+
+#Draw boxes around the icons and textboxes we've found so far
+outlines() if $saveMarkedPdf;
+if ($saveMarkedPdf) {
+    $pdfOutlines->saveas($outputPdfOutlines);
+}
+
+#---------------------------------------------------
+#Convert the outlines PDF to a PNG
+my $halfPngX1 = $pngXSize / 2 + 5;
+my $halfPngY1 = $pngYSize / 2 + 5;
+my $halfPngX2 = $pngXSize / 2 - 5;
+my $halfPngY2 = $pngXSize / 2 - 5;
+qx(pdftoppm -png -r $pngDpi $outputPdfOutlines > $outputPdfOutlines.png);
+qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX1,$halfPngY1 floodfill' $outputPdfOutlines.png);
+qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX2,$halfPngY2 floodfill' $outputPdfOutlines.png);
+
 #----------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with obstacles
 #
@@ -310,7 +344,7 @@ onlyuniq(@obstacle_heights);
 
 #Find all obstacles within our defined distance from the airport that have a height in the list of potential obstacleTextBoxes and are unique
 # A bounding box of +/- degrees of longitude and latitude (~15 miles) from airport to limit our search for objects  to
-my $radius                   = ".35";
+
 my %unique_obstacles_from_db = ();
 my $unique_obstacles_from_dbCount;
 findObstaclesInDatabase( \%unique_obstacles_from_db );
@@ -323,7 +357,8 @@ findClosestBToA( \%obstacleTextBoxes, \%obstacleIcons, );
 #Make sure there is a bi-directional match between icon and textbox
 #Returns a reference to a hash which combines info from icon, textbox and database
 my $matchedObstacleIconsToTextBoxes =
-  matchBToA( \%obstacleIcons, \%obstacleTextBoxes, \%unique_obstacles_from_db );
+  joinIconTextboxAndDatabaseHashes( \%obstacleIcons, \%obstacleTextBoxes,
+    \%unique_obstacles_from_db );
 
 if ($debug) {
     say "matchedObstacleIconsToTextBoxes";
@@ -398,7 +433,8 @@ findClosestBToA( \%fixTextboxes, \%fixIcons, );
 #Make sure there is a bi-directional match between icon and textbox
 #Returns a reference to a hash of matched pairs
 my $matchedFixIconsToTextBoxes =
-  matchBToA( \%fixIcons, \%fixTextboxes, \%fixes_from_db );
+  joinIconTextboxAndDatabaseHashes( \%fixIcons, \%fixTextboxes,
+    \%fixes_from_db );
 
 #matchIconToDatabase(\%fixIcons, \%fixTextboxes, \%fixes_from_db);
 
@@ -454,7 +490,8 @@ findClosestBToA( \%fixTextboxes,     \%gpsWaypointIcons );
 # matchClosestFixTextBoxToEachGpsWaypointIcon();
 
 my $matchedGpsWaypointIconsToTextBoxes =
-  matchBToA( \%gpsWaypointIcons, \%fixTextboxes, \%gpswaypoints_from_db );
+  joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
+    \%gpswaypoints_from_db );
 
 if ($debug) {
 
@@ -496,15 +533,21 @@ outlineValidNavaidTextBoxes() if $saveMarkedPdf;
 
 #Try to find closest TextBox center to each Icon center
 #and then do the reverse
-findClosestBToA( \%navaidIcons,  \%vorTextboxes );
+say 'findClosestBToA( \%navaidIcons,  \%vorTextboxes )' if $debug;
+findClosestBToA( \%navaidIcons, \%vorTextboxes );
+say 'findClosestBToA( \%vorTextboxes, \%navaidIcons )' if $debug;
 findClosestBToA( \%vorTextboxes, \%navaidIcons );
 
 # #Pair up each waypoint to it's closest textbox
 #gpswaypoints_from_db should now only have fixes that are mentioned on the PDF
 # matchClosestFixTextBoxToEachGpsWaypointIcon();
 
+say
+  'joinIconTextboxAndDatabaseHashes( \%navaidIcons, \%vorTextboxes, \%navaids_from_db )'
+  if $debug;
 my $matchedNavaidIconsToTextBoxes =
-  matchBToA( \%navaidIcons, \%vorTextboxes, \%navaids_from_db );
+  joinIconTextboxAndDatabaseHashes( \%navaidIcons, \%vorTextboxes,
+    \%navaids_from_db );
 
 #navaids_from_db should now only have navaids that are mentioned on the PDF
 if ($debug) {
@@ -580,12 +623,15 @@ if ( $gcpCount < 1 ) {
 #Remove GCPs which are inside insetBoxes or outside the horizontal bounds
 deleteBadGCPs();
 
+$gcpCount = scalar( keys(%gcps) );
+say "Usling $gcpCount Ground Control Points" if $debug;
+
 #outline the GCP points we ended up using
 drawCircleAroundGCPs() if $saveMarkedPdf;
 
-# if ($saveMarkedPdf) {
-# $pdf->saveas($outputPdf);
-# }
+if ($saveMarkedPdf) {
+    $pdf->saveas($outputPdf);
+}
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------
 #Now some math
@@ -632,10 +678,10 @@ writeStatistics() if $outputStatistics;
 #With our work
 drawFeaturesOnPdf() if $saveMarkedPdf;
 
-#Save our new PDF since we're done with it
-if ($saveMarkedPdf) {
-    $pdf->saveas($outputPdf);
-}
+# #Save our new PDF since we're done with it
+# if ($saveMarkedPdf) {
+# $pdf->saveas($outputPdf);
+# }
 
 #Close the database
 $sth->finish();
@@ -872,6 +918,8 @@ sub outlineEverythingWeFound {
     foreach my $key ( sort keys %horizontalAndVerticalLines ) {
 
         my ($lines) = $page->gfx;
+        $lines->strokecolor('yellow');
+        $lines->linewidth(5);
         $lines->move(
             $horizontalAndVerticalLines{$key}{"X"},
             $horizontalAndVerticalLines{$key}{"Y"}
@@ -881,13 +929,13 @@ sub outlineEverythingWeFound {
             $horizontalAndVerticalLines{$key}{"Y2"}
         );
 
-        $lines->strokecolor('yellow');
-        $lines->linewidth(5);
         $lines->stroke;
     }
     foreach my $key ( sort keys %insetBoxes ) {
 
         my ($insetBox) = $page->gfx;
+        $insetBox->strokecolor('cyan');
+        $insetBox->linewidth(.1);
         $insetBox->rect(
             $insetBoxes{$key}{X},
             $insetBoxes{$key}{Y},
@@ -895,20 +943,20 @@ sub outlineEverythingWeFound {
             $insetBoxes{$key}{Height},
 
         );
-        $insetBox->strokecolor('cyan');
-        $insetBox->linewidth(.1);
+
         $insetBox->stroke;
+    }
+    foreach my $key ( sort keys %largeBoxes ) {
 
-        #Uncomment this to show the radius we're looking in for icon->text matches
-        # $insetBox->circle(
-        # $obstacleIcons{$key}{X},
-        # $obstacleIcons{$key}{Y},
-        # $maxDistanceFromObstacleIconToTextBox
-        # );
-        # $insetBox->strokecolor('red');
-        # $insetBox->linewidth(.05);
-        # $insetBox->stroke;
+        my ($largeBox) = $page->gfx;
+        $largeBox->strokecolor('yellow');
+        $largeBox->linewidth(5);
+        $largeBox->rect(
+            $largeBoxes{$key}{X},     $largeBoxes{$key}{Y},
+            $largeBoxes{$key}{Width}, $largeBoxes{$key}{Height},
+        );
 
+        $largeBox->stroke;
     }
 
     foreach my $key ( sort keys %insetCircles ) {
@@ -1071,6 +1119,7 @@ sub outlineEverythingWeFound {
 # }
 
 sub calculateXScale {
+    my ($targetArrayRef) = @_;
     $xAvg    = &average( \@xScaleAvg );
     $xMedian = &median( \@xScaleAvg );
     $xStdDev = &stdev( \@xScaleAvg );
@@ -1092,7 +1141,7 @@ sub calculateXScale {
     $xStdDev = &stdev( \@xScaleAvg );
     say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian"
       if $debug;
-    return;
+    return ( $xAvg, $xMedian, $xStdDev );
 }
 
 sub calculateYScale {
@@ -1242,6 +1291,7 @@ sub findAllIcons {
         #findVisualDescentPointIcons($_output);
         findHorizontalLines($_output);
         findInsetBoxes($_output);
+        findLargeBoxes($_output);
         findInsetCircles($_output);
 
     }
@@ -1263,100 +1313,95 @@ sub findAllIcons {
 
 # sub findClosestObstacleTextBoxToObstacleIcon {
 
-    # #Find the closest obstacle textbox to each obstacle icon
-    # say "findClosestObstacleTextBoxToObstacleIcon" if $debug;
-    # foreach my $key ( sort keys %obstacleIcons ) {
+# #Find the closest obstacle textbox to each obstacle icon
+# say "findClosestObstacleTextBoxToObstacleIcon" if $debug;
+# foreach my $key ( sort keys %obstacleIcons ) {
 
-        # #Start with a very high number so initially is closer than it
-        # my $distance_to_closest_obstacletextbox = 999999999999;
+# #Start with a very high number so initially is closer than it
+# my $distance_to_closest_obstacletextbox = 999999999999;
 
-        # foreach my $key2 ( keys %obstacleTextBoxes ) {
-            # my $distanceToObstacletextboxX;
-            # my $distanceToObstacletextboxY;
+# foreach my $key2 ( keys %obstacleTextBoxes ) {
+# my $distanceToObstacletextboxX;
+# my $distanceToObstacletextboxY;
 
-            # $distanceToObstacletextboxX =
-              # $obstacleTextBoxes{$key2}{"CenterX"} -
-              # $obstacleIcons{$key}{CenterX};
-            # $distanceToObstacletextboxY =
-              # $obstacleTextBoxes{$key2}{"CenterY"} - $obstacleIcons{$key}{"Y"};
+# $distanceToObstacletextboxX =
+# $obstacleTextBoxes{$key2}{"CenterX"} -
+# $obstacleIcons{$key}{CenterX};
+# $distanceToObstacletextboxY =
+# $obstacleTextBoxes{$key2}{"CenterY"} - $obstacleIcons{$key}{"Y"};
 
-            # my $hypotenuse = sqrt( $distanceToObstacletextboxX**2 +
-                  # $distanceToObstacletextboxY**2 );
+# my $hypotenuse = sqrt( $distanceToObstacletextboxX**2 +
+# $distanceToObstacletextboxY**2 );
 
-            # #Ignore this textbox if it's further away than our max distance variables
-            # next
-              # if ( !( $hypotenuse < $maxDistanceFromObstacleIconToTextBox ) );
+# #Ignore this textbox if it's further away than our max distance variables
+# next
+# if ( !( $hypotenuse < $maxDistanceFromObstacleIconToTextBox ) );
 
-            # #Count the number of potential textbox matches.  If this is > 1 then we should consider this matchup to be less reliable
-            # $obstacleIcons{$key}{"potentialTextBoxes"} =
-              # $obstacleIcons{$key}{"potentialTextBoxes"} + 1;
+# #Count the number of potential textbox matches.  If this is > 1 then we should consider this matchup to be less reliable
+# $obstacleIcons{$key}{"potentialTextBoxes"} =
+# $obstacleIcons{$key}{"potentialTextBoxes"} + 1;
 
-            # #The 27 here was chosen to make one particular sample work, it's not universally valid
-            # #Need to improve the icon -> textbox mapping
-            # #say "Hypotenuse: $hyp" if $debug;
-            # if ( ( $hypotenuse < $distance_to_closest_obstacletextbox ) ) {
+# #The 27 here was chosen to make one particular sample work, it's not universally valid
+# #Need to improve the icon -> textbox mapping
+# #say "Hypotenuse: $hyp" if $debug;
+# if ( ( $hypotenuse < $distance_to_closest_obstacletextbox ) ) {
 
-                # #Update the distance to the closest obstacleTextBox center
-                # $distance_to_closest_obstacletextbox = $hypotenuse;
+# #Update the distance to the closest obstacleTextBox center
+# $distance_to_closest_obstacletextbox = $hypotenuse;
 
-                # #Set the "name" of this obstacleIcon to the text from obstacleTextBox
-                # #This is where we kind of guess (and can go wrong) since the closest height text is often not what should be associated with the icon
+# #Set the "name" of this obstacleIcon to the text from obstacleTextBox
+# #This is where we kind of guess (and can go wrong) since the closest height text is often not what should be associated with the icon
 
-                # $obstacleIcons{$key}{"Name"} =
-                  # $obstacleTextBoxes{$key2}{"Text"};
+# $obstacleIcons{$key}{"Name"} =
+# $obstacleTextBoxes{$key2}{"Text"};
 
-                # $obstacleIcons{$key}{"TextBoxX"} =
-                  # $obstacleTextBoxes{$key2}{"CenterX"};
+# $obstacleIcons{$key}{"TextBoxX"} =
+# $obstacleTextBoxes{$key2}{"CenterX"};
 
-                # $obstacleIcons{$key}{"TextBoxY"} =
-                  # $obstacleTextBoxes{$key2}{"CenterY"};
+# $obstacleIcons{$key}{"TextBoxY"} =
+# $obstacleTextBoxes{$key2}{"CenterY"};
 
-                # # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} =
-                # # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} + 1;
-            # }
+# # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} =
+# # $obstacleTextBoxes{$key2}{"IconsThatPointToMe"} + 1;
+# }
 
-        # }
+# }
 
-        # #$obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} =
-        # # $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} + 1;
-    # }
-    # if ($debug) {
-        # say "obstacleIcons";
-        # print Dumper ( \%obstacleIcons );
-        # say "";
-        # say "obstacleTextBoxes";
-        # print Dumper ( \%obstacleTextBoxes );
-    # }
+# #$obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} =
+# # $obstacleIcons{$key}{"ObstacleTextBoxesThatPointToMe"} + 1;
+# }
+# if ($debug) {
+# say "obstacleIcons";
+# print Dumper ( \%obstacleIcons );
+# say "";
+# say "obstacleTextBoxes";
+# print Dumper ( \%obstacleTextBoxes );
+# }
 
-    # return;
+# return;
 # }
 
 sub findClosestBToA {
 
     #Find the closest B icon to each A
-   
+
     my ( $hashRefA, $hashRefB ) = @_;
 
     #Maximum distance in points between centers
-     my $maxDistance = 100;
+    my $maxDistance = 115;
 
-    say "findClosest $hashRefB to each $hashRefA" if $debug;
+    # say "findClosest $hashRefB to each $hashRefA" if $debug;
 
     foreach my $key ( sort keys %$hashRefA ) {
 
-        # say "$key";
         #Start with a very high number so initially is closer than it
         my $distanceToClosest = 999999999999;
 
         foreach my $key2 ( sort keys %$hashRefB ) {
 
-            # say $key2;
-            my $distanceToBX;
-            my $distanceToBY;
-
-            $distanceToBX =
+            my $distanceToBX =
               $hashRefB->{$key2}{"CenterX"} - $hashRefA->{$key}{"CenterX"};
-            $distanceToBY =
+            my $distanceToBY =
               $hashRefB->{$key2}{"CenterY"} - $hashRefA->{$key}{"CenterY"};
 
             my $hypotenuse = sqrt( $distanceToBX**2 + $distanceToBY**2 );
@@ -1394,6 +1439,7 @@ sub findClosestBToA {
 }
 
 sub findObstaclesInDatabase {
+my $radius                   = ".40";
 
     #---------------------------------------------------------------------------------------------------------------------------------------------------
     #Find obstacles with a certain height in the database
@@ -1627,7 +1673,7 @@ sub findNavaidIcons {
             $navaidIcons{ $i . $rand }{"Height"}        = $height;
 
             # $navaidIcons{ $i . $rand }{"Name"}           = "none";
-            $navaidIcons{ $i . $rand }{"Type"} = "vortac";
+            $navaidIcons{ $i . $rand }{"Type"} = "VORTAC";
         }
 
     }
@@ -1687,9 +1733,7 @@ sub findNavaidIcons {
             $navaidIcons{ $i . $rand }{"GeoreferenceY"} = $y + $height / 2;
             $navaidIcons{ $i . $rand }{"Width"}         = $width;
             $navaidIcons{ $i . $rand }{"Height"}        = $height;
-
-            #$navaidIcons{ $i . $rand }{"Name"}           = "none";
-            $navaidIcons{ $i . $rand }{"Type"} = "vordme";
+            $navaidIcons{ $i . $rand }{"Type"}          = "VOR/DME";
         }
 
     }
@@ -1719,10 +1763,58 @@ sub findInsetBoxes {
 ^S$
 ^Q$/m;
 
+    #A series of 2 lines (iow: part of a box)
+    my $halfBoxRegex = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^($numberRegex)\s+0\s+l$
+^$numberRegex\s+($numberRegex)\s+l$
+^S$
+^Q$/m;
+
+    #A series of 3 lines (iow: part of a box)
+    my $almostBoxRegex = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^($numberRegex)\s+0\s+l$
+^$numberRegex\s+($numberRegex)\s+l$
+^0\s+$numberRegex\s+l$
+^S$
+^Q$/m;
+
     my @tempInsetBox = $_output =~ /$insetBoxRegex/ig;
 
     my $tempInsetBoxLength = 0 + @tempInsetBox;
     my $insetBoxCount      = $tempInsetBoxLength / 4;
+
+    if ( $tempInsetBoxLength >= 4 ) {
+        my $random = rand();
+        for ( my $i = 0 ; $i < $tempInsetBoxLength ; $i = $i + 4 ) {
+            my $x      = $tempInsetBox[$i];
+            my $y      = $tempInsetBox[ $i + 1 ];
+            my $width  = $tempInsetBox[ $i + 2 ];
+            my $height = $tempInsetBox[ $i + 3 ];
+
+            #Let's only save large, but not too large, boxes
+            next
+              if ( ( abs($width) < 25 )
+                || ( abs($height) < 25 )
+                || ( abs($height) > 500 )
+                || ( abs($width) > 300 ) );
+
+            #put them into a hash
+            $insetBoxes{ $i . $random }{"X"}      = $x;
+            $insetBoxes{ $i . $random }{"Y"}      = $y;
+            $insetBoxes{ $i . $random }{"X2"}     = $x + $width;
+            $insetBoxes{ $i . $random }{"Y2"}     = $y + $height;
+            $insetBoxes{ $i . $random }{"Width"}  = $width;
+            $insetBoxes{ $i . $random }{"Height"} = $height;
+        }
+
+    }
+
+    @tempInsetBox = $_output =~ /$halfBoxRegex/ig;
+
+    $tempInsetBoxLength = 0 + @tempInsetBox;
+    $insetBoxCount      = $tempInsetBoxLength / 4;
 
     if ( $tempInsetBoxLength >= 4 ) {
         my $random = rand();
@@ -1740,17 +1832,99 @@ sub findInsetBoxes {
                 || ( abs($width) > 300 ) );
 
             #put them into a hash
-            $insetBoxes{ $i . $random }{"X"} = $x;
-
-            $insetBoxes{ $i . $random }{"Y"} = $y;
-
-            $insetBoxes{ $i . $random }{"X2"} = $x + $width;
-
-            $insetBoxes{ $i . $random }{"Y2"} = $y + $height;
-
-            $insetBoxes{ $i . $random }{"Width"} = $width;
-
+            $insetBoxes{ $i . $random }{"X"}      = $x;
+            $insetBoxes{ $i . $random }{"Y"}      = $y;
+            $insetBoxes{ $i . $random }{"X2"}     = $x + $width;
+            $insetBoxes{ $i . $random }{"Y2"}     = $y + $height;
+            $insetBoxes{ $i . $random }{"Width"}  = $width;
             $insetBoxes{ $i . $random }{"Height"} = $height;
+        }
+
+    }
+
+    @tempInsetBox = $_output =~ /$almostBoxRegex/ig;
+
+    $tempInsetBoxLength = 0 + @tempInsetBox;
+    $insetBoxCount      = $tempInsetBoxLength / 4;
+
+    if ( $tempInsetBoxLength >= 4 ) {
+        my $random = rand();
+        for ( my $i = 0 ; $i < $tempInsetBoxLength ; $i = $i + 4 ) {
+            my $x      = $tempInsetBox[$i];
+            my $y      = $tempInsetBox[ $i + 1 ];
+            my $width  = $tempInsetBox[ $i + 2 ];
+            my $height = $tempInsetBox[ $i + 3 ];
+
+            #Let's only save large, but not too large, boxes
+            next
+              if ( ( abs($width) < 50 )
+                || ( abs($height) < 50 )
+                || ( abs($height) > 500 )
+                || ( abs($width) > 300 ) );
+
+            #put them into a hash
+            $insetBoxes{ $i . $random }{"X"}      = $x;
+            $insetBoxes{ $i . $random }{"Y"}      = $y;
+            $insetBoxes{ $i . $random }{"X2"}     = $x + $width;
+            $insetBoxes{ $i . $random }{"Y2"}     = $y + $height;
+            $insetBoxes{ $i . $random }{"Width"}  = $width;
+            $insetBoxes{ $i . $random }{"Height"} = $height;
+        }
+
+    }
+
+    $insetBoxCount = keys(%insetBoxes);
+
+    # if ($debug) {
+    # print "$insetBoxCount Inset Boxes ";
+
+    # print Dumper ( \%insetBoxes );
+
+    # }
+
+    return;
+}
+
+sub findLargeBoxes {
+    my ($_output) = @_;
+
+    #REGEX building blocks
+    #A series of 4 lines (iow: a box)
+    my $insetBoxRegex = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^($numberRegex)\s+0\s+l$
+^$numberRegex\s+$numberRegex\s+l$
+^0\s+($numberRegex)\s+l$
+^0\s+0\s+l$
+^S$
+^Q$/m;
+
+    my @tempInsetBox = $_output =~ /$insetBoxRegex/ig;
+
+    my $tempInsetBoxLength = 0 + @tempInsetBox;
+    my $insetBoxCount      = $tempInsetBoxLength / 4;
+
+    if ( $tempInsetBoxLength >= 4 ) {
+        my $random = rand();
+        for ( my $i = 0 ; $i < $tempInsetBoxLength ; $i = $i + 4 ) {
+            my $x      = $tempInsetBox[$i];
+            my $y      = $tempInsetBox[ $i + 1 ];
+            my $width  = $tempInsetBox[ $i + 2 ];
+            my $height = $tempInsetBox[ $i + 3 ];
+
+            #Let's only save large boxes
+            #  say "$height $pdfYSize $width $pdfXSize";
+            next
+              if ( ( abs($height) < ( $pdfYSize / 2 ) )
+                || ( abs($width) < ( $pdfXSize / 2 ) ) );
+
+            #put them into a hash
+            $largeBoxes{ $i . $random }{"X"}      = $x;
+            $largeBoxes{ $i . $random }{"Y"}      = $y;
+            $largeBoxes{ $i . $random }{"X2"}     = $x + $width;
+            $largeBoxes{ $i . $random }{"Y2"}     = $y + $height;
+            $largeBoxes{ $i . $random }{"Width"}  = $width;
+            $largeBoxes{ $i . $random }{"Height"} = $height;
         }
 
     }
@@ -1879,7 +2053,7 @@ sub findHorizontalLines {
 
     #A purely horizontal line
     my $horizontalLineRegex = qr/^$transformCaptureXYRegex$
-^0\s0\sm$
+^$originRegex$
 ^($numberRegex)\s+0\s+l$
 ^S$
 ^Q$/m;
@@ -1894,7 +2068,7 @@ sub findHorizontalLines {
         for ( my $i = 0 ; $i < $tempHorizontalLineLength ; $i = $i + 3 ) {
 
             #Let's only save long lines
-            next if ( abs( $tempHorizontalLine[ $i + 2 ] ) < 100 );
+            next if ( abs( $tempHorizontalLine[ $i + 2 ] ) < 5 );
 
             #put them into a hash
             $horizontalAndVerticalLines{ $i . $random }{"X"} =
@@ -1914,39 +2088,38 @@ sub findHorizontalLines {
 
     #print Dumper ( \%horizontalAndVerticalLines );
 
-    # #A purely vertical line
-    # my $verticalLineRegex = qr/^$transformCaptureXYRegex$
-    # ^0\s0\sm$
-    # ^0\s+($numberRegex)\s+l$
-    # ^S$
-    # ^Q$/m;
+    #A purely vertical line
+    my $verticalLineRegex = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^0\s+($numberRegex)\s+l$
+^S$
+^Q$/m;
 
-    # @tempHorizontalLine = $_output =~ /$verticalLineRegex/ig;
+    @tempHorizontalLine = $_output =~ /$verticalLineRegex/ig;
 
-    # $tempHorizontalLineLength = 0 + @tempHorizontalLine;
-    # $tempHorizontalLineCount  = $tempHorizontalLineLength / 3;
-    # if ( $tempHorizontalLineLength >= 3 ) {
-    # my $random = rand();
-    # for ( my $i = 0 ; $i < $tempHorizontalLineLength ; $i = $i + 3 ) {
+    $tempHorizontalLineLength = 0 + @tempHorizontalLine;
+    $tempHorizontalLineCount  = $tempHorizontalLineLength / 3;
 
-    # #Let's only save long lines
-    # next if ( $tempHorizontalLine[ $i + 2 ] < 100 );
+    if ( $tempHorizontalLineLength >= 3 ) {
+        my $random = rand();
 
-    # #put them into a hash
-    # $horizontalAndVerticalLines{ $i + $random }{"X"} =
-    # $tempHorizontalLine[$i];
+        for ( my $i = 0 ; $i < $tempHorizontalLineLength ; $i = $i + 3 ) {
+            my $x      = $tempHorizontalLine[$i];
+            my $y      = $tempHorizontalLine[ $i + 1 ];
+            my $y2     = $tempHorizontalLine[ $i + 2 ];
+            my $length = abs($y2);
 
-    # $horizontalAndVerticalLines{ $i + $random }{"Y"} =
-    # $tempHorizontalLine[ $i + 1 ];
+            #Let's only save long lines
+            next if ( $length < 5 );
 
-    # $horizontalAndVerticalLines{ $i + $random }{"X2"} =
-    # $tempHorizontalLine[$i];
+            #put them into a hash
+            $horizontalAndVerticalLines{ $i . $random }{"X"}  = $x;
+            $horizontalAndVerticalLines{ $i . $random }{"Y"}  = $y;
+            $horizontalAndVerticalLines{ $i . $random }{"X2"} = $x;
+            $horizontalAndVerticalLines{ $i . $random }{"Y2"} = $y + $y2;
+        }
 
-    # $horizontalAndVerticalLines{ $i + $random }{"Y2"} =
-    # $tempHorizontalLine[ $i + 1 ] + $tempHorizontalLine[ $i + 2 ];
-    # }
-
-    # }
+    }
 
     $horizontalAndVerticalLinesCount = keys(%horizontalAndVerticalLines);
 
@@ -2508,6 +2681,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #Don't calculate a scale with ourself
             next if $key eq $key2;
 
+            #TODO: Should make sure that the sign of the differences agree
+
             #X pixels between points
             my $pixelDistanceX =
               abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
@@ -2906,27 +3081,27 @@ sub outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb {
     return;
 }
 
-sub removeUniqueObstaclesFromDbThatAreNotMatchedToIcons {
-    say ":removeUniqueObstaclesFromDbThatAreNotMatchedToIcons" if $debug;
+# sub removeUniqueObstaclesFromDbThatAreNotMatchedToIcons {
+# say ":removeUniqueObstaclesFromDbThatAreNotMatchedToIcons" if $debug;
 
-    #clean up unique_obstacles_from_db
-    #remove entries that have no ObsIconX or Y
-    foreach my $key ( sort keys %unique_obstacles_from_db ) {
-        unless ( ( exists $unique_obstacles_from_db{$key}{"ObsIconX"} )
-            && ( exists $unique_obstacles_from_db{$key}{"ObsIconY"} ) )
-        {
-            delete $unique_obstacles_from_db{$key};
-        }
-    }
+# #clean up unique_obstacles_from_db
+# #remove entries that have no ObsIconX or Y
+# foreach my $key ( sort keys %unique_obstacles_from_db ) {
+# unless ( ( exists $unique_obstacles_from_db{$key}{"ObsIconX"} )
+# && ( exists $unique_obstacles_from_db{$key}{"ObsIconY"} ) )
+# {
+# delete $unique_obstacles_from_db{$key};
+# }
+# }
 
-    if ($debug) {
-        say
-          "unique_obstacles_from_db after deleting entries that have no ObsIconX or Y:";
-        print Dumper ( \%unique_obstacles_from_db );
-        say "";
-    }
-    return;
-}
+# if ($debug) {
+# say
+# "unique_obstacles_from_db after deleting entries that have no ObsIconX or Y:";
+# print Dumper ( \%unique_obstacles_from_db );
+# say "";
+# }
+# return;
+# }
 
 # sub removeUniqueObstaclesFromDbThatShareIcons {
 
@@ -3007,8 +3182,57 @@ sub findFixesNearAirport {
     return;
 }
 
+sub findFeatureInDatabaseNearAirport {
+
+    #my ($radius, $type, $table, $referenceToHash) = @_;
+    my $radius = .5;
+
+    #What type of fixes to look for
+    my $type = "%REP-PT";
+
+    #Query the database for fixes within our $radius
+    $sth = $dbh->prepare(
+        "SELECT * FROM fixes WHERE  (Latitude >  $airportLatitudeDec - $radius ) and 
+                                (Latitude < $airportLatitudeDec + $radius ) and 
+                                (Longitude >  $airportLongitudeDec - $radius ) and 
+                                (Longitude < $airportLongitudeDec +$radius ) and
+                                (Type like '$type')"
+    );
+    $sth->execute();
+
+    my $allSqlQueryResults = $sth->fetchall_arrayref();
+
+    foreach my $row (@$allSqlQueryResults) {
+        my ( $fixname, $lat, $lon, $fixtype ) = @$row;
+        $fixes_from_db{$fixname}{"Name"} = $fixname;
+        $fixes_from_db{$fixname}{"Lat"}  = $lat;
+        $fixes_from_db{$fixname}{"Lon"}  = $lon;
+        $fixes_from_db{$fixname}{"Type"} = $fixtype;
+
+    }
+
+    if ($debug) {
+        my $nmLatitude  = 60 * $radius;
+        my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
+
+        my $rows   = $sth->rows();
+        my $fields = $sth->{NUM_OF_FIELDS};
+        say
+          "Found $rows FIXES within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) ($nmLongitude x $nmLatitude nm)  from database";
+
+        say "All $type fixes from database";
+        say "We have selected $fields field(s)";
+        say "We have selected $rows row(s)";
+
+        #print Dumper ( \%fixes_from_db );
+        say "";
+    }
+
+    return;
+}
+
 sub findGpsWaypointsNearAirport {
-    $radius = .3;
+    my $radius = .3;
 
     #What type of fixes to look for
     my $type = "%";
@@ -3050,7 +3274,7 @@ sub findGpsWaypointsNearAirport {
 }
 
 sub findNavaidsNearAirport {
-    $radius = .45;
+    my $radius = .45;
 
     #What type of fixes to look for
     my $type = "%VOR%";
@@ -3092,49 +3316,49 @@ sub findNavaidsNearAirport {
     return;
 }
 
-sub matchClosestFixTextBoxToEachGpsWaypointIcon {
+# sub matchClosestFixTextBoxToEachGpsWaypointIcon {
 
-    #Try to find closest fixtextbox to each fix icon
-    foreach my $key ( sort keys %gpsWaypointIcons ) {
-        my $distance_to_closest_fixtextbox_x;
-        my $distance_to_closest_fixtextbox_y;
+# #Try to find closest fixtextbox to each fix icon
+# foreach my $key ( sort keys %gpsWaypointIcons ) {
+# my $distance_to_closest_fixtextbox_x;
+# my $distance_to_closest_fixtextbox_y;
 
-        #Initialize this to a very high number so everything is closer than it
-        my $distance_to_closest_fixtextbox = 999999999999;
-        foreach my $key2 ( keys %fixTextboxes ) {
-            $distance_to_closest_fixtextbox_x =
-              $fixTextboxes{$key2}{"CenterX"} -
-              $gpsWaypointIcons{$key}{"CenterX"};
-            $distance_to_closest_fixtextbox_y =
-              $fixTextboxes{$key2}{"CenterY"} -
-              $gpsWaypointIcons{$key}{"CenterY"};
+# #Initialize this to a very high number so everything is closer than it
+# my $distance_to_closest_fixtextbox = 999999999999;
+# foreach my $key2 ( keys %fixTextboxes ) {
+# $distance_to_closest_fixtextbox_x =
+# $fixTextboxes{$key2}{"CenterX"} -
+# $gpsWaypointIcons{$key}{"CenterX"};
+# $distance_to_closest_fixtextbox_y =
+# $fixTextboxes{$key2}{"CenterY"} -
+# $gpsWaypointIcons{$key}{"CenterY"};
 
-            my $hyp = sqrt( $distance_to_closest_fixtextbox_x**2 +
-                  $distance_to_closest_fixtextbox_y**2 );
+# my $hyp = sqrt( $distance_to_closest_fixtextbox_x**2 +
+# $distance_to_closest_fixtextbox_y**2 );
 
-            #The 27 here was chosen to make one particular sample work, it's not universally valid
-            #Need to improve the icon -> textbox mapping
-            #say "Hypotenuse: $hyp" if $debug;
-            if ( ( $hyp < $distance_to_closest_fixtextbox ) && ( $hyp < 27 ) ) {
-                $distance_to_closest_fixtextbox = $hyp;
-                $gpsWaypointIcons{$key}{"Name"} = $fixTextboxes{$key2}{"Text"};
-                $gpsWaypointIcons{$key}{"TextBoxX"} =
-                  $fixTextboxes{$key2}{"CenterX"};
-                $gpsWaypointIcons{$key}{"TextBoxY"} =
-                  $fixTextboxes{$key2}{"CenterY"};
-                $gpsWaypointIcons{$key}{"Lat"} =
-                  $gpswaypoints_from_db{ $gpsWaypointIcons{$key}{"Name"} }
-                  {"Lat"};
-                $gpsWaypointIcons{$key}{"Lon"} =
-                  $gpswaypoints_from_db{ $gpsWaypointIcons{$key}{"Name"} }
-                  {"Lon"};
-            }
+# #The 27 here was chosen to make one particular sample work, it's not universally valid
+# #Need to improve the icon -> textbox mapping
+# #say "Hypotenuse: $hyp" if $debug;
+# if ( ( $hyp < $distance_to_closest_fixtextbox ) && ( $hyp < 27 ) ) {
+# $distance_to_closest_fixtextbox = $hyp;
+# $gpsWaypointIcons{$key}{"Name"} = $fixTextboxes{$key2}{"Text"};
+# $gpsWaypointIcons{$key}{"TextBoxX"} =
+# $fixTextboxes{$key2}{"CenterX"};
+# $gpsWaypointIcons{$key}{"TextBoxY"} =
+# $fixTextboxes{$key2}{"CenterY"};
+# $gpsWaypointIcons{$key}{"Lat"} =
+# $gpswaypoints_from_db{ $gpsWaypointIcons{$key}{"Name"} }
+# {"Lat"};
+# $gpsWaypointIcons{$key}{"Lon"} =
+# $gpswaypoints_from_db{ $gpsWaypointIcons{$key}{"Name"} }
+# {"Lon"};
+# }
 
-        }
+# }
 
-    }
-    return;
-}
+# }
+# return;
+# }
 
 # sub deleteGpsWaypointsWithNoName {
 
@@ -3210,51 +3434,51 @@ sub matchClosestFixTextBoxToEachGpsWaypointIcon {
 # return;
 # }
 
-sub deleteDuplicateFixes {
+# sub deleteDuplicateFixes {
 
-    #Remove duplicate gps waypoints, preferring the one closest to the Y center of the PDF
-  OUTER:
-    foreach my $key ( sort keys %fixIcons ) {
+# #Remove duplicate gps waypoints, preferring the one closest to the Y center of the PDF
+# OUTER:
+# foreach my $key ( sort keys %fixIcons ) {
 
-        #my $hyp = sqrt( $distance_to_pdf_center_x**2 + $distance_to_pdf_center_y**2 );
-        foreach my $key2 ( sort keys %fixIcons ) {
+# #my $hyp = sqrt( $distance_to_pdf_center_x**2 + $distance_to_pdf_center_y**2 );
+# foreach my $key2 ( sort keys %fixIcons ) {
 
-            if (   ( $fixIcons{$key}{"Name"} eq $fixIcons{$key2}{"Name"} )
-                && ( $key ne $key2 ) )
-            {
-                my $name = $fixIcons{$key}{"Name"};
-                say "A ha, I found a duplicated fix: $name"
-                  if $debug;
-                my $distance_to_pdf_center_x1 =
-                  abs( $pdfCenterX - $fixIcons{$key}{"iconCenterXPdf"} );
-                my $distance_to_pdf_center_y1 =
-                  abs( $pdfCenterY - $fixIcons{$key}{"iconCenterYPdf"} );
+# if (   ( $fixIcons{$key}{"Name"} eq $fixIcons{$key2}{"Name"} )
+# && ( $key ne $key2 ) )
+# {
+# my $name = $fixIcons{$key}{"Name"};
+# say "A ha, I found a duplicated fix: $name"
+# if $debug;
+# my $distance_to_pdf_center_x1 =
+# abs( $pdfCenterX - $fixIcons{$key}{"iconCenterXPdf"} );
+# my $distance_to_pdf_center_y1 =
+# abs( $pdfCenterY - $fixIcons{$key}{"iconCenterYPdf"} );
 
-                #say $distance_to_pdf_center_y1;
-                my $distance_to_pdf_center_x2 =
-                  abs( $pdfCenterX - $fixIcons{$key2}{"iconCenterXPdf"} );
-                my $distance_to_pdf_center_y2 =
-                  abs( $pdfCenterY - $fixIcons{$key2}{"iconCenterYPdf"} );
+# #say $distance_to_pdf_center_y1;
+# my $distance_to_pdf_center_x2 =
+# abs( $pdfCenterX - $fixIcons{$key2}{"iconCenterXPdf"} );
+# my $distance_to_pdf_center_y2 =
+# abs( $pdfCenterY - $fixIcons{$key2}{"iconCenterYPdf"} );
 
-                #say $distance_to_pdf_center_y2;
+# #say $distance_to_pdf_center_y2;
 
-                if ( $distance_to_pdf_center_y1 < $distance_to_pdf_center_y2 ) {
-                    delete $fixIcons{$key2};
-                    say "Deleting the 2nd entry" if $debug;
-                    goto OUTER;
-                }
-                else {
-                    delete $fixIcons{$key};
-                    say "Deleting the first entry" if $debug;
-                    goto OUTER;
-                }
-            }
+# if ( $distance_to_pdf_center_y1 < $distance_to_pdf_center_y2 ) {
+# delete $fixIcons{$key2};
+# say "Deleting the 2nd entry" if $debug;
+# goto OUTER;
+# }
+# else {
+# delete $fixIcons{$key};
+# say "Deleting the first entry" if $debug;
+# goto OUTER;
+# }
+# }
 
-        }
+# }
 
-    }
-    return;
-}
+# }
+# return;
+# }
 
 # sub drawLineFromEachGpsWaypointToMatchedTextbox {
 
@@ -3332,20 +3556,29 @@ sub addCombinedHashToGroundControlPoints {
         my $_pdfY = $combinedHashRef->{$key}{"GeoreferenceY"};
         my $lon   = $combinedHashRef->{$key}{"Lon"};
         my $lat   = $combinedHashRef->{$key}{"Lat"};
-
+        my $text  = $combinedHashRef->{$key}{"Text"};
         next unless ( $_pdfX && $_pdfY && $lon && $lat );
 
         my $_rasterX = $_pdfX * $scaleFactorX;
         my $_rasterY = $pngYSize - ( $_pdfY * $scaleFactorY );
         my $rand     = rand();
         if ( $_rasterX && $_rasterY && $lon && $lat ) {
-            say "$_rasterX $_rasterY $lon $lat" if $debug;
-            $gcps{ "$type" . $key . $rand }{"pngx"} = $_rasterX;
-            $gcps{ "$type" . $key . $rand }{"pngy"} = $_rasterY;
-            $gcps{ "$type" . $key . $rand }{"pdfx"} = $_pdfX;
-            $gcps{ "$type" . $key . $rand }{"pdfy"} = $_pdfY;
-            $gcps{ "$type" . $key . $rand }{"lon"}  = $lon;
-            $gcps{ "$type" . $key . $rand }{"lat"}  = $lat;
+            my $pixelTextOutput =
+              qx(convert $outputPdfOutlines.png -format '%[pixel:p{$_rasterX,$_rasterY}]' info:-);
+            say $pixelTextOutput;
+            if ( $pixelTextOutput =~ /black|srgb\(149,149,0\)|yellow/i  ) {
+
+                say "$_rasterX $_rasterY $lon $lat" if $debug;
+                $gcps{ "$type" . $text . '-' . $rand }{"pngx"} = $_rasterX;
+                $gcps{ "$type" . $text . '-' . $rand }{"pngy"} = $_rasterY;
+                $gcps{ "$type" . $text . '-' . $rand }{"pdfx"} = $_pdfX;
+                $gcps{ "$type" . $text . '-' . $rand }{"pdfy"} = $_pdfY;
+                $gcps{ "$type" . $text . '-' . $rand }{"lon"}  = $lon;
+                $gcps{ "$type" . $text . '-' . $rand }{"lat"}  = $lat;
+            }
+            else{
+                say "$type $text is being ignored";}
+            
         }
     }
     return;
@@ -3384,6 +3617,9 @@ sub addCombinedHashToGroundControlPoints {
 # }
 
 sub deleteBadGCPs {
+ say ":deleteBadGCPs is disabled for now";
+ return;
+    say ":deleteBadGCPs" if $debug;
 
     #Delete GCPs that are  inside an inset box
     foreach my $key ( sort keys %gcps ) {
@@ -3431,12 +3667,12 @@ sub deleteBadGCPs {
               )
             {
                 #Yes, delete it
-                say "$key is inside inset box $key2. Removing from GCPs";
+                say "$key is inside inset box $key2. Removing from GCPs"
+                  if $debug;
                 delete $gcps{$key};
             }
         }
     }
-    say "deleteBadGCPs";
 
     #Delete GCPs that are  inside an inset circle
     foreach my $key ( sort keys %gcps ) {
@@ -3463,14 +3699,14 @@ sub deleteBadGCPs {
               )
             {
                 #Yes, delete it
-                say "$key is inside inset circle $key2. Removing from GCPs";
+                say "$key is inside inset circle $key2. Removing from GCPs"
+                  if $debug;
                 delete $gcps{$key};
             }
         }
     }
 
-    my ( $lowerYCutoff, $upperYCutoff ) = findHorizontalCutoff();
-    say "lowerYCutoff: $lowerYCutoff, upperYCutoff: $upperYCutoff";
+    say "lowerYCutoff: $lowerYCutoff, upperYCutoff: $upperYCutoff" if $debug;
 
     # Delete GCPs above or below certain Y values (to be determined by horizontal lines
     foreach my $key ( sort keys %gcps ) {
@@ -3480,7 +3716,8 @@ sub deleteBadGCPs {
         if ( $y < $lowerYCutoff ) {
 
             #Yes, delete it
-            say "$key is below Y cutoff of $lowerYCutoff. Removing from GCPs";
+            say "$key is below Y cutoff of $lowerYCutoff. Removing from GCPs"
+              if $debug;
             delete $gcps{$key};
         }
     }
@@ -3794,9 +4031,20 @@ sub findHorizontalCutoff {
     #Find the highest purely horizonal line below the midpoint of the page
     foreach my $key ( sort keys %horizontalAndVerticalLines ) {
 
+        my $x      = $horizontalAndVerticalLines{$key}{"X"};
+        my $x2     = $horizontalAndVerticalLines{$key}{"X2"};
+        my $length = abs( $x - $x2 );
+        my $y2     = $horizontalAndVerticalLines{$key}{"Y2"};
         my $yCoord = $horizontalAndVerticalLines{$key}{"Y"};
 
-        if ( ( $yCoord > $_lowerYCutoff ) && ( $yCoord < .5 * $pdfYSize ) ) {
+        #Check that this is a horizonal line since we're also currently storing vertical ones in this hash too
+        #TODO separate hashes for horz and vertical
+        next unless ( $yCoord == $y2 );
+
+        if (   ( $yCoord > $_lowerYCutoff )
+            && ( $yCoord < .5 * $pdfYSize )
+            && ( $length > .5 * $pdfXSize ) )
+        {
 
             $_lowerYCutoff = $yCoord;
         }
@@ -3804,58 +4052,63 @@ sub findHorizontalCutoff {
 
     #Find the lowest purely horizonal line above the midpoint of the page
     foreach my $key ( sort keys %horizontalAndVerticalLines ) {
-
+        my $y2     = $horizontalAndVerticalLines{$key}{"Y2"};
         my $yCoord = $horizontalAndVerticalLines{$key}{"Y"};
+
+        #Check that this is a horizonal line since we're also currently storing vertical ones in this hash too
+        #TODO separate hashes for horz and vertical
+        next unless ( $yCoord == $y2 );
 
         if ( ( $yCoord < $_upperYCutoff ) && ( $yCoord > .5 * $pdfYSize ) ) {
 
             $_upperYCutoff = $yCoord;
         }
     }
-    say "Returning $_upperYCutoff and $_lowerYCutoff  as horizontal cutoffs";
+    say "Returning $_upperYCutoff and $_lowerYCutoff  as horizontal cutoffs"
+      if $debug;
     return ( $_lowerYCutoff, $_upperYCutoff );
 }
 
-sub matchClosestNavaidTextBoxToNavaidIcon {
+# sub matchClosestNavaidTextBoxToNavaidIcon {
 
-    #Try to find closest vorTextbox to each navaid icon
-    foreach my $key ( sort keys %navaidIcons ) {
-        my $distanceToClosestNavaidTextbox_X;
-        my $distanceToClosestNavaidTextbox_Y;
+# #Try to find closest vorTextbox to each navaid icon
+# foreach my $key ( sort keys %navaidIcons ) {
+# my $distanceToClosestNavaidTextbox_X;
+# my $distanceToClosestNavaidTextbox_Y;
 
-        #Initialize this to a very high number so everything is closer than it
-        my $distanceToClosestNavaidTextbox = 999999999999;
-        foreach my $key2 ( keys %vorTextboxes ) {
-            $distanceToClosestNavaidTextbox_X =
-              $vorTextboxes{$key2}{"CenterX"} - $navaidIcons{$key}{"CenterX"};
-            $distanceToClosestNavaidTextbox_Y =
-              $vorTextboxes{$key2}{"CenterY"} - $navaidIcons{$key}{"CenterY"};
+# #Initialize this to a very high number so everything is closer than it
+# my $distanceToClosestNavaidTextbox = 999999999999;
+# foreach my $key2 ( keys %vorTextboxes ) {
+# $distanceToClosestNavaidTextbox_X =
+# $vorTextboxes{$key2}{"CenterX"} - $navaidIcons{$key}{"CenterX"};
+# $distanceToClosestNavaidTextbox_Y =
+# $vorTextboxes{$key2}{"CenterY"} - $navaidIcons{$key}{"CenterY"};
 
-            my $hyp = sqrt( $distanceToClosestNavaidTextbox_X**2 +
-                  $distanceToClosestNavaidTextbox_Y**2 );
+# my $hyp = sqrt( $distanceToClosestNavaidTextbox_X**2 +
+# $distanceToClosestNavaidTextbox_Y**2 );
 
-            #The 27 here was chosen to make one particular sample work, it's not universally valid
-            #Need to improve the icon -> textbox mapping
-            #say "Hypotenuse: $hyp" if $debug;
-            if ( ( $hyp < $distanceToClosestNavaidTextbox ) && ( $hyp < 135 ) )
-            {
-                $distanceToClosestNavaidTextbox = $hyp;
-                $navaidIcons{$key}{"Name"} = $vorTextboxes{$key2}{"Text"};
-                $navaidIcons{$key}{"TextBoxX"} =
-                  $vorTextboxes{$key2}{"CenterX"};
-                $navaidIcons{$key}{"TextBoxY"} =
-                  $vorTextboxes{$key2}{"CenterY"};
-                $navaidIcons{$key}{"Lat"} =
-                  $navaids_from_db{ $navaidIcons{$key}{"Name"} }{"Lat"};
-                $navaidIcons{$key}{"Lon"} =
-                  $navaids_from_db{ $navaidIcons{$key}{"Name"} }{"Lon"};
-            }
+# #The 27 here was chosen to make one particular sample work, it's not universally valid
+# #Need to improve the icon -> textbox mapping
+# #say "Hypotenuse: $hyp" if $debug;
+# if ( ( $hyp < $distanceToClosestNavaidTextbox ) && ( $hyp < 135 ) )
+# {
+# $distanceToClosestNavaidTextbox = $hyp;
+# $navaidIcons{$key}{"Name"} = $vorTextboxes{$key2}{"Text"};
+# $navaidIcons{$key}{"TextBoxX"} =
+# $vorTextboxes{$key2}{"CenterX"};
+# $navaidIcons{$key}{"TextBoxY"} =
+# $vorTextboxes{$key2}{"CenterY"};
+# $navaidIcons{$key}{"Lat"} =
+# $navaids_from_db{ $navaidIcons{$key}{"Name"} }{"Lat"};
+# $navaidIcons{$key}{"Lon"} =
+# $navaids_from_db{ $navaidIcons{$key}{"Name"} }{"Lon"};
+# }
 
-        }
+# }
 
-    }
-    return;
-}
+# }
+# return;
+# }
 
 # sub deleteFixIconsWithNoName {
 
@@ -3921,19 +4174,19 @@ sub outlineValidGpsWaypointTextBoxes {
 }
 
 # sub countObstacleIconsWithOnePotentialTextbox {
-    # my $_countOfObstaclesWithOnePotentialTextbox = 0;
-    # foreach my $key ( sort keys %unique_obstacles_from_db ) {
+# my $_countOfObstaclesWithOnePotentialTextbox = 0;
+# foreach my $key ( sort keys %unique_obstacles_from_db ) {
 
-        # if ( $unique_obstacles_from_db{$key}{"potentialTextBoxes"} == 1 ) {
-            # $_countOfObstaclesWithOnePotentialTextbox++;
-        # }
-    # }
+# if ( $unique_obstacles_from_db{$key}{"potentialTextBoxes"} == 1 ) {
+# $_countOfObstaclesWithOnePotentialTextbox++;
+# }
+# }
 
-    # if ($debug) {
-        # say
-          # "$_countOfObstaclesWithOnePotentialTextbox Obtacles that have only 1 potentialTextBoxes";
-    # }
-    # return $_countOfObstaclesWithOnePotentialTextbox;
+# if ($debug) {
+# say
+# "$_countOfObstaclesWithOnePotentialTextbox Obtacles that have only 1 potentialTextBoxes";
+# }
+# return $_countOfObstaclesWithOnePotentialTextbox;
 # }
 
 # sub drawLineFromEachToUniqueObstaclesFromDbToClosestTextBox {
@@ -4083,12 +4336,12 @@ sub findAllTextboxes {
     return;
 }
 
-sub matchBToA {
+sub joinIconTextboxAndDatabaseHashes {
     my ( $iconHashRef, $textboxHashRef, $databaseHashRef ) = @_;
     my %hashOfMatchedPairs = ();
     my $key3               = 1;
 
-    # say ":matchBToA$textboxHashRef to each $iconHashRef" if $debug;
+    # say ":joinIconTextboxAndDatabaseHashes$textboxHashRef to each $iconHashRef" if $debug;
 
     #start:
     foreach my $key ( sort keys %$iconHashRef ) {
@@ -4114,6 +4367,7 @@ sub matchBToA {
             my $georeferenceY = $iconHashRef->{$key}{"GeoreferenceY"};
             my $lat = $databaseHashRef->{$textOfMatchedTextbox}{"Lat"};
             my $lon = $databaseHashRef->{$textOfMatchedTextbox}{"Lon"};
+
             next
               unless ( $textOfMatchedTextbox
                 && $georeferenceX
@@ -4121,17 +4375,29 @@ sub matchBToA {
                 && $lat
                 && $lon );
 
+            #This little section is to keep from using a navaid icon matched to a textbox containing the name
+            #of a different type of navaid as a GCP
+            my $iconType = $iconHashRef->{$key}{"Type"};
+            my $databaseType =
+              $databaseHashRef->{$textOfMatchedTextbox}{"Type"};
+            if ( $iconType && $iconType =~ m/VOR/ ) {
+
+                # say
+                # "We've found a *VOR*, let's see if type of icon matches type of database entry";
+                # say "$iconType";
+                # say $keyOfMatchedTextbox;
+                # say "$databaseType";
+                next unless ( $iconType eq $databaseType );
+            }
+
+            #Populate the values of our new combined hash
             $hashOfMatchedPairs{$key3}{"GeoreferenceX"} = $georeferenceX;
             $hashOfMatchedPairs{$key3}{"GeoreferenceY"} = $georeferenceY;
             $hashOfMatchedPairs{$key3}{"Lat"}           = $lat;
             $hashOfMatchedPairs{$key3}{"Lon"}           = $lon;
             $hashOfMatchedPairs{$key3}{"Text"}          = $textOfMatchedTextbox;
-
-            #delete $iconHashRef->{$key};
-            #delete $textboxHashRef->{$keyOfMatchedTextbox};
             $key3++;
 
-            #goto start;
         }
 
     }
@@ -4168,5 +4434,98 @@ sub drawLineFromEachIconToMatchedTextBox {
         $_line->strokecolor('blue');
         $_line->stroke;
     }
+    return;
+}
+
+sub outlines {
+    say ":outlines" if $debug;
+    my $outlineWidth = 1;
+
+    #Draw the various types of boxes on the output PDF
+
+    my %font = (
+        Helvetica => {
+            Bold =>
+              $pdfOutlines->corefont( 'Helvetica-Bold', -encoding => 'latin1' ),
+
+            #      Roman  => $pdfOutlines->corefont('Helvetica',         -encoding => 'latin1'),
+            #      Italic => $pdfOutlines->corefont('Helvetica-Oblique', -encoding => 'latin1'),
+        },
+        Times => {
+
+            #      Bold   => $pdfOutlines->corefont('Times-Bold',        -encoding => 'latin1'),
+            Roman => $pdfOutlines->corefont( 'Times', -encoding => 'latin1' ),
+
+            #      Italic => $pdfOutlines->corefont('Times-Italic',      -encoding => 'latin1'),
+        },
+    );
+
+    my ($bigOleBox) = $pageOutlines->gfx;
+    $bigOleBox->strokecolor('yellow');
+    $bigOleBox->linewidth(5);
+    $bigOleBox->rect( 20, 40, 350, 500 );
+    $bigOleBox->stroke;
+    $bigOleBox->move( 20, $lowerYCutoff );
+    $bigOleBox->line( 500, $lowerYCutoff );
+    $bigOleBox->stroke;
+
+    foreach my $key ( sort keys %horizontalAndVerticalLines ) {
+
+        my ($lines) = $pageOutlines->gfx;
+        $lines->strokecolor('black');
+        $lines->linewidth($outlineWidth);
+        $lines->move(
+            $horizontalAndVerticalLines{$key}{"X"},
+            $horizontalAndVerticalLines{$key}{"Y"}
+        );
+        $lines->line(
+            $horizontalAndVerticalLines{$key}{"X2"},
+            $horizontalAndVerticalLines{$key}{"Y2"}
+        );
+
+        $lines->stroke;
+    }
+    foreach my $key ( sort keys %insetBoxes ) {
+
+        my ($insetBox) = $pageOutlines->gfx;
+        $insetBox->strokecolor('black');
+        $insetBox->linewidth($outlineWidth);
+        $insetBox->rect(
+            $insetBoxes{$key}{X},
+            $insetBoxes{$key}{Y},
+            $insetBoxes{$key}{Width},
+            $insetBoxes{$key}{Height},
+
+        );
+
+        $insetBox->stroke;
+    }
+    foreach my $key ( sort keys %largeBoxes ) {
+
+        my ($largeBox) = $pageOutlines->gfx;
+        $largeBox->strokecolor('black');
+        $largeBox->linewidth($outlineWidth);
+        $largeBox->rect(
+            $largeBoxes{$key}{X},     $largeBoxes{$key}{Y},
+            $largeBoxes{$key}{Width}, $largeBoxes{$key}{Height},
+        );
+
+        $largeBox->stroke;
+    }
+
+    foreach my $key ( sort keys %insetCircles ) {
+
+        my ($insetCircle) = $pageOutlines->gfx;
+        $insetCircle->strokecolor('black');
+        $insetCircle->linewidth($outlineWidth);
+        $insetCircle->circle(
+            $insetCircles{$key}{X},
+            $insetCircles{$key}{Y},
+            $insetCircles{$key}{Radius},
+        );
+
+        $insetCircle->stroke;
+    }
+
     return;
 }
