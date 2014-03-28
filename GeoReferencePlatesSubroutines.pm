@@ -106,9 +106,10 @@ sub uniq {
 
 sub onlyuniq {
 
-    #Remove all entries from a hash that are duplicates (eg 1 2 3 2 2 -> 1 3)
+    #Remove all entries from an array that are duplicates (eg 1 2 3 2 2 -> 1 3)
     my %seen = ();
     my @r    = ();
+
     foreach my $a (@_) {
         $seen{$a} = 0;
     }
@@ -117,7 +118,7 @@ sub onlyuniq {
         $seen{$a} = $seen{$a} + 1;
     }
 
-    foreach my $key ( sort keys %seen ) {
+    foreach my $key ( keys %seen ) {
         if ( $seen{$key} == 1 ) {
             push @r, $key;
         }

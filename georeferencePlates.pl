@@ -26,8 +26,10 @@
 #Our pixel/RealWorld ratios are hardcoded now for 300dpi, need to make dynamic per our DPI setting
 #
 #TODO
-#Fix so vortac names only matches vortac icons, likewise with vordme
-#       see marked-TX-DFW-CONVERGING-ILS-RWY-35L for a problem example
+#Generate the mask bitmap totally in memory instead of via pdf->png
+#
+#Find some way to use the hint of the bubble icon for NAVAID names
+#       Maybe find a line of X length within X radius of the textbox and see if it intersects with a navaid
 #
 #Integrate OCR so we can process miltary plates too
 #
@@ -60,6 +62,7 @@ use Math::Trig;
 use Time::HiRes q/gettimeofday/;
 use Math::Polygon;
 use Acme::Tools qw(between);
+use Image::Magick;
 
 #PDF constants
 use constant mm => 25.4 / 72;
@@ -236,7 +239,8 @@ my ($transformNoCaptureXYRegex) =
 my ($bezierCurveRegex) = qr/(?:$numberRegex\s+){6}c/x;
 
 #A line or path
-my ($lineRegex) = qr/$numberRegex\s+$numberRegex\s+l/x;
+my ($lineRegex)          = qr/$numberRegex\s+$numberRegex\s+l/x;
+my ($lineRegexCaptureXY) = qr/($numberRegex)\s+($numberRegex)\s+l/x;
 
 # my $bezierCurveRegex = qr/(?:$numberRegex\s){6}c/;
 # my $lineRegex        = qr/$numberRegex\s$numberRegex\sl/;
@@ -284,6 +288,9 @@ my $largeBoxesCount = 0;
 my %insetCircles      = ();
 my $insetCirclesCount = 0;
 
+my %notToScaleIndicator      = ();
+my $notToScaleIndicatorCount = 0;
+
 #Loop through each of the streams in the PDF and find all of the icons we're interested in
 findAllIcons();
 
@@ -298,6 +305,7 @@ findAllTextboxes();
 #Modify the PDF
 #Don't do anything PDF related unless we've asked to create one on the command line
 
+
 my ( $pdf, $page );
 $pdf = PDF::API2->open($targetPdf) if $saveMarkedPdf;
 
@@ -308,30 +316,92 @@ $page = $pdf->openpage(1) if $saveMarkedPdf;
 outlineEverythingWeFound() if $saveMarkedPdf;
 
 my ( $pdfOutlines, $pageOutlines );
-$pdfOutlines = PDF::API2->new() if $saveMarkedPdf;
+my ( $lowerYCutoff, $upperYCutoff ) ;
+#Don't recreate the outlines PDF if it already exists
+
+if (! -e  $outputPdfOutlines) {
+#Make our masking PDF
+
+
+$pdfOutlines = PDF::API2->new();
 
 #Set up the various types of boxes to draw on the output PDF
-$pageOutlines = $pdfOutlines->page() if $saveMarkedPdf;
+$pageOutlines = $pdfOutlines->page();
 
 # Set the page size
 $pageOutlines->mediabox( $pdfXSize, $pdfYSize );
-my ( $lowerYCutoff, $upperYCutoff ) = findHorizontalCutoff();
+ ( $lowerYCutoff, $upperYCutoff ) = findHorizontalCutoff();
 
-#Draw boxes around the icons and textboxes we've found so far
-outlines() if $saveMarkedPdf;
-if ($saveMarkedPdf) {
-    $pdfOutlines->saveas($outputPdfOutlines);
+#Draw black lines and boxes around the icons and textboxes we've found so far
+outlines();
+
+#and save to a PDF to use for a mask
+$pdfOutlines->saveas($outputPdfOutlines);
 }
 
 #---------------------------------------------------
 #Convert the outlines PDF to a PNG
-my $halfPngX1 = $pngXSize / 2 + 5;
-my $halfPngY1 = $pngYSize / 2 + 5;
-my $halfPngX2 = $pngXSize / 2 - 5;
-my $halfPngY2 = $pngXSize / 2 - 5;
-qx(pdftoppm -png -r $pngDpi $outputPdfOutlines > $outputPdfOutlines.png);
-qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX1,$halfPngY1 floodfill' $outputPdfOutlines.png);
-qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX2,$halfPngY2 floodfill' $outputPdfOutlines.png);
+#TODO Let's make this a uncompressed mono bitmap so we can save the output to an array
+#qx(pdftoppm -png -mono -r $pngDpi $outputPdfOutlines > $outputPdfOutlines.png);
+# my $halfPngX1 = $pngXSize / 2 + 5;
+# my $halfPngY1 = $pngYSize / 2 + 5;
+# my $halfPngX2 = $pngXSize / 2 - 5;
+# my $halfPngY2 = $pngXSize / 2 - 5;
+
+#Do a flood fill on that png with starting points around the middle
+# qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX1,$halfPngY1 floodfill' $outputPdfOutlines.png);
+# qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX2,$halfPngY2 floodfill' $outputPdfOutlines.png);
+
+#testing out using perlMagick
+my ( $image, $perlMagickStatus );
+$image = Image::Magick->new;
+if ( ! -e "$outputPdfOutlines.png"){
+#If the masking PNG doesn't already exist, read in the outlines PDF, floodfill and then save
+
+#Read in the .pdf maskfile
+# $image->Set(units=>'1');
+$image->Set( units      => 'PixelsPerInch' );
+$image->Set( density    => '300' );
+$image->Set( depth      => 1 );
+$image->Set( background => 'white' );
+$image->Set( alpha      => 'off' );
+$perlMagickStatus = $image->Read("$outputPdfOutlines");
+
+#Now do two fills from just around the middle of the inner box, just in case there's something in the middle of the box blocking the fill
+#I've only seen this been an issue once
+# $image->Draw(primitive=>'color',method=>'Replace',fill=>'black',x=>1,y=>1,color => 'black');
+$image->Set( depth      => 1 );
+$image->Set( background => 'white' );
+$image->Set( alpha      => 'off' );
+$image->ColorFloodfill(
+    fill        => 'black',
+    x           => $pngXSize / 2 - 200,
+    y           => $pngYSize / 2 - 200,
+    bordercolor => 'black'
+);
+$image->ColorFloodfill(
+    fill        => 'black',
+    x           => $pngXSize / 2 + 200,
+    y           => $pngYSize / 2 + 200,
+    bordercolor => 'black'
+);
+ $perlMagickStatus = $image->write("$outputPdfOutlines.png");
+}
+else {
+  #Use the already created mask image
+  $perlMagickStatus = $image->Read("$outputPdfOutlines.png");
+
+  }
+# $image->Draw(primitive=>'rectangle',method=>'Floodfill',fill=>'black',points=>"$halfPngX1,$halfPngY1,5,100",color=>'black');
+# $image->Draw(fill=>'black',points=>'$halfPngX2,$halfPngY2',floodfill=>'yes',color => 'black');
+#warn "$perlMagickStatus" if "$perlMagickStatus";
+#Uncomment these lines to write out the mask file so you can see what it looks like
+#Black pixel represent areas to keep, what is what to ignore
+# $perlMagickStatus = $image->Write("$outputPdfOutlines.png");
+# warn "$perlMagickStatus" if "$perlMagickStatus";
+
+
+#We should eliminate icons and textboxes here
 
 #----------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with obstacles
@@ -340,7 +410,7 @@ qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX2,$halfPngY2
 my @obstacle_heights = findObstacleHeightTexts(@pdftotext);
 
 #Remove any duplicates
-onlyuniq(@obstacle_heights);
+#@obstacle_heights = onlyuniq(@obstacle_heights);
 
 #Find all obstacles within our defined distance from the airport that have a height in the list of potential obstacleTextBoxes and are unique
 # A bounding box of +/- degrees of longitude and latitude (~15 miles) from airport to limit our search for objects  to
@@ -403,13 +473,6 @@ outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb()
 # #}
 # }
 
-if ($debug) {
-    say
-      "Unique obstacles from database lookup that match with textboxes in PDF";
-    print Dumper ( \%unique_obstacles_from_db );
-    say "";
-}
-
 #------------------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with fixes
 #
@@ -424,6 +487,9 @@ outlineValidFixTextBoxes() if $saveMarkedPdf;
 #Try to find closest fixtextbox to each fix icon
 #Updates %fixIcons
 #findClosestFixTextBoxToFixIcon();
+
+#Delete an icon if the squiggly is too close to it
+findClosestSquigglyToA( \%fixIcons, \%notToScaleIndicator );
 
 #Try to find closest TextBox center to each Icon center
 #and then do the reverse
@@ -479,15 +545,26 @@ outlineValidGpsWaypointTextBoxes() if $saveMarkedPdf;
 #Try to find closest fixtextbox to each fix icon
 #Updates %fixIcons
 #findClosestFixTextBoxToFixIcon();
+#Delete an icon if the squiggly is too close to it
+say 'findClosestSquigglyToA( \%gpsWaypointIcons,     \%notToScaleIndicator )'
+  if $debug;
+findClosestSquigglyToA( \%gpsWaypointIcons, \%notToScaleIndicator );
 
 #Try to find closest TextBox center to each Icon center
 #and then do the reverse
+say 'findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes )' if $debug;
 findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes );
-findClosestBToA( \%fixTextboxes,     \%gpsWaypointIcons );
+
+say 'findClosestBToA( \%fixTextboxes,     \%gpsWaypointIcons )' if $debug;
+findClosestBToA( \%fixTextboxes, \%gpsWaypointIcons );
 
 # #Pair up each waypoint to it's closest textbox
 #gpswaypoints_from_db should now only have fixes that are mentioned on the PDF
 # matchClosestFixTextBoxToEachGpsWaypointIcon();
+
+say 'my $matchedGpsWaypointIconsToTextBoxes =
+  joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
+    \%gpswaypoints_from_db )' if $debug;
 
 my $matchedGpsWaypointIconsToTextBoxes =
   joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
@@ -530,6 +607,8 @@ outlineValidNavaidTextBoxes() if $saveMarkedPdf;
 
 #Pair up each waypoint to it's closest textbox
 #matchClosestNavaidTextBoxToNavaidIcon();
+#Delete an icon if the squiggly is too close to it
+findClosestSquigglyToA( \%navaidIcons, \%notToScaleIndicator );
 
 #Try to find closest TextBox center to each Icon center
 #and then do the reverse
@@ -621,10 +700,11 @@ if ( $gcpCount < 1 ) {
 }
 
 #Remove GCPs which are inside insetBoxes or outside the horizontal bounds
-deleteBadGCPs();
+#Commented out since we're using  image mask code now
+#deleteBadGCPs();
 
 $gcpCount = scalar( keys(%gcps) );
-say "Usling $gcpCount Ground Control Points" if $debug;
+say "Using $gcpCount Ground Control Points" if $debug;
 
 #outline the GCP points we ended up using
 drawCircleAroundGCPs() if $saveMarkedPdf;
@@ -644,7 +724,8 @@ say
 
 #Calculate the rough X and Y scale values
 if ( $gcpCount == 1 ) {
-    calculateRoughRealWorldExtentsOfRasterWithOneGCP();
+
+    #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
 }
 else {
     calculateRoughRealWorldExtentsOfRaster();
@@ -665,11 +746,18 @@ my ($lonLatRatio) = 0;
 # say "";
 # }
 
-#Smooth out the X and Y scales we previously calculated
-calculateSmoothedRealWorldExtentsOfRaster();
+if ( @xScaleAvg || @yScaleAvg ) {
 
-#Actually produce the georeferencing data via GDAL
-georeferenceTheRaster();
+    #Smooth out the X and Y scales we previously calculated
+    calculateSmoothedRealWorldExtentsOfRaster();
+
+    #Actually produce the georeferencing data via GDAL
+    georeferenceTheRaster();
+
+}
+else {
+    say "No points actually added to the scale arrays for $targetPdf";
+}
 
 #Write out the statistics of this file if requested
 writeStatistics() if $outputStatistics;
@@ -719,7 +807,7 @@ sub findObstacleHeightTexts {
         print join( " ", @_obstacle_heights ), "\n";
 
         #Remove all entries that aren't unique
-        @obstacle_heights = onlyuniq(@obstacle_heights);
+        @_obstacle_heights = onlyuniq(@_obstacle_heights);
         say "Unique potential obstacle heights from PDF";
         print join( " ", @_obstacle_heights ), "\n";
     }
@@ -1012,17 +1100,17 @@ sub outlineEverythingWeFound {
     }
     foreach my $key ( sort keys %fixTextboxes ) {
         my ($fixTextBox) = $page->gfx;
+        $fixTextBox->strokecolor('red');
+        $fixTextBox->linewidth(1);
         $fixTextBox->rect(
             $fixTextboxes{$key}{"CenterX"} -
               ( $fixTextboxes{$key}{"Width"} / 2 ),
             $fixTextboxes{$key}{"CenterY"} -
               ( $fixTextboxes{$key}{"Height"} / 2 ),
-            ,
             $fixTextboxes{$key}{"Width"},
             $fixTextboxes{$key}{"Height"}
         );
-        $fixTextBox->strokecolor('red');
-        $fixTextBox->linewidth(.1);
+
         $fixTextBox->stroke;
     }
     foreach my $key ( sort keys %gpsWaypointIcons ) {
@@ -1082,10 +1170,21 @@ sub outlineEverythingWeFound {
         $navaidTextBox->rect(
             $vorTextboxes{$key}{"CenterX"} -
               ( $vorTextboxes{$key}{"Width"} / 2 ),
-            $vorTextboxes{$key}{"CenterY"} -
+            $vorTextboxes{$key}{"CenterY"} +
               ( $vorTextboxes{$key}{"Height"} / 2 ),
             $vorTextboxes{$key}{"Width"},
             -( $vorTextboxes{$key}{"Height"} )
+        );
+        $navaidTextBox->strokecolor('red');
+        $navaidTextBox->linewidth(1);
+        $navaidTextBox->stroke;
+    }
+    foreach my $key ( sort keys %notToScaleIndicator ) {
+        my ($navaidTextBox) = $page->gfx;
+        $navaidTextBox->rect(
+            $notToScaleIndicator{$key}{"CenterX"},
+            $notToScaleIndicator{$key}{"CenterY"},
+            4, 10
         );
         $navaidTextBox->strokecolor('red');
         $navaidTextBox->linewidth(1);
@@ -1238,9 +1337,10 @@ sub calculateLRX {
     $lrXAvrg   = &average( \@lrXAvg );
     $lrXmedian = &median( \@lrXAvg );
     $lrXStdDev = &stdev( \@lrXAvg );
-    say
-      "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian"
-      if $debug;
+        if ($debug) {
+        say "Remove data outside 1st standard deviation";
+    say      "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian"      ;
+  }
     return;
 }
 
@@ -1284,6 +1384,8 @@ sub findAllIcons {
         # findIlsIcons( \%icons, $_output );
         findObstacleIcons($_output);
         findFixIcons($_output);
+
+        # findGpsWaypointIcons($_output);
         findGpsWaypointIcons($_output);
         findNavaidIcons($_output);
 
@@ -1293,7 +1395,8 @@ sub findAllIcons {
         findInsetBoxes($_output);
         findLargeBoxes($_output);
         findInsetCircles($_output);
-
+        findNotToScaleIndicator($_output);
+        say "" if $debug;
     }
 
     # if ($debug) {
@@ -1306,6 +1409,8 @@ sub findAllIcons {
     # print Dumper ( \%gpsWaypointIcons );
     # say "navaidIcons:";
     # print Dumper ( \%navaidIcons );
+    # say "notToScaleIndicators:";
+    # print Dumper ( \%notToScaleIndicators );
     # }
 
     return;
@@ -1438,9 +1543,85 @@ sub findClosestBToA {
     return;
 }
 
-sub findObstaclesInDatabase {
-my $radius                   = ".40";
+sub findClosestSquigglyToA {
 
+    #Find the closest B icon to each A
+
+    my ( $hashRefA, $hashRefB ) = @_;
+
+    #Maximum distance in points between centers
+    my $maxDistance = 30;
+    my @unwanted;
+
+    # say "findClosest $hashRefB to each $hashRefA" if $debug;
+
+    foreach my $key ( sort keys %$hashRefA ) {
+
+        #Start with a very high number so initially is closer than it
+        my $distanceToClosest = 999999999999;
+
+        foreach my $key2 ( sort keys %$hashRefB ) {
+
+            my $distanceToBX =
+              $hashRefB->{$key2}{"CenterX"} - $hashRefA->{$key}{"CenterX"};
+            my $distanceToBY =
+              $hashRefB->{$key2}{"CenterY"} - $hashRefA->{$key}{"CenterY"};
+
+            my $hypotenuse = sqrt( $distanceToBX**2 + $distanceToBY**2 );
+
+            #Ignore this textbox if it's further away than our max distance variables
+            next
+              if (
+                (
+                       $hypotenuse > $maxDistance
+                    || $hypotenuse > $distanceToClosest
+                )
+              );
+
+            #Update the distance to the closest obstacleTextBox center
+            $distanceToClosest = $hypotenuse;
+
+            #Set the "name" of this obstacleIcon to the text from obstacleTextBox
+            #This is where we kind of guess (and can go wrong) since the closest height text is often not what should be associated with the icon
+            # $hashRefA->{$key}{"Name"}     = $hashRefB->{$key2}{"Text"};
+            #$hashRefA->{$key}{"TextBoxX"} = $hashRefB->{$key2}{"CenterX"};
+            #$hashRefA->{$key}{"TextBoxY"} = $hashRefB->{$key2}{"CenterY"};
+            say "deleting $key from potential icons";
+            push @unwanted, $key;
+
+            # delete $hashRefA->{$key}
+        }
+
+    }
+
+    say @unwanted;
+
+    #TODO: This seems sloppy but it works
+    foreach my $key3 (@unwanted) {
+        delete $hashRefA->{$key3};
+    }
+
+    if ($debug) {
+        say "$hashRefA";
+        print Dumper ($hashRefA);
+        say "";
+        say "$hashRefB";
+        print Dumper ($hashRefB);
+    }
+
+    return;
+}
+
+sub findObstaclesInDatabase {
+    # my $radius     = ".2";
+    my $minimumAgl = "0";
+
+  #How far away from the airport to look for feature
+    my $radiusNm = 20;
+    #Convert to degrees of Longitude and Latitude for the latitude of our airport
+ 
+         my $radiusDegreesLatitude = $radiusNm / 60;
+     my $radiusDegreesLongitude   =  ($radiusNm/60)  /  cos( deg2rad($airportLatitudeDec) );
     #---------------------------------------------------------------------------------------------------------------------------------------------------
     #Find obstacles with a certain height in the database
 
@@ -1448,11 +1629,13 @@ my $radius                   = ".40";
 
         #Query the database for obstacles of $heightmsl within our $radius
         $sth = $dbh->prepare(
-            "SELECT * FROM obstacles WHERE (HeightMsl=$heightmsl) and 
-                                       (Latitude >  $airportLatitudeDec - $radius ) and 
-                                       (Latitude < $airportLatitudeDec +$radius ) and 
-                                       (Longitude >  $airportLongitudeDec - $radius ) and 
-                                       (Longitude < $airportLongitudeDec +$radius )"
+            "SELECT * FROM obstacles WHERE 
+                                       (HeightMsl=$heightmsl) and 
+                                       (HeightAgl > $minimumAgl) and 
+                                       (Latitude >  $airportLatitudeDec - $radiusDegreesLatitude ) and 
+                                       (Latitude < $airportLatitudeDec +$radiusDegreesLatitude ) and 
+                                       (Longitude >  $airportLongitudeDec - $radiusDegreesLongitude ) and 
+                                       (Longitude < $airportLongitudeDec +$radiusDegreesLongitude )"
         );
         $sth->execute();
 
@@ -1480,11 +1663,11 @@ my $radius                   = ".40";
     #How many obstacles with unique heights did we find
     $unique_obstacles_from_dbCount = keys(%unique_obstacles_from_db);
 
-    my $nmLatitude  = 60 * $radius;
-    my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
+    # my $nmLatitude  = 60 * $radius;
+    # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
     if ($debug) {
         say
-          "Found $unique_obstacles_from_dbCount OBSTACLES with unique heights within $radius degrees ($nmLongitude x $nmLatitude nm) of airport from database";
+          "Found $unique_obstacles_from_dbCount OBSTACLES with unique heights within $radiusNm nm of airport from database";
         say "unique_obstacles_from_db:";
         print Dumper ( \%unique_obstacles_from_db );
         say "";
@@ -1493,6 +1676,115 @@ my $radius                   = ".40";
 }
 
 #--------------------------------------------------------------------------------------------------------------------------------------
+# sub findGpsWaypointIcons {
+    # my ($_output) = @_;
+
+    # #REGEX building blocks
+
+    # #my $transformCaptureXYRegex = qr/q 1 0 0 1 ($numberRegex) ($numberRegex)\s+cm/;
+
+    # #Find first half of gps waypoint icons
+    # #Usually this is the upper left half but I've seen at least one instance where it matches the upper right,
+    # #which throws off the determination of the center point (SSI GPS 22)
+    # my $gpswaypointregex = qr/^$transformCaptureXYRegex$
+# ^0 0 m$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$lineRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$lineRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^0 0 l$
+# ^f\*$
+# ^Q$/m;
+
+    # my $gpswaypointregex2 = qr/^$transformCaptureXYRegex$
+# ^0 0 m$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$lineRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^$lineRegex$
+# ^$bezierCurveRegex$
+# ^$bezierCurveRegex$
+# ^0 0 l$
+# ^f\*$
+# ^Q$/m;
+
+    # #Found at least one example of the waypoint icon being drawn like this (2 extra curves)
+    # my $gpsWaypointDataPoints   = 2;
+    # my @tempgpswaypoints        = $_output =~ /$gpswaypointregex/ig;
+    # my $tempgpswaypoints_length = 0 + @tempgpswaypoints;
+    # my $tempgpswaypoints_count =
+      # $tempgpswaypoints_length / $gpsWaypointDataPoints;
+
+    # if ( $tempgpswaypoints_length >= $gpsWaypointDataPoints ) {
+        # my $rand = rand();
+
+        # #say "Found $tempgpswaypoints_count GPS waypoints in stream $i";
+        # for (
+            # my $i = 0 ;
+            # $i < $tempgpswaypoints_length ;
+            # $i = $i + $gpsWaypointDataPoints
+          # )
+        # {
+            # my $height = 10;
+            # my $width  = 15;
+
+            # #put them into a hash
+            # # $gpsWaypointIcons{$i}{"X"} = $tempgpswaypoints[$i];
+            # # $gpsWaypointIcons{$i}{"Y"} = $tempgpswaypoints[ $i + 1 ];
+            # #TODO Calculate the midpoint properly, this number is an estimation (although a good one)
+            # $gpsWaypointIcons{ $i . $rand }{"CenterX"} =
+              # $tempgpswaypoints[$i] + $height / 2;
+            # $gpsWaypointIcons{ $i . $rand }{"CenterY"} =
+              # $tempgpswaypoints[ $i + 1 ];
+            # $gpsWaypointIcons{ $i . $rand }{"Width"}  = $width;
+            # $gpsWaypointIcons{ $i . $rand }{"Height"} = $height;
+            # $gpsWaypointIcons{ $i . $rand }{"GeoreferenceX"} =
+              # $tempgpswaypoints[$i] + $width / 2;
+            # $gpsWaypointIcons{ $i . $rand }{"GeoreferenceY"} =
+              # $tempgpswaypoints[ $i + 1 ];
+            # $gpsWaypointIcons{ $i . $rand }{"Type"} = "gps";
+
+            # # $gpsWaypointIcons{$i}{"Name"} = "none";
+        # }
+
+    # }
+
+    # $gpsCount = keys(%gpsWaypointIcons);
+    # if ($debug) {
+        # print "$tempgpswaypoints_count GPS ";
+
+    # }
+    # return;
+# }
+
 sub findGpsWaypointIcons {
     my ($_output) = @_;
 
@@ -1513,14 +1805,14 @@ sub findGpsWaypointIcons {
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
-^$lineRegex$
+^$lineRegexCaptureXY$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
-^$lineRegex$
+^$lineRegexCaptureXY$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^0 0 l$
@@ -1537,7 +1829,7 @@ sub findGpsWaypointIcons {
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
-^$lineRegex$
+^$lineRegexCaptureXY$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
@@ -1546,7 +1838,7 @@ sub findGpsWaypointIcons {
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
-^$lineRegex$
+^$lineRegexCaptureXY$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^0 0 l$
@@ -1554,34 +1846,65 @@ sub findGpsWaypointIcons {
 ^Q$/m;
 
     #Found at least one example of the waypoint icon being drawn like this (2 extra curves)
+    my $gpsWaypointDataPoints = 6;
 
-    my @tempgpswaypoints        = $_output =~ /$gpswaypointregex/ig;
-    my $tempgpswaypoints_length = 0 + @tempgpswaypoints;
-    my $tempgpswaypoints_count  = $tempgpswaypoints_length / 2;
+    my @regex1 = $_output =~ /$gpswaypointregex/ig;
+    my @regex2 = $_output =~ /$gpswaypointregex2/ig;
 
-    if ( $tempgpswaypoints_length >= 2 ) {
+    my @merged = ( @regex1, @regex2 );
+
+    my $merged_length = 0 + @merged;
+    my $merged_count  = $merged_length / $gpsWaypointDataPoints;
+
+    if ( $merged_length >= $gpsWaypointDataPoints ) {
         my $rand = rand();
 
-        #say "Found $tempgpswaypoints_count GPS waypoints in stream $i";
-        for ( my $i = 0 ; $i < $tempgpswaypoints_length ; $i = $i + 2 ) {
-            my $height = 10;
-            my $width  = 15;
+        #say "Found $merged_count GPS waypoints in stream $i";
+        for (
+            my $i = 0 ;
+            $i < $merged_length ;
+            $i = $i + $gpsWaypointDataPoints
+          )
+        {
+            my $width   = 10;
+            my $height  = 10;
+            my $x       = $merged[$i];
+            my $y       = $merged[ $i + 1 ];
+            my $x1      = $merged[ $i + 2 ];
+            my $y1      = $merged[ $i + 3 ];
+            my $x2      = $merged[ $i + 4 ];
+            my $y2      = $merged[ $i + 5 ];
+            my $xOffset = abs($x1) - abs($x2);
+            my $yOffset = abs($y1) - abs($y2);
+
+            if ( $x1 > 0 && $x2 > 0 ) {
+                say "GPS icon type 1" if $debug;
+                $yOffset = 0;
+                $xOffset = 8;    #TODO floor($xOffset*2);
+            }
+            elsif ( $xOffset < 4 ) {
+                say "GPS icon type 2" if $debug;
+                $xOffset = 0;
+                $yOffset = 8;    #TODO should be floor($yOffset*2);
+
+            }
+            elsif ( $x1 < 0 && $x2 < 0 ) {
+                say "GPS icon type 3" if $debug;
+                $yOffset = 0;
+                $xOffset = -8;    #TODO floor($xOffset*2);}
+            }
+
+            say "$x\t$y\t$x1\t$y1\t$x2\t$y2\t$xOffset\t$yOffset" if $debug;
 
             #put them into a hash
-            # $gpsWaypointIcons{$i}{"X"} = $tempgpswaypoints[$i];
-            # $gpsWaypointIcons{$i}{"Y"} = $tempgpswaypoints[ $i + 1 ];
             #TODO Calculate the midpoint properly, this number is an estimation (although a good one)
-            $gpsWaypointIcons{ $i . $rand }{"CenterX"} =
-              $tempgpswaypoints[$i] + $height / 2;
-            $gpsWaypointIcons{ $i . $rand }{"CenterY"} =
-              $tempgpswaypoints[ $i + 1 ];
-            $gpsWaypointIcons{ $i . $rand }{"Width"}  = $width;
-            $gpsWaypointIcons{ $i . $rand }{"Height"} = $height;
-            $gpsWaypointIcons{ $i . $rand }{"GeoreferenceX"} =
-              $tempgpswaypoints[$i] + $width / 2;
-            $gpsWaypointIcons{ $i . $rand }{"GeoreferenceY"} =
-              $tempgpswaypoints[ $i + 1 ];
-            $gpsWaypointIcons{ $i . $rand }{"Type"} = "gps";
+            $gpsWaypointIcons{ $i . $rand }{"CenterX"}       = $x + $xOffset;
+            $gpsWaypointIcons{ $i . $rand }{"CenterY"}       = $y + $yOffset;
+            $gpsWaypointIcons{ $i . $rand }{"Width"}         = $width;
+            $gpsWaypointIcons{ $i . $rand }{"Height"}        = $height;
+            $gpsWaypointIcons{ $i . $rand }{"GeoreferenceX"} = $x + $xOffset;
+            $gpsWaypointIcons{ $i . $rand }{"GeoreferenceY"} = $y + $yOffset;
+            $gpsWaypointIcons{ $i . $rand }{"Type"}          = "gps";
 
             # $gpsWaypointIcons{$i}{"Name"} = "none";
         }
@@ -1590,7 +1913,7 @@ sub findGpsWaypointIcons {
 
     $gpsCount = keys(%gpsWaypointIcons);
     if ($debug) {
-        print "$tempgpswaypoints_count GPS ";
+        print "$merged_count GPS ";
 
     }
     return;
@@ -1599,6 +1922,7 @@ sub findGpsWaypointIcons {
 #--------------------------------------------------------------------------------------------------------------------------------------
 sub findNavaidIcons {
 
+    #TODO Add VOR icon, see IN-ASW-ILS-OR-LOC-DME-RWY-27.pdf_obstacle_height
     #I'm going to lump finding all of the navaid icons into here for now
     #Before I clean it up
     my ($_output) = @_;
@@ -1606,9 +1930,10 @@ sub findNavaidIcons {
     #REGEX building blocks
 
     #Find VOR icons
+    #Change the 3rd line here back to just a lineRegex if there are problems with finding vortacs
     my $vortacRegex = qr/^$transformCaptureXYRegex$
 ^$originRegex$
-^$lineRegex$
+^($numberRegex)\s+0\s+l$
 ^S$
 ^Q$
 ^$transformNoCaptureXYRegex$
@@ -1643,28 +1968,126 @@ sub findNavaidIcons {
 ^f\*$
 ^Q$/m;
 
-    my @tempVortac = $_output =~ /$vortacRegex/ig;
-    my $vortacDatapoints = 2;
+    my $vortacRegex2 = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^($numberRegex)\s+0\s+l$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^f\*$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^f\*$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^f\*$
+^Q$/m;
 
-    #say @tempVortac;
+    my $vortacRegex3 = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^($numberRegex)\s+0\s+l$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$bezierCurveRegex$
+^$bezierCurveRegex$
+^$bezierCurveRegex$
+^$bezierCurveRegex$
+^f\*$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^f\*$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^f\*$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^f\*$
+^Q$/m;
+    my @merged = (); 
+    my $vortacDatapoints = 3;
+
+    #Capture data points for the various regexes
+    my @regex1 = $_output =~ /$vortacRegex/ig;
+    my @regex2 = $_output =~ /$vortacRegex2/ig;
+    my @regex3 = $_output =~ /$vortacRegex3/ig;
+
+    @merged = ( @regex1, @regex2, @regex3 );
+
+    #say @merged;
 
     # say $&;
-    my $tempVortacLength = 0 + @tempVortac;
-    my $tempVortacCount  = $tempVortacLength / $vortacDatapoints;
+    my $mergedLength = 0 + @merged;
+    my $mergedCount  = $mergedLength / $vortacDatapoints;
 
-    if ( $tempVortacLength >= $vortacDatapoints ) {
+    if ( $mergedLength >= $vortacDatapoints ) {
         my $rand = rand();
-        for ( my $i = 0 ; $i < $tempVortacLength ; $i = $i + $vortacDatapoints )
-        {
-            my $x      = $tempVortac[$i];
-            my $y      = $tempVortac[ $i + 1 ];
+        for ( my $i = 0 ; $i < $mergedLength ; $i = $i + $vortacDatapoints ) {
+
+            #TODO Test that the length of the first line is less than ~6 (one sample value is 3.17, so that's plenty of margin)
+            my $x      = $merged[$i];
+            my $y      = $merged[ $i + 1 ];
+            my $length = $merged[ $i + 2 ];
             my $height = 10;
             my $width  = 10;
 
+            next if ( $length > 6 || $length < 1 );
+
             #put them into a hash
             #TODO Calculate the midpoint properly, this number is an estimation (although a good one)
-            # $navaidIcons{ $i . $rand }{"X"}              = $x;
-            # $navaidIcons{ $i . $rand }{"Y"}              = $y;
+            #Could use $length/2 here for X center offset
             $navaidIcons{ $i . $rand }{"GeoreferenceX"} = $x + 2;
             $navaidIcons{ $i . $rand }{"GeoreferenceY"} = $y - 3;
             $navaidIcons{ $i . $rand }{"CenterX"}       = $x + 2;
@@ -1700,24 +2123,23 @@ sub findNavaidIcons {
 ^Q$/m;
 
     #Re-run for VORDME
-    @tempVortac = $_output =~ /$vorDmeRegex/ig;
+    @merged = $_output =~ /$vorDmeRegex/ig;
     my $vorDmeDatapoints = 4;
 
-    # say @tempVortac;
+    # say @merged;
 
     # say $&;
-    $tempVortacLength = 0 + @tempVortac;
-    $tempVortacCount  = $tempVortacLength / $vorDmeDatapoints;
+    $mergedLength = 0 + @merged;
+    $mergedCount  = $mergedLength / $vorDmeDatapoints;
 
-    if ( $tempVortacLength >= $vorDmeDatapoints ) {
+    if ( $mergedLength >= $vorDmeDatapoints ) {
         my $rand = rand();
-        for ( my $i = 0 ; $i < $tempVortacLength ; $i = $i + $vorDmeDatapoints )
-        {
-            my ($x) = $tempVortac[$i];
-            my ($y) = $tempVortac[ $i + 1 ];
+        for ( my $i = 0 ; $i < $mergedLength ; $i = $i + $vorDmeDatapoints ) {
+            my ($x) = $merged[$i];
+            my ($y) = $merged[ $i + 1 ];
 
-            my ($width)  = $tempVortac[ $i + 2 ];
-            my ($height) = $tempVortac[ $i + 3 ];
+            my ($width)  = $merged[ $i + 2 ];
+            my ($height) = $merged[ $i + 3 ];
 
             #TODO because it seems something else is matching this regex choose one with long lines
             next if ( abs( $width < 7 ) || abs( $height < 7 ) );
@@ -1739,7 +2161,7 @@ sub findNavaidIcons {
     }
     $navaidCount = keys(%navaidIcons);
     if ($debug) {
-        print "$tempVortacCount NAVAID ";
+        print "$mergedCount NAVAID ";
 
         #print Dumper ( \%navaidIcons);
     }
@@ -1979,7 +2401,7 @@ sub findInsetCircles {
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
-^$bezierCurveRegex$
+^($numberRegex\s+)(?:$numberRegex\s+){5}c$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
 ^$bezierCurveRegex$
@@ -1991,7 +2413,7 @@ sub findInsetCircles {
 ^Q$/m;
 
     my @tempInsetCircle = $_output =~ /$insetCircleRegex/ig;
-    my $insetCircleDataPoints = 2;
+    my $insetCircleDataPoints = 3;
 
     my $tempInsetCircleLength = 0 + @tempInsetCircle;
     my $insetCircleCount      = $tempInsetCircleLength / $insetCircleDataPoints;
@@ -2007,8 +2429,13 @@ sub findInsetCircles {
             my $x = $tempInsetCircle[$i];
             my $y = $tempInsetCircle[ $i + 1 ];
 
-            # my $width  = $tempInsetCircle[ $i + 2 ];
+            #Typically these are negative, meaning the circle's leftmost edge is -$width pts away from the rightmost edges
+            #which is the starting points
+            my $width = abs( $tempInsetCircle[ $i + 2 ] );
+
             # my $height = $tempInsetCircle[ $i + 3 ];
+
+            next if $width < 50;
 
             # #Let's only save large, but not too large, boxes
             # next
@@ -2019,9 +2446,9 @@ sub findInsetCircles {
 
             #put them into a hash
             #TODO: This is a cheat and will probably not always work
-            $insetCircles{ $i . $random }{"X"}      = $x - 30;
+            $insetCircles{ $i . $random }{"X"}      = $x - $width / 2;
             $insetCircles{ $i . $random }{"Y"}      = $y;
-            $insetCircles{ $i . $random }{"Radius"} = 30;
+            $insetCircles{ $i . $random }{"Radius"} = $width / 2;
 
             # $insetBoxes{ $i . $random }{"X2"} = $x + $width;
 
@@ -2256,6 +2683,9 @@ sub findFixIcons {
             my $width  = $tempfixes[ $i + 2 ];
             my $height = $tempfixes[ $i + 3 ];
 
+            #TODO FIX icons are probably all at least >4 but I'll use this for now
+            next if ( abs($height) < 3 );
+
             #put them into a hash
             #code here is making the x/y the center of the triangle
             $fixIcons{ $i . $rand }{"GeoreferenceX"} = $x + ( $width / 2 );
@@ -2428,8 +2858,10 @@ sub findObstacleHeightTextBoxes {
     foreach my $line (@pdfToTextBbox) {
         if ( $line =~ m/$obstacleTextBoxRegex/ ) {
             my $xMin = $1;
-            my $yMin = $2;
-            my $xMax = $3;
+
+            #I don't know why but these values need to be adjusted a bit to enclose the text properly
+            my $yMin = $2 - 2;
+            my $xMax = $3 - 1;
             my $yMax = $4;
 
             my $height = $yMax - $yMin;
@@ -2486,18 +2918,19 @@ sub findFixTextboxes {
             #Exclude invalid fix names.  A smarter way to do this would be to use the DB lookup to limit to local fix names
             next if $_fixName =~ m/$invalidFixNamesRegex/;
 
-            $fixTextboxes{ $_fixXMin . $_fixYMin }{"RasterX"} =
-              $_fixXMin * $scaleFactorX;
-            $fixTextboxes{ $_fixXMin . $_fixYMin }{"RasterY"} =
-              $_fixYMin * $scaleFactorY;
+            # $fixTextboxes{ $_fixXMin . $_fixYMin }{"RasterX"} =
+            # $_fixXMin * $scaleFactorX;
+            # $fixTextboxes{ $_fixXMin . $_fixYMin }{"RasterY"} =
+            # $_fixYMin * $scaleFactorY;
             $fixTextboxes{ $_fixXMin . $_fixYMin }{"Width"} =
               $_fixXMax - $_fixXMin;
             $fixTextboxes{ $_fixXMin . $_fixYMin }{"Height"} =
               $_fixYMax - $_fixYMin;
             $fixTextboxes{ $_fixXMin . $_fixYMin }{"Text"} = $_fixName;
-            $fixTextboxes{ $_fixXMin . $_fixYMin }{"PdfX"} = $_fixXMin;
-            $fixTextboxes{ $_fixXMin . $_fixYMin }{"PdfY"} =
-              $pdfYSize - $_fixYMin;
+
+            # $fixTextboxes{ $_fixXMin . $_fixYMin }{"PdfX"} = $_fixXMin;
+            # $fixTextboxes{ $_fixXMin . $_fixYMin }{"PdfY"} =
+            # $pdfYSize - $_fixYMin;
             $fixTextboxes{ $_fixXMin . $_fixYMin }{"CenterX"} =
               $_fixXMin + ( ( $_fixXMax - $_fixXMin ) / 2 );
             $fixTextboxes{ $_fixXMin . $_fixYMin }{"CenterY"} =
@@ -2515,8 +2948,8 @@ sub findFixTextboxes {
     return;
 }
 
-sub findVorTextboxes {
-    say ":findVorTextboxes" if $debug;
+sub findNavaidTextboxes {
+    say ":findNavaidTextboxes" if $debug;
 
     #--------------------------------------------------------------------------
     #Get list of potential VOR (or other ground based nav)  textboxes
@@ -2555,27 +2988,27 @@ sub findVorTextboxes {
             my $_vorXMax = $tempVortac[ $i + 3 ];
             my $_vorYMax = $tempVortac[ $i + 4 ];
             my $_vorName = $tempVortac[ $i + 5 ];
+            my $width    = $_vorXMax - $_vorXMin - 1;
+            my $height   = $_vorYMax - $_vorYMin;
 
             next if $_vorName =~ m/$invalidVorNamesRegex/;
 
             #Check that the box isn't too big
             #This is a workaround for "CO-DEN-ILS-RWY-34L-CAT-II---III.pdf" where it finds a bad box due to ordering of text in PDF
-            next if ( abs( $_vorXMax - $_vorXMin ) > 50 );
+            next if ( abs($width) > 50 );
 
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"RasterX"} =
-              $_vorXMin * $scaleFactorX;
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"RasterY"} =
-              $_vorYMin * $scaleFactorY;
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"Width"} =
-              $_vorXMax - $_vorXMin;
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"Height"} =
-              $_vorYMax - $_vorYMin;
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"Text"} = $_vorName;
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"PdfX"} = $_vorXMin;
-            $vorTextboxes{ $_vorXMin . $_vorYMin }{"PdfY"} =
-              $pdfYSize - $_vorYMin;
+            # $vorTextboxes{ $_vorXMin . $_vorYMin }{"RasterX"} =
+            # $_vorXMin * $scaleFactorX;
+            # $vorTextboxes{ $_vorXMin . $_vorYMin }{"RasterY"} =
+            # $_vorYMin * $scaleFactorY;
+            $vorTextboxes{ $_vorXMin . $_vorYMin }{"Width"}  = $width;
+            $vorTextboxes{ $_vorXMin . $_vorYMin }{"Height"} = $height;
+            $vorTextboxes{ $_vorXMin . $_vorYMin }{"Text"}   = $_vorName;
+
+            # $vorTextboxes{ $_vorXMin . $_vorYMin }{"PdfX"} = $_vorXMin;
+            # $vorTextboxes{ $_vorXMin . $_vorYMin }{"PdfY"} =              $pdfYSize - $_vorYMin;
             $vorTextboxes{ $_vorXMin . $_vorYMin }{"CenterX"} =
-              $_vorXMin + ( ( $_vorXMax - $_vorXMin ) / 2 );
+              $_vorXMin + ( $width / 2 );
             $vorTextboxes{ $_vorXMin . $_vorYMin }{"CenterY"} =
               $pdfYSize - $_vorYMin;
         }
@@ -2681,7 +3114,10 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #Don't calculate a scale with ourself
             next if $key eq $key2;
 
-            #TODO: Should make sure that the sign of the differences agree
+            my ( $ulX, $ulY, $lrX, $lrY, $longitudeToPixelRatio,
+                $latitudeToPixelRatio, $longitudeToLatitudeRatio );
+
+            #TODO: Should make sure that the signs of the differences agree
 
             #X pixels between points
             my $pixelDistanceX =
@@ -2697,65 +3133,16 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #Latitude degrees between points
             my $latitudeDiff = abs( $gcps{$key}{"lat"} - $gcps{$key2}{"lat"} );
 
-            unless ( $pixelDistanceX
-                && $pixelDistanceY
-                && $longitudeDiff
-                && $latitudeDiff )
-            {
-                say
-                  "Something not defined for $key-$key2 pair: $pixelDistanceX, $pixelDistanceY, $longitudeDiff, $latitudeDiff"
-                  if $debug;
-                next;
-            }
-            my $longitudeToPixelRatio = $longitudeDiff / $pixelDistanceX;
-            my $latitudeToPixelRatio  = $latitudeDiff / $pixelDistanceY;
-
-            #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
-            my $ulX =
-              $gcps{$key}{"lon"} -
-              ( $gcps{$key}{"pngx"} * $longitudeToPixelRatio );
-
-            #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
-            my $ulY =
-              $gcps{$key}{"lat"} +
-              ( $gcps{$key}{"pngy"} * $latitudeToPixelRatio );
-
-            #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
-            my $lrX =
-              $gcps{$key}{"lon"} +
-              (
-                abs( $pngXSize - $gcps{$key}{"pngx"} ) *
-                  $longitudeToPixelRatio );
-
-            #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
-            my $lrY =
-              $gcps{$key}{"lat"} -
-              (
-                abs( $pngYSize - $gcps{$key}{"pngy"} ) *
-                  $latitudeToPixelRatio );
-
-            #Go to next object pair if we've somehow gotten zero for any of these numbers
-            next
-              if ( $pixelDistanceX == 0
-                || $pixelDistanceY == 0
-                || $longitudeDiff == 0
-                || $latitudeDiff == 0 );
-
-            #The X/Y (or Longitude/Latitude) ratio that would result from using this particular pair
-
-            my $longitudeToLatitudeRatio =
-              abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
-
-            say
-              "$key,$key2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio"
-              if $debug;
-
-            #If our XYRatio seems to be out of whack for this object pair then don't use the info we derived
-            #Currently we're just silently ignoring this, should we try to figure out the bad objects and remove?
-            my $targetLonLatRatio =
-              0.000004 * ( $ulY**3 ) -
-              0.0001 *   ( $ulY**2 ) +
-              0. * $ulY + 0.6739;
+            # unless ( $pixelDistanceX
+            # && $pixelDistanceY
+            # && $longitudeDiff
+            # && $latitudeDiff )
+            # {
+            # say
+            # "Something not defined for $key-$key2 pair: $pixelDistanceX, $pixelDistanceY, $longitudeDiff, $latitudeDiff"
+            # if $debug;
+            # next;
+            # }
 
             #my $targetLongitudeToPixelRatio1 = 0.000000002*($ulY**3) - 0.00000008*($ulY**2) + 0.000002*$ulY + 0.0004;
 
@@ -2763,45 +3150,116 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #was .00037 < x < .00039 and .00055 < x < .00059
 
             #TODO Change back to .00037 and .00039?
+            #There seem to be three bands of scales
 
-            if (
-                   not( between( $latitudeToPixelRatio, .00013, .00099 ) )
-                && not( between( $latitudeToPixelRatio, .00055, .00099 ) )
+            #Do some basic sanity checking on the $latitudeToPixelRatio
+            if ( $pixelDistanceY > 10 && $latitudeDiff ) {
+                $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
+                if (
+                       not( between( $latitudeToPixelRatio, .00015, .00021 ) )
+                    && not( between( $latitudeToPixelRatio, .00028, .00031 ) )
+                    && not( between( $latitudeToPixelRatio, .00034, .00046 ) )
+                    && not( between( $latitudeToPixelRatio, .00056, .00060 ) )
 
-              )
-            {
-                if ($debug) {
+                    #&& not( between( $latitudeToPixelRatio, .00084, .00085 ) )
 
-                    $gcps{$key}{"Mismatches"} =
-                      ( $gcps{$key}{"Mismatches"} ) + 1;
-                    $gcps{$key2}{"Mismatches"} =
-                      ( $gcps{$key2}{"Mismatches"} ) + 1;
-                    say
-                      "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key-$key2 pair"
-                      if $debug;
+                  )
+                {
+                    if ($debug) {
+
+                        $gcps{$key}{"Mismatches"} =
+                          ( $gcps{$key}{"Mismatches"} ) + 1;
+                        $gcps{$key2}{"Mismatches"} =
+                          ( $gcps{$key2}{"Mismatches"} ) + 1;
+                        say
+                          "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key-$key2 pair"
+                          if $debug;
+                    }
+
+                    #   next;
                 }
+                else {
+                    #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
+                    $ulY =
+                      $gcps{$key}{"lat"} +
+                      ( $gcps{$key}{"pngy"} * $latitudeToPixelRatio );
 
-                next;
+                    #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
+                    $lrY =
+                      $gcps{$key}{"lat"} -
+                      (
+                        abs( $pngYSize - $gcps{$key}{"pngy"} ) *
+                          $latitudeToPixelRatio );
+
+                    #Save this ratio if it seems nominally valid
+                    push @yScaleAvg, $latitudeToPixelRatio;
+                    push @ulYAvg,    $ulY;
+                    push @lrYAvg,    $lrY;
+                }
             }
 
-            if (
-                $longitudeToPixelRatio > .001
+            if ( $pixelDistanceX > 10 && $longitudeDiff ) {
+                $longitudeToPixelRatio = $longitudeDiff / $pixelDistanceX;
 
-              )
-            {
-                if ($debug) {
+                #Do some basic sanity checking on the $longitudeToPixelRatio
+                if ( $longitudeToPixelRatio > .0012 ) {
+                    if ($debug) {
 
-                    $gcps{$key}{"Mismatches"} =
-                      ( $gcps{$key}{"Mismatches"} ) + 1;
-                    $gcps{$key2}{"Mismatches"} =
-                      ( $gcps{$key2}{"Mismatches"} ) + 1;
-                    say
-                      "Bad longitudeToPixelRatio $longitudeToPixelRatio on $key-$key2 pair"
-                      if $debug;
+                        $gcps{$key}{"Mismatches"} =
+                          ( $gcps{$key}{"Mismatches"} ) + 1;
+                        $gcps{$key2}{"Mismatches"} =
+                          ( $gcps{$key2}{"Mismatches"} ) + 1;
+                        say
+                          "Bad longitudeToPixelRatio $longitudeToPixelRatio on $key-$key2 pair"
+                          if $debug;
+                    }
+
+                    #   next;
                 }
+                else {
+                    #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
+                    $ulX =
+                      $gcps{$key}{"lon"} -
+                      ( $gcps{$key}{"pngx"} * $longitudeToPixelRatio );
 
-                next;
+                    #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
+                    $lrX =
+                      $gcps{$key}{"lon"} +
+                      (
+                        abs( $pngXSize - $gcps{$key}{"pngx"} ) *
+                          $longitudeToPixelRatio );
+                    push @xScaleAvg, $longitudeToPixelRatio;
+                    push @ulXAvg,    $ulX;
+                    push @lrXAvg,    $lrX;
+                }
             }
+
+            if ( $ulX && $ulY && $lrX && $lrY ) {
+
+                #The X/Y (or Longitude/Latitude) ratio that would result from using this particular pair
+
+                $longitudeToLatitudeRatio =
+                  abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
+
+                #TODO BUG Is this a good idea?
+                #This is a hack to weight pairs that have both X and Y scales defined more heavily
+                push @xScaleAvg, $longitudeToPixelRatio;
+                push @ulXAvg,    $ulX;
+                push @lrXAvg,    $lrX;
+                push @yScaleAvg, $latitudeToPixelRatio;
+                push @ulYAvg,    $ulY;
+                push @lrYAvg,    $lrY;
+            }
+            say
+              "$key,$key2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio"
+              if $debug;
+
+            #If our XYRatio seems to be out of whack for this object pair then don't use the info we derived
+            #Currently we're just silently ignoring this, should we try to figure out the bad objects and remove?
+            # my $targetLonLatRatio =
+            # 0.000004 * ( $ulY**3 ) -
+            # 0.0001 *   ( $ulY**2 ) +
+            # 0. * $ulY + 0.6739;
 
             # # if (   $longitudeToLatitudeRatio < .65
             # # || $longitudeToLatitudeRatio > 1.6 )
@@ -2839,12 +3297,6 @@ sub calculateRoughRealWorldExtentsOfRaster {
             # }
 
             #Save the output of this iteration to average out later
-            push @xScaleAvg, $longitudeToPixelRatio;
-            push @yScaleAvg, $latitudeToPixelRatio;
-            push @ulXAvg,    $ulX;
-            push @ulYAvg,    $ulY;
-            push @lrXAvg,    $lrX;
-            push @lrYAvg,    $lrY;
 
         }
     }
@@ -2955,57 +3407,57 @@ sub georeferenceTheRaster {
     return;
 }
 
-sub calculateRoughRealWorldExtentsOfRasterWithOneGCP {
-    say
-      "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
+# sub calculateRoughRealWorldExtentsOfRasterWithOneGCP {
+# say
+# "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
 
-    my $guessAtLatitudeToPixelRatio = .00038;
-    my $targetXyRatio =
-      0.000007 * ( $airportLatitudeDec**3 ) -
-      0.0002 *   ( $airportLatitudeDec**2 ) +
-      0.0037 *   ($airportLatitudeDec) + 1.034;
+# my $guessAtLatitudeToPixelRatio = .00038;
+# my $targetXyRatio =
+# 0.000007 * ( $airportLatitudeDec**3 ) -
+# 0.0002 *   ( $airportLatitudeDec**2 ) +
+# 0.0037 *   ($airportLatitudeDec) + 1.034;
 
-    my $guessAtLongitudeToPixelRatio =
-      $targetXyRatio * $guessAtLatitudeToPixelRatio;
+# my $guessAtLongitudeToPixelRatio =
+# $targetXyRatio * $guessAtLatitudeToPixelRatio;
 
-    #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
-    #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
+# #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
+# #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
 
-    foreach my $key ( sort keys %gcps ) {
+# foreach my $key ( sort keys %gcps ) {
 
-        #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
-        my $ulX =
-          $gcps{$key}{"lon"} -
-          ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
+# #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
+# my $ulX =
+# $gcps{$key}{"lon"} -
+# ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
 
-        #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
-        my $ulY =
-          $gcps{$key}{"lat"} +
-          ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
+# #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
+# my $ulY =
+# $gcps{$key}{"lat"} +
+# ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
 
-        #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
-        my $lrX =
-          $gcps{$key}{"lon"} +
-          (
-            abs( $pngXSize - $gcps{$key}{"pngx"} ) *
-              $guessAtLongitudeToPixelRatio );
+# #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
+# my $lrX =
+# $gcps{$key}{"lon"} +
+# (
+# abs( $pngXSize - $gcps{$key}{"pngx"} ) *
+# $guessAtLongitudeToPixelRatio );
 
-        #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
-        my $lrY =
-          $gcps{$key}{"lat"} -
-          (
-            abs( $pngYSize - $gcps{$key}{"pngy"} ) *
-              $guessAtLatitudeToPixelRatio );
+# #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
+# my $lrY =
+# $gcps{$key}{"lat"} -
+# (
+# abs( $pngYSize - $gcps{$key}{"pngy"} ) *
+# $guessAtLatitudeToPixelRatio );
 
-        push @xScaleAvg, $guessAtLongitudeToPixelRatio;
-        push @yScaleAvg, $guessAtLatitudeToPixelRatio;
-        push @ulXAvg,    $ulX;
-        push @ulYAvg,    $ulY;
-        push @lrXAvg,    $lrX;
-        push @lrYAvg,    $lrY;
-    }
-    return;
-}
+# push @xScaleAvg, $guessAtLongitudeToPixelRatio;
+# push @yScaleAvg, $guessAtLatitudeToPixelRatio;
+# push @ulXAvg,    $ulX;
+# push @ulYAvg,    $ulY;
+# push @lrXAvg,    $lrX;
+# push @lrYAvg,    $lrY;
+# }
+# return;
+# }
 
 sub calculateSmoothedRealWorldExtentsOfRaster {
 
@@ -3040,11 +3492,16 @@ sub writeStatistics {
     open my $file, '>>', $targetStatistics
       or croak "can't open '$targetStatistics' for writing : $!";
 
+    #Count of entries in this array
+    my $xScaleAvgSize = @xScaleAvg;
+
+    #Count of entries in this array
+    my $yScaleAvgSize = @yScaleAvg;
     say {$file}
-      '$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount,$pdfXYRatio,$lonLatRatio,$xAvg,$xMedian,$yAvg,$yMedian';
+      '$dir$filename,$airportLatitudeDec,$airportLongitudeDec,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount,$pdfXYRatio,$lonLatRatio,$xScaleAvgSize,$xAvg,$xMedian,$yScaleAvgSize,$yAvg,$yMedian';
 
     say {$file}
-      "$dir$filename,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount,$pdfXYRatio,$lonLatRatio,$xAvg,$xMedian,$yAvg,$yMedian"
+      "$dir$filename$ext,$airportLatitudeDec,$airportLongitudeDec,$objectstreams,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount,$pdfXYRatio,$lonLatRatio,$xScaleAvgSize,$xAvg,$xMedian,$yScaleAvgSize,$yAvg,$yMedian"
       or croak "Cannot write to $targetStatistics: ";    #$OS_ERROR
 
     close $file;
@@ -3137,17 +3594,21 @@ sub outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb {
 # }
 
 sub findFixesNearAirport {
-    my $radius = .5;
+    # my $radius = .5;
+    my $radiusNm = 20;
+    #Convert to degrees of Longitude and Latitude for the latitude of our airport
 
+     my $radiusDegreesLatitude = $radiusNm / 60;
+     my $radiusDegreesLongitude   =  ($radiusNm/60)  /  cos( deg2rad($airportLatitudeDec) );
     #What type of fixes to look for
     my $type = "%REP-PT";
 
     #Query the database for fixes within our $radius
     $sth = $dbh->prepare(
-        "SELECT * FROM fixes WHERE  (Latitude >  $airportLatitudeDec - $radius ) and 
-                                (Latitude < $airportLatitudeDec + $radius ) and 
-                                (Longitude >  $airportLongitudeDec - $radius ) and 
-                                (Longitude < $airportLongitudeDec +$radius ) and
+        "SELECT * FROM fixes WHERE  (Latitude >  $airportLatitudeDec - $radiusDegreesLatitude ) and 
+                                (Latitude < $airportLatitudeDec + $radiusDegreesLatitude ) and 
+                                (Longitude >  $airportLongitudeDec - $radiusDegreesLongitude ) and 
+                                (Longitude < $airportLongitudeDec +$radiusDegreesLongitude ) and
                                 (Type like '$type')"
     );
     $sth->execute();
@@ -3162,14 +3623,14 @@ sub findFixesNearAirport {
         $fixes_from_db{$fixname}{"Type"} = $fixtype;
 
     }
-    my $nmLatitude  = 60 * $radius;
-    my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
+    # my $nmLatitude  = 60 * $radius;
+    # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
 
     if ($debug) {
         my $rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows FIXES within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) ($nmLongitude x $nmLatitude nm)  from database";
+          "Found $rows FIXES within $radiusNm nm of airport  ($airportLongitudeDec, $airportLatitudeDec) from database";
 
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
@@ -3232,7 +3693,17 @@ sub findFeatureInDatabaseNearAirport {
 }
 
 sub findGpsWaypointsNearAirport {
-    my $radius = .3;
+    # my $radius      = .5;   
+    # my $nmLatitude  = 60 * $radius;
+    # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
+
+  #How far away from the airport to look for feature
+    my $radiusNm = 20;
+    #Convert to degrees of Longitude and Latitude for the latitude of our airport
+      my $radiusDegreesLatitude = $radiusNm / 60;
+     my $radiusDegreesLongitude   =  ($radiusNm/60)  /  cos( deg2rad($airportLatitudeDec) );
+    
+    #say "radiusLongitude:$radiusDegreesLongitude radiusLatitude: $radiusDegreesLatitude";
 
     #What type of fixes to look for
     my $type = "%";
@@ -3240,10 +3711,10 @@ sub findGpsWaypointsNearAirport {
     #Query the database for fixes within our $radius
     my $sth = $dbh->prepare(
         "SELECT * FROM fixes WHERE  
-                                (Latitude >  $airportLatitudeDec - $radius ) and 
-                                (Latitude < $airportLatitudeDec +$radius ) and 
-                                (Longitude >  $airportLongitudeDec - $radius ) and 
-                                (Longitude < $airportLongitudeDec +$radius ) and
+                                (Latitude >  $airportLatitudeDec - $radiusDegreesLatitude ) and 
+                                (Latitude < $airportLatitudeDec +$radiusDegreesLatitude ) and 
+                                (Longitude >  $airportLongitudeDec - $radiusDegreesLongitude ) and 
+                                (Longitude < $airportLongitudeDec +$radiusDegreesLongitude ) and
                                 (Type like '$type')"
     );
     $sth->execute();
@@ -3262,30 +3733,39 @@ sub findGpsWaypointsNearAirport {
         my $rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows GPS waypoints within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) from database";
+          "Found $rows GPS waypoints within $radiusNm NM of airport  ($airportLongitudeDec, $airportLatitudeDec) from database";
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
         say "We have selected $rows row(s)";
 
-        #print Dumper ( \%gpswaypoints_from_db );
+        print Dumper ( \%gpswaypoints_from_db );
         say "";
     }
     return;
 }
 
 sub findNavaidsNearAirport {
-    my $radius = .45;
+    # my $radius      = .7;
+    # my $nmLatitude  = 60 * $radius;
+    # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
 
+  #How far away from the airport to look for feature
+    my $radiusNm = 20;
+    #Convert to degrees of Longitude and Latitude for the latitude of our airport
+ 
+      my $radiusDegreesLatitude = $radiusNm / 60;
+     my $radiusDegreesLongitude   =  ($radiusNm/60)  /  cos( deg2rad($airportLatitudeDec) );
+ 
     #What type of fixes to look for
     my $type = "%VOR%";
 
     #Query the database for fixes within our $radius
     my $sth = $dbh->prepare(
         "SELECT * FROM navaids WHERE  
-                                (Latitude >  $airportLatitudeDec - $radius ) and 
-                                (Latitude < $airportLatitudeDec +$radius ) and 
-                                (Longitude >  $airportLongitudeDec - $radius ) and 
-                                (Longitude < $airportLongitudeDec +$radius ) and
+                                (Latitude >  $airportLatitudeDec - $radiusDegreesLatitude ) and 
+                                (Latitude < $airportLatitudeDec +$radiusDegreesLatitude ) and 
+                                (Longitude >  $airportLongitudeDec - $radiusDegreesLongitude ) and 
+                                (Longitude < $airportLongitudeDec +$radiusDegreesLongitude ) and
                                 (Type like '$type')"
     );
     $sth->execute();
@@ -3304,7 +3784,7 @@ sub findNavaidsNearAirport {
         my $rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows Navaids within $radius degrees of airport  ($airportLongitudeDec, $airportLatitudeDec) from database"
+          "Found $rows Navaids within $radiusNm nm of airport  ($airportLongitudeDec, $airportLatitudeDec) from database"
           if $debug;
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
@@ -3547,6 +4027,8 @@ sub findNavaidsNearAirport {
 # }
 
 sub addCombinedHashToGroundControlPoints {
+
+    #Make a hash of all the GCPs to use, filtering them by using our mask bitmap
     my ( $type, $combinedHashRef ) = @_;
 
     #Add obstacles to Ground Control Points hash
@@ -3558,16 +4040,26 @@ sub addCombinedHashToGroundControlPoints {
         my $lat   = $combinedHashRef->{$key}{"Lat"};
         my $text  = $combinedHashRef->{$key}{"Text"};
         next unless ( $_pdfX && $_pdfY && $lon && $lat );
-
+        my @pixels;
         my $_rasterX = $_pdfX * $scaleFactorX;
         my $_rasterY = $pngYSize - ( $_pdfY * $scaleFactorY );
         my $rand     = rand();
-        if ( $_rasterX && $_rasterY && $lon && $lat ) {
-            my $pixelTextOutput =
-              qx(convert $outputPdfOutlines.png -format '%[pixel:p{$_rasterX,$_rasterY}]' info:-);
-            say $pixelTextOutput;
-            if ( $pixelTextOutput =~ /black|srgb\(149,149,0\)|yellow/i  ) {
 
+        #Make sure all our info is defined
+        if ( $_rasterX && $_rasterY && $lon && $lat ) {
+
+            #Get the color value of the pixel at the x,y of the GCP
+            # my $pixelTextOutput;
+            # qx(convert $outputPdfOutlines.png -format '%[pixel:p{$_rasterX,$_rasterY}]' info:-);
+            @pixels = $image->GetPixel( x => $_rasterX, y => $_rasterY );
+            say "perlMagick $pixels[0]" if $debug;
+
+            # say $pixelTextOutput if $debug;
+            #srgb\(149,149,0\)|yellow
+            # if ( $pixelTextOutput =~ /black|gray\(0,0,0\)/i  ) {
+            if ( $pixels[0] eq 0 ) {
+
+                #If it's any of the above strings then it's valid
                 say "$_rasterX $_rasterY $lon $lat" if $debug;
                 $gcps{ "$type" . $text . '-' . $rand }{"pngx"} = $_rasterX;
                 $gcps{ "$type" . $text . '-' . $rand }{"pngy"} = $_rasterY;
@@ -3576,9 +4068,10 @@ sub addCombinedHashToGroundControlPoints {
                 $gcps{ "$type" . $text . '-' . $rand }{"lon"}  = $lon;
                 $gcps{ "$type" . $text . '-' . $rand }{"lat"}  = $lat;
             }
-            else{
-                say "$type $text is being ignored";}
-            
+            else {
+                say "$type $text is being ignored" if $debug;
+            }
+
         }
     }
     return;
@@ -3616,114 +4109,114 @@ sub addCombinedHashToGroundControlPoints {
 # return;
 # }
 
-sub deleteBadGCPs {
- say ":deleteBadGCPs is disabled for now";
- return;
-    say ":deleteBadGCPs" if $debug;
+# sub deleteBadGCPs {
+    # say ":deleteBadGCPs is disabled for now";
+    # return;
+    # say ":deleteBadGCPs" if $debug;
 
-    #Delete GCPs that are  inside an inset box
-    foreach my $key ( sort keys %gcps ) {
-        my $x = $gcps{$key}{"pdfx"};
-        my $y = $gcps{$key}{"pdfy"};
+    # #Delete GCPs that are  inside an inset box
+    # foreach my $key ( sort keys %gcps ) {
+        # my $x = $gcps{$key}{"pdfx"};
+        # my $y = $gcps{$key}{"pdfy"};
 
-        #say "testing $key $x $y";
+        # #say "testing $key $x $y";
 
-        # print $poly->nrPoints;
-        # my @p    = $poly->points;
+        # # print $poly->nrPoints;
+        # # my @p    = $poly->points;
 
-        # my ($xmin, $ymin, $xmax, $ymax) = $poly->bbox;
+        # # my ($xmin, $ymin, $xmax, $ymax) = $poly->bbox;
 
-        # my $area   = $poly->area;
-        # my $l      = $poly->perimeter;
-        # if($poly->isClockwise) { ... };
+        # # my $area   = $poly->area;
+        # # my $l      = $poly->perimeter;
+        # # if($poly->isClockwise) { ... };
 
-        # my $rot    = $poly->startMinXY;
-        # my $center = $poly->centroid;
-        # if($poly->contains($point)) { ... };
+        # # my $rot    = $poly->startMinXY;
+        # # my $center = $poly->centroid;
+        # # if($poly->contains($point)) { ... };
 
-        # my $boxed  = $poly->lineClip($xmin, $xmax, $ymin, $ymax);
-        foreach my $key2 ( sort keys %insetBoxes ) {
+        # # my $boxed  = $poly->lineClip($xmin, $xmax, $ymin, $ymax);
+        # foreach my $key2 ( sort keys %insetBoxes ) {
 
-            #Get the edges of the box
-            my $x1 = $insetBoxes{$key2}{"X"};
-            my $x2 = $insetBoxes{$key2}{"X2"};
-            my $y1 = $insetBoxes{$key2}{"Y"};
-            my $y2 = $insetBoxes{$key2}{"Y2"};
+            # #Get the edges of the box
+            # my $x1 = $insetBoxes{$key2}{"X"};
+            # my $x2 = $insetBoxes{$key2}{"X2"};
+            # my $y1 = $insetBoxes{$key2}{"Y"};
+            # my $y2 = $insetBoxes{$key2}{"Y2"};
 
-            #say "$x1 $x2 $y1 $y2";
+            # #say "$x1 $x2 $y1 $y2";
 
-            #Is this point inside that box?  (This is flaky for now since it's dependent on how the box was drawn)
-            if (
-                # ( $x > $x1 && $x < $x2 )
-                # ($x ~~ $x1..$x2)
-                between( $x, $x1, $x2 )
-                &&
-
-                # ($y ~~ $y1..$y2)
-                between( $y, $y1, $y2 )
-
-                # && (   $y < $y1
-                # && $y > $y2 )
-              )
-            {
-                #Yes, delete it
-                say "$key is inside inset box $key2. Removing from GCPs"
-                  if $debug;
-                delete $gcps{$key};
-            }
-        }
-    }
-
-    #Delete GCPs that are  inside an inset circle
-    foreach my $key ( sort keys %gcps ) {
-
-        my $x = $gcps{$key}{"pdfx"};
-        my $y = $gcps{$key}{"pdfy"};
-
-        #say "testing $key $x $y";
-        foreach my $key2 ( sort keys %insetCircles ) {
-
-            #Get the center of the circle
-            my $x1         = $insetCircles{$key2}{"X"};
-            my $y1         = $insetCircles{$key2}{"Y"};
-            my $radius     = $insetCircles{$key2}{"radius"};
-            my $hypotenuse = sqrt( ( $x - $x1 )**2 + ( $y - $y1 )**2 );
-
-            #say $hypotenuse;
-            #Is this point inside that circle?
-            #TODO: Need to programatticaly figure out the radius of the insetCircles, this hardcoded number is cheating
-            if (
-                $hypotenuse < 15
-
+            # #Is this point inside that box?  (This is flaky for now since it's dependent on how the box was drawn)
+            # if (
+                # # ( $x > $x1 && $x < $x2 )
+                # # ($x ~~ $x1..$x2)
                 # between( $x, $x1, $x2 )
-              )
-            {
-                #Yes, delete it
-                say "$key is inside inset circle $key2. Removing from GCPs"
-                  if $debug;
-                delete $gcps{$key};
-            }
-        }
-    }
+                # &&
 
-    say "lowerYCutoff: $lowerYCutoff, upperYCutoff: $upperYCutoff" if $debug;
+                # # ($y ~~ $y1..$y2)
+                # between( $y, $y1, $y2 )
 
-    # Delete GCPs above or below certain Y values (to be determined by horizontal lines
-    foreach my $key ( sort keys %gcps ) {
+                # # && (   $y < $y1
+                # # && $y > $y2 )
+              # )
+            # {
+                # #Yes, delete it
+                # say "$key is inside inset box $key2. Removing from GCPs"
+                  # if $debug;
+                # delete $gcps{$key};
+            # }
+        # }
+    # }
 
-        my $y = $gcps{$key}{"pdfy"};
-        next unless $y;
-        if ( $y < $lowerYCutoff ) {
+    # #Delete GCPs that are  inside an inset circle
+    # foreach my $key ( sort keys %gcps ) {
 
-            #Yes, delete it
-            say "$key is below Y cutoff of $lowerYCutoff. Removing from GCPs"
-              if $debug;
-            delete $gcps{$key};
-        }
-    }
+        # my $x = $gcps{$key}{"pdfx"};
+        # my $y = $gcps{$key}{"pdfy"};
 
-    return;
-}
+        # #say "testing $key $x $y";
+        # foreach my $key2 ( sort keys %insetCircles ) {
+
+            # #Get the center of the circle
+            # my $x1         = $insetCircles{$key2}{"X"};
+            # my $y1         = $insetCircles{$key2}{"Y"};
+            # my $radius     = $insetCircles{$key2}{"radius"};
+            # my $hypotenuse = sqrt( ( $x - $x1 )**2 + ( $y - $y1 )**2 );
+
+            # #say $hypotenuse;
+            # #Is this point inside that circle?
+            # #TODO: Need to programatticaly figure out the radius of the insetCircles, this hardcoded number is cheating
+            # if (
+                # $hypotenuse < 15
+
+                # # between( $x, $x1, $x2 )
+              # )
+            # {
+                # #Yes, delete it
+                # say "$key is inside inset circle $key2. Removing from GCPs"
+                  # if $debug;
+                # delete $gcps{$key};
+            # }
+        # }
+    # }
+
+    # say "lowerYCutoff: $lowerYCutoff, upperYCutoff: $upperYCutoff" if $debug;
+
+    # # Delete GCPs above or below certain Y values (to be determined by horizontal lines
+    # foreach my $key ( sort keys %gcps ) {
+
+        # my $y = $gcps{$key}{"pdfy"};
+        # next unless $y;
+        # if ( $y < $lowerYCutoff ) {
+
+            # #Yes, delete it
+            # say "$key is below Y cutoff of $lowerYCutoff. Removing from GCPs"
+              # if $debug;
+            # delete $gcps{$key};
+        # }
+    # }
+
+    # return;
+# }
 
 # sub addNavaidsToGroundControlPoints {
 
@@ -3941,15 +4434,18 @@ sub outlineValidFixTextBoxes {
         #Is there a fixtextbox with the same text as our fix?
         if ( exists $fixes_from_db{ $fixTextboxes{$key}{"Text"} } ) {
             my $fix_box = $page->gfx;
+            $fix_box->strokecolor('orange');
 
             #Yes, draw an orange box around it
             $fix_box->rect(
-                $fixTextboxes{$key}{"PdfX"},
-                $fixTextboxes{$key}{"PdfY"} + 2,
+                $fixTextboxes{$key}{"CenterX"} -
+                  ( $fixTextboxes{$key}{"Width"} / 2 ),
+                $fixTextboxes{$key}{"CenterY"} -
+                  ( $fixTextboxes{$key}{"Height"} / 2 ),
                 $fixTextboxes{$key}{"Width"},
-                -( $fixTextboxes{$key}{"Height"} + 1 )
+                $fixTextboxes{$key}{"Height"}
             );
-            $fix_box->strokecolor('orange');
+
             $fix_box->stroke;
         }
         else {
@@ -3965,15 +4461,19 @@ sub outlineValidNavaidTextBoxes {
         #Is there a vorTextbox with the same text as our navaid?
         if ( exists $navaids_from_db{ $vorTextboxes{$key}{"Text"} } ) {
             my $navBox = $page->gfx;
+            $navBox->strokecolor('orange');
 
             #Yes, draw an orange box around it
             $navBox->rect(
-                $vorTextboxes{$key}{"PdfX"},
-                $vorTextboxes{$key}{"PdfY"} + 2,
+                $vorTextboxes{$key}{"CenterX"} -
+                  ( $vorTextboxes{$key}{"Width"} / 2 ),
+                $vorTextboxes{$key}{"CenterY"} +
+                  ( $vorTextboxes{$key}{"Height"} / 2 ),
                 $vorTextboxes{$key}{"Width"},
-                -( $vorTextboxes{$key}{"Height"} + 1 )
+                -( $vorTextboxes{$key}{"Height"} )
+
             );
-            $navBox->strokecolor('orange');
+
             $navBox->stroke;
         }
         else {
@@ -4157,10 +4657,13 @@ sub outlineValidGpsWaypointTextBoxes {
 
             #Yes, draw an orange box around it
             $fix_box->rect(
-                $fixTextboxes{$key}{"PdfX"},
-                $fixTextboxes{$key}{"PdfY"} + 2,
+                $fixTextboxes{$key}{"CenterX"} -
+                  ( $fixTextboxes{$key}{"Width"} / 2 ),
+                $fixTextboxes{$key}{"CenterY"} -
+                  ( $fixTextboxes{$key}{"Height"} / 2 ),
                 $fixTextboxes{$key}{"Width"},
-                -( $fixTextboxes{$key}{"Height"} + 1 )
+                $fixTextboxes{$key}{"Height"}
+
             );
             $fix_box->strokecolor('orange');
             $fix_box->stroke;
@@ -4315,11 +4818,12 @@ sub drawCircleAroundGCPs {
 # }
 
 sub findAllTextboxes {
-    say "";
-    say ":findAllTextboxes" if $debug;
+    if ($debug) {
+      say "";
+    say ":findAllTextboxes";} 
 
     #Get all of the text and respective bounding boxes in the PDF
-    @pdfToTextBbox = qx(pdftotext $targetPdf -bbox - );
+    @pdfToTextBbox = qx(pdftotext $targetPdf -layout -bbox - );
     $retval        = $? >> 8;
     die
       "No output from pdftotext -bbox.  Is it installed? Return code was $retval"
@@ -4332,18 +4836,21 @@ sub findAllTextboxes {
     findFixTextboxes();
 
     #Find textboxes that are valid for navaids
-    findVorTextboxes();
+    findNavaidTextboxes();
     return;
 }
 
 sub joinIconTextboxAndDatabaseHashes {
+
+    #Pass in hashes of icons, their textboxes, and their associated database info
     my ( $iconHashRef, $textboxHashRef, $databaseHashRef ) = @_;
+
+    #A new hash of join'd information
     my %hashOfMatchedPairs = ();
     my $key3               = 1;
 
     # say ":joinIconTextboxAndDatabaseHashes$textboxHashRef to each $iconHashRef" if $debug;
 
-    #start:
     foreach my $key ( sort keys %$iconHashRef ) {
 
         my $keyOfMatchedTextbox = $iconHashRef->{$key}{"MatchedTo"};
@@ -4351,14 +4858,14 @@ sub joinIconTextboxAndDatabaseHashes {
         next unless $keyOfMatchedTextbox;
 
         #Check that the "MatchedTo" textboxHashRef points back to this icon
-        #Clear the match  for the iconHashRef if it doesn't
+        #Clear the match  for the iconHashRef if it doesn't (ie isn't a two-way match)
 
         if ( ( $textboxHashRef->{$keyOfMatchedTextbox}{"MatchedTo"} ne $key ) )
         {
             #Clear the icon's matching since it isn't reciprocated
+            
+            say "Non-reciprocal match of textbox $keyOfMatchedTextbox to icon $key.  Clearing" if $debug;
             $iconHashRef->{$key}{"MatchedTo"} = "";
-
-            #$textboxHashRef->{$keyOfMatchedTextbox}{"MatchedTo"} = "";
         }
         else {
             my $textOfMatchedTextbox =
@@ -4380,6 +4887,7 @@ sub joinIconTextboxAndDatabaseHashes {
             my $iconType = $iconHashRef->{$key}{"Type"};
             my $databaseType =
               $databaseHashRef->{$textOfMatchedTextbox}{"Type"};
+
             if ( $iconType && $iconType =~ m/VOR/ ) {
 
                 # say
@@ -4388,6 +4896,8 @@ sub joinIconTextboxAndDatabaseHashes {
                 # say $keyOfMatchedTextbox;
                 # say "$databaseType";
                 next unless ( $iconType eq $databaseType );
+
+                #TODO Check for nearby notToScaleIndicator icon (<30pt radius)
             }
 
             #Populate the values of our new combined hash
@@ -4460,11 +4970,17 @@ sub outlines {
         },
     );
 
+    #TODO This was yellow just for testing
     my ($bigOleBox) = $pageOutlines->gfx;
-    $bigOleBox->strokecolor('yellow');
+
+    #Draw a big box to stop the flood because we can't always find the main box in the PDF
+    $bigOleBox->strokecolor('black');
     $bigOleBox->linewidth(5);
     $bigOleBox->rect( 20, 40, 350, 500 );
     $bigOleBox->stroke;
+
+    #Draw a horizontal line at the $lowerYCutoff to stop the flood in case we don't findNavaidTextboxes
+    #all of the lines
     $bigOleBox->move( 20, $lowerYCutoff );
     $bigOleBox->line( 500, $lowerYCutoff );
     $bigOleBox->stroke;
@@ -4526,6 +5042,92 @@ sub outlines {
 
         $insetCircle->stroke;
     }
+
+    return;
+}
+
+sub findNotToScaleIndicator {
+    my ($_output) = @_;
+
+    # q 1 0 0 1 248.72 189.17 cm
+    # 0 0 m
+    # -2.6 3.82 l
+    # 1.43 6.05 l
+    # -1.16 9.79 l
+    # 2.87 12.03 l
+    # 0.28 15.84 l
+    # 4.31 18.07 l
+    # S
+    # Q
+    # q 1 0 0 1 246.7 189.68 cm
+    # 0 0 m
+    # -2.59 3.74 l
+    # 1.44 5.97 l
+    # -1.15 9.79 l
+    # 2.88 12.02 l
+    # 0.29 15.83 l
+    # 4.25 18.07 l
+    # S
+    # Q
+
+    #REGEX building blocks
+    #Set of two squiggly lines indicating something isn't to scale
+    my $notToScaleIndicatorRegex = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^S$
+^Q$
+^$transformNoCaptureXYRegex$
+^$originRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^$lineRegex$
+^S$
+^Q$/m;
+
+    my @tempNotToScaleIndicator = $_output =~ /$notToScaleIndicatorRegex/ig;
+    my $notToScaleIndicatorDataPoints = 2;
+
+    my $tempNotToScaleIndicatorLength = 0 + @tempNotToScaleIndicator;
+    my $notToScaleIndicatorCount =
+      $tempNotToScaleIndicatorLength / $notToScaleIndicatorDataPoints;
+
+    if ( $tempNotToScaleIndicatorLength >= $notToScaleIndicatorDataPoints ) {
+        my $random = rand();
+        for (
+            my $i = 0 ;
+            $i < $tempNotToScaleIndicatorLength ;
+            $i = $i + $notToScaleIndicatorDataPoints
+          )
+        {
+            my $x = $tempNotToScaleIndicator[$i];
+            my $y = $tempNotToScaleIndicator[ $i + 1 ];
+
+            #put them into a hash
+
+            $notToScaleIndicator{ $i . $random }{"CenterX"} = $x;
+            $notToScaleIndicator{ $i . $random }{"CenterY"} = $y;
+
+        }
+
+    }
+
+    $notToScaleIndicatorCount = keys(%notToScaleIndicator);
+
+    # if ($debug) {
+    # print "$notToScaleIndicatorCount notToScaleIndicator(s) ";
+
+    # print Dumper ( \%notToScaleIndicator );
+
+    # }
 
     return;
 }
