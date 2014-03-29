@@ -179,7 +179,7 @@ if ( @pdftotext eq "" || $retval != 0 ) {
 }
 
 if ( scalar(@pdftotext) < 5 ) {
-    say "Not enough pdftotext output, probably a miltary plate";
+    say "Not enough pdftotext output for $targetPdf";
     exit(1);
 }
 
@@ -187,7 +187,7 @@ if ( scalar(@pdftotext) < 5 ) {
 foreach my $line (@pdftotext) {
     $line =~ s/\s//gx;
     if ( $line =~ m/chartnott/i ) {
-        say "Chart not to scale, can't georeference";
+        say "$targetPdf not to scale, can't georeference";
         exit(1);
     }
 
@@ -823,12 +823,12 @@ sub findAirportLatitudeAndLongitude {
 
     foreach my $line (@pdftotext) {
 
-        #Remove all the whitespace
-        $line =~ s/\s//g;
+        #Remove all the whitespace and non-word characters
+        $line =~ s/\s|\W//g;
 
         # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
         #   if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
-        if ( $line =~ m/([\d ]{3,4}).?([NS])-([\d ]{3,5}).?([EW])/ ) {
+        if ( $line =~ m/([\d]{3,4})([NS])([\d]{3,5})([EW])/ ) {
             my (
                 $aptlat,    $aptlon,    $aptlatd,   $aptlond,
                 $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
@@ -866,7 +866,7 @@ sub findAirportLatitudeAndLongitude {
         #Get airport from database
         if ( !$airportId ) {
             say
-              "You must specify an airport ID (eg. -a SMF) since there was no info on the PDF";
+              "You must specify an airport ID (eg. -a SMF) since there was no info found in $targetPdf";
             exit(1);
         }
 
@@ -890,7 +890,7 @@ sub findAirportLatitudeAndLongitude {
         }
         if ( $_airportLongitudeDec eq "" or $_airportLatitudeDec eq "" ) {
             say
-              "No airport coordinate information on PDF or database, try   -a <airport> ";
+              "No airport coordinate information found in $targetPdf  or database, try   -a <airport> ";
             exit(1);
         }
 
@@ -1586,7 +1586,7 @@ sub findClosestSquigglyToA {
             # $hashRefA->{$key}{"Name"}     = $hashRefB->{$key2}{"Text"};
             #$hashRefA->{$key}{"TextBoxX"} = $hashRefB->{$key2}{"CenterX"};
             #$hashRefA->{$key}{"TextBoxY"} = $hashRefB->{$key2}{"CenterY"};
-            say "deleting $key from potential icons";
+            say "deleting $key from potential icons" if $debug;
             push @unwanted, $key;
 
             # delete $hashRefA->{$key}
@@ -1594,7 +1594,7 @@ sub findClosestSquigglyToA {
 
     }
 
-    say @unwanted;
+    
 
     #TODO: This seems sloppy but it works
     foreach my $key3 (@unwanted) {
@@ -3698,18 +3698,32 @@ sub findGpsWaypointsNearAirport {
     # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
 
   #How far away from the airport to look for feature
-    my $radiusNm = 20;
+    my $radiusNm = 30;
     #Convert to degrees of Longitude and Latitude for the latitude of our airport
       my $radiusDegreesLatitude = $radiusNm / 60;
-     my $radiusDegreesLongitude   =  ($radiusNm/60)  /  cos( deg2rad($airportLatitudeDec) );
+     my $radiusDegreesLongitude   =  abs (($radiusNm/60)  /  cos( deg2rad($airportLatitudeDec) ));
     
-    #say "radiusLongitude:$radiusDegreesLongitude radiusLatitude: $radiusDegreesLatitude";
+    say "radiusLongitude:$radiusDegreesLongitude radiusLatitude: $radiusDegreesLatitude" if $debug;
 
     #What type of fixes to look for
     my $type = "%";
-
-    #Query the database for fixes within our $radius
-    my $sth = $dbh->prepare(
+# say " SELECT * FROM fixes WHERE  
+                                # (Latitude BETWEEN  ($airportLatitudeDec - $radiusDegreesLatitude ) and ( $airportLatitudeDec + $radiusDegreesLatitude ) )
+                                # AND
+                                # (Longitude BETWEEN ($airportLongitudeDec - $radiusDegreesLongitude ) and ( $airportLongitudeDec + $radiusDegreesLongitude ) )
+                                # AND
+                                # (Type like '$type')";
+                                
+    # # #Query the database for fixes within our $radius
+    # my $sth = $dbh->prepare(
+        # "SELECT * FROM fixes WHERE  
+                                # (Latitude BETWEEN  ($airportLatitudeDec - $radiusDegreesLatitude ) and ( $airportLatitudeDec + $radiusDegreesLatitude ) )
+                                # AND
+                                # (Longitude BETWEEN ($airportLongitudeDec - $radiusDegreesLongitude ) and ( $airportLongitudeDec + $radiusDegreesLongitude ) )
+                                # AND
+                                # (Type like '$type')"
+    # );
+        my $sth = $dbh->prepare(
         "SELECT * FROM fixes WHERE  
                                 (Latitude >  $airportLatitudeDec - $radiusDegreesLatitude ) and 
                                 (Latitude < $airportLatitudeDec +$radiusDegreesLatitude ) and 
