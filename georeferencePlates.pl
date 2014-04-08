@@ -1745,8 +1745,8 @@ sub findObstaclesInDatabase {
         my $rows = $sth->rows();
         say "Found $rows objects of height $heightmsl" if $debug;
 
-        #This may be complete shit but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
-        #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and am probably causing more mismatches than I'm solving
+        #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
+        #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
         my $bestDistanceToAirport = 9999;
         foreach my $row (@$all) {
             my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
@@ -3868,7 +3868,7 @@ sub findGpsWaypointsNearAirport {
         say "We have selected $fields field(s)";
         say "We have selected $rows row(s)";
 
-        print Dumper ( \%gpswaypoints_from_db );
+        #print Dumper ( \%gpswaypoints_from_db );
         say "";
     }
     return;
