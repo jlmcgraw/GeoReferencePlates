@@ -6,7 +6,6 @@
 #You MAY NOT use the output of this program, or any modifed versions ,for commercial use without prior arrangement with the original author
 #You MAY use the output in non-commercial applications
 
-
 #--------------------------------------------------------------------------------------------------------------------------------------------
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,11 +21,10 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 #-------------------------------------------------------------------------------------------------------------------------------------------
 
-
 #Unavoidable problems:
 #-----------------------------------
 #-Relies on icons being drawn very specific ways, it won't work if these ever change
-#-Relies on text being in PDF.  It seems that most, if not all, military plates have no text in them
+#-Relies on actual text being in PDF.  It seems that most, if not all, military plates have no text in them
 #       We may be able to get around this with tesseract OCR but that will take some work
 #
 #Known issues:
@@ -44,7 +42,6 @@
 #Integrate OCR so we can process miltary plates too
 #       The miltary plates are not rendered the same as the civilian ones, it will require full on image processing to do those
 #
-#Discard icons and textboxes  inside insetBoxes or outside the horizontal bounds early in the process
 
 use 5.010;
 
@@ -109,10 +106,10 @@ my %statistics = (
     '$xAvg'                            => "0",
     '$pdftotext'                       => "0",
     '$lonLatRatio'                     => "0",
-     '$upperLeftLon'                     => "0",
-     '$upperLeftLat'                     => "0",
-     '$lowerRightLon'                     => "0",
-     '$lowerRightLat'                     => "0"
+    '$upperLeftLon'                    => "0",
+    '$upperLeftLat'                    => "0",
+    '$lowerRightLon'                   => "0",
+    '$lowerRightLat'                   => "0"
 
 );
 
@@ -122,25 +119,25 @@ my $arg_num    = scalar @ARGV;
 
 #This will fail if we receive an invalid option
 unless ( getopts( "$opt_string", \%opt ) ) {
-usage();
+    usage();
     exit(1);
 }
 
 #We need at least one argument (the name of the PDF to process)
 if ( $arg_num < 1 ) {
-usage();
+    usage();
     exit(1);
 }
 
-sub usage{
-     say "Usage: $0 <pdf_file>";
+sub usage {
+    say "Usage: $0 <pdf_file>";
     say "-v debug";
     say "-a<FAA airport ID>  To specify an airport ID";
     say "-p Output a marked up version of PDF";
     say "-s Output statistics about the PDF";
-     say "-c Don't overwrite existing .vrt";
-    
-    }
+    say "-c Don't overwrite existing .vrt";
+
+}
 my $debug                  = $opt{v};
 my $shouldSaveMarkedPdf    = $opt{p};
 my $shouldOutputStatistics = $opt{s};
@@ -167,13 +164,12 @@ my ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
 
 ($airportId) = $filename =~ m/^\w\w-(\w\w\w)-/;
 
-
 #Set some output file names based on the input filename
 my $outputPdf         = $dir . "marked-" . $filename . ".pdf";
 my $outputPdfOutlines = $dir . "outlines-" . $filename . ".pdf";
 my $outputPdfRaw      = $dir . "raw-" . $filename . ".txt";
 my $targetpng         = $dir . $filename . ".png";
-my $gcpPng         = $dir . "gcp-" . $filename . ".png";
+my $gcpPng            = $dir . "gcp-" . $filename . ".png";
 my $targettif         = $dir . $filename . ".tif";
 my $targetvrt         = $dir . $filename . ".vrt";
 my $targetStatistics  = "./statistics.csv";
@@ -210,9 +206,10 @@ if ($debug) {
 $statistics{'$targetPdf'} = $targetPdf;
 
 #This is a quick hack to abort if we've already created a .vrt for this plate
-if ($shouldOverwriteVrt && -e $targetvrt){
-say "$targetvrt exists, exiting";
-exit(1)};
+if ( $shouldOverwriteVrt && -e $targetvrt ) {
+    say "$targetvrt exists, exiting";
+    exit(1);
+}
 
 #Pull all text out of the PDF
 my @pdftotext;
@@ -383,6 +380,7 @@ my %vorTextboxes      = ();
 #
 findAllTextboxes();
 
+
 #----------------------------------------------------------------------------------------------------------
 #Modify the PDF
 #Don't do anything PDF related unless we've asked to create one on the command line
@@ -395,8 +393,7 @@ if ($shouldSaveMarkedPdf) {
     #Set up the various types of boxes to draw on the output PDF
     $page = $pdf->openpage(1);
 
-    #Draw boxes around the icons and textboxes we've found so far
-    outlineEverythingWeFound();
+
 }
 
 my ( $pdfOutlines,  $pageOutlines );
@@ -442,7 +439,8 @@ my ( $image, $perlMagickStatus );
 $image = Image::Magick->new;
 
 if ( !-e "$outputPdfOutlines.png" ) {
-
+    #offset from the center to start the fills
+    my $offsetFromCenter = 125;
     #If the masking PNG doesn't already exist, read in the outlines PDF, floodfill and then save
 
     #Read in the .pdf maskfile
@@ -462,14 +460,14 @@ if ( !-e "$outputPdfOutlines.png" ) {
     $image->Set( alpha      => 'off' );
     $image->ColorFloodfill(
         fill        => 'black',
-        x           => $pngXSize / 2 - 50,
-        y           => $pngYSize / 2 - 50,
+        x           => $pngXSize / 2 - $offsetFromCenter,
+        y           => $pngYSize / 2 - $offsetFromCenter,
         bordercolor => 'black'
     );
     $image->ColorFloodfill(
         fill        => 'black',
-        x           => $pngXSize / 2 + 50,
-        y           => $pngYSize / 2 + 50,
+        x           => $pngXSize / 2 + $offsetFromCenter,
+        y           => $pngYSize / 2 + $offsetFromCenter,
         bordercolor => 'black'
     );
 
@@ -489,6 +487,9 @@ else {
     warn "$perlMagickStatus" if "$perlMagickStatus";
 }
 
+
+
+
 # $image->Draw(primitive=>'rectangle',method=>'Floodfill',fill=>'black',points=>"$halfPngX1,$halfPngY1,5,100",color=>'black');
 # $image->Draw(fill=>'black',points=>'$halfPngX2,$halfPngY2',floodfill=>'yes',color => 'black');
 #warn "$perlMagickStatus" if "$perlMagickStatus";
@@ -498,7 +499,16 @@ else {
 # warn "$perlMagickStatus" if "$perlMagickStatus";
 
 #We should eliminate icons and textboxes here
+removeIconsAndTextboxesInMaskedAreas("Obstacle Icon",\%obstacleIcons);
+removeIconsAndTextboxesInMaskedAreas("Obstacle TextBox",\%obstacleTextBoxes);
+removeIconsAndTextboxesInMaskedAreas("Fix Icon",\%fixIcons);
+removeIconsAndTextboxesInMaskedAreas("Fix TextBox",\%fixTextboxes);
+removeIconsAndTextboxesInMaskedAreas("Navaid Icon",\%navaidIcons);
+removeIconsAndTextboxesInMaskedAreas("Navaid TextBox",\%vorTextboxes);
+removeIconsAndTextboxesInMaskedAreas("GPS Icon",\%navaidIcons);
 
+    #Draw boxes around the icons and textboxes we've found so far
+    outlineEverythingWeFound() if $shouldSaveMarkedPdf;
 #----------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with obstacles
 #Get a list of unique potential obstacle heights from the pdftotext array
@@ -779,7 +789,7 @@ if ( @xScaleAvg && @yScaleAvg ) {
     $statistics{'$yAvg'}          = $yAvg;
     $statistics{'$yMedian'}       = $yMedian;
     $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
-    $statistics{'$lonLatRatio'} = $lonLatRatio;
+    $statistics{'$lonLatRatio'}   = $lonLatRatio;
 }
 else {
     say "No points actually added to the scale arrays for $targetPdf";
@@ -806,47 +816,49 @@ $dbh->disconnect();
 #------------------------------------------------------------------------------------------------------------------------------------------
 sub drawFeaturesOnPdf {
 
-
     if ( -e "$targetpng" ) {
-    #say $airportLatitudeDec;
-    my $y1 = latitudeToPixel($airportLatitudeDec) - 2;
-    my $x1 = longitudeToPixel($airportLongitudeDec) -2 ; 
-    my $x2 = $x1 + 4;
-    my $y2 = $y1 + 4;
-    my ( $image, $perlMagickStatus );
-    $image = Image::Magick->new;
-    
+
+        #say $airportLatitudeDec;
+        my $y1 = latitudeToPixel($airportLatitudeDec) - 2;
+        my $x1 = longitudeToPixel($airportLongitudeDec) - 2;
+        my $x2 = $x1 + 4;
+        my $y2 = $y1 + 4;
+        my ( $image, $perlMagickStatus );
+        $image = Image::Magick->new;
+
         $perlMagickStatus = $image->Read("$targetpng");
- warn $perlMagickStatus if $perlMagickStatus;
+        warn $perlMagickStatus if $perlMagickStatus;
+
         # $image->Draw(
-            # fill        => 'red',
-            # x           => $x1,
-            # y           => $y1,
-            # stroke      => 'red',
-            # strokewidth => '50',
-            # primitive   => 'circle',
-            # opacity     => '100'
+        # fill        => 'red',
+        # x           => $x1,
+        # y           => $y1,
+        # stroke      => 'red',
+        # strokewidth => '50',
+        # primitive   => 'circle',
+        # opacity     => '100'
 
         # );
 
         # $image->Draw(primitive=>'RoundRectangle',fill=>'blue',stroke=>'maroon',
         # strokewidth=>4,points=>"$x1,$y1 30,30 10,10");
 
-        $image->Draw(primitive=>'circle',
-                                        stroke=>'none',
-                                        fill=>'green',
-                                        points=>"$x1,$y1 $x2,$y2",
-                                        alpha=>'100');
+        $image->Draw(
+            primitive => 'circle',
+            stroke    => 'none',
+            fill      => 'green',
+            points    => "$x1,$y1 $x2,$y2",
+            alpha     => '100'
+        );
 
         # $image->Draw(
-            # primitive   => 'line',
-            # stroke      => 'none',
-            # fill        => 'yellow',
-            # points      => "$x1,$y1 $x2,$y2",
-            # strokewidth => '50',
-            # alpha       => '100'
+        # primitive   => 'line',
+        # stroke      => 'none',
+        # fill        => 'yellow',
+        # points      => "$x1,$y1 $x2,$y2",
+        # strokewidth => '50',
+        # alpha       => '100'
         # );
-       
 
         foreach my $key ( sort keys %gcps ) {
 
@@ -857,14 +869,15 @@ sub drawFeaturesOnPdf {
             my $x2  = $x1 + 2;
             my $y2  = $y1 + 2;
             $image->Draw(
-                                primitive => 'circle',
-                                stroke    => 'none',
-                                fill      => 'red',
-                                points    => "$x1,$y1 $x2,$y2",
-                                alpha     => '100'            );
+                primitive => 'circle',
+                stroke    => 'none',
+                fill      => 'red',
+                points    => "$x1,$y1 $x2,$y2",
+                alpha     => '100'
+            );
 
         }
-         $perlMagickStatus = $image->write("$gcpPng");
+        $perlMagickStatus = $image->write("$gcpPng");
         warn $perlMagickStatus if $perlMagickStatus;
         return;
     }
@@ -872,9 +885,11 @@ sub drawFeaturesOnPdf {
 
 sub latitudeToPixel {
     my ($_latitude) = @_;
+
     # say $_latitude;
     #say "$ulYmedian, $yMedian";
     my $_pixel = abs( ( $ulYmedian - $_latitude ) / $yMedian );
+
     #say "$_latitude to $_pixel";
 
     return $_pixel;
@@ -882,9 +897,11 @@ sub latitudeToPixel {
 
 sub longitudeToPixel {
     my ($_longitude) = @_;
+
     # say $_longitude;
     #say "$ulXmedian, $xMedian";
     my $_pixel = abs( ( $ulXmedian - $_longitude ) / $xMedian );
+
     #say "$_longitude to $_pixel";
 
     return $_pixel;
@@ -1346,156 +1363,202 @@ sub outlineEverythingWeFound {
     return;
 }
 
-sub calculateXScale {
-    my ($targetArrayRef) = @_;
-    $xAvg    = &average( \@xScaleAvg );
-    $xMedian = &median( \@xScaleAvg );
-    $xStdDev = &stdev( \@xScaleAvg );
+sub calculateSmootherValuesOfArray {
+    my ($targetArrayRef)    = @_;
+    my $avg                 = &average($targetArrayRef);
+    my $median              = &median($targetArrayRef);
+    my $stdDev              = &stdev($targetArrayRef);
+    my $lengthOfTargetArray = $#$targetArrayRef;
 
     if ($debug) {
         say "";
-        say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian";
+        say "Initial length of array: $lengthOfTargetArray";
+        say "Smoothed values: average: "
+          . sprintf( "%.10g", $avg )
+          . "\tstdev: "
+          . sprintf( "%.10g", $stdDev )
+          . "\tmedian: "
+          . sprintf( "%.10g", $median );
         say "Removing data outside 1st standard deviation";
     }
 
     #Delete values from the array that are outside 1st dev
-    for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
-        splice( @xScaleAvg, $i, 1 )
-          if ( $xScaleAvg[$i] < ( $xAvg - $xStdDev )
-            || $xScaleAvg[$i] > ( $xAvg + $xStdDev ) );
+    for ( my $i = 0 ; $i <= $#$targetArrayRef ; $i++ ) {
+        splice( @$targetArrayRef, $i, 1 )
+          if ( @$targetArrayRef[$i] < ( $median - $stdDev )
+            || @$targetArrayRef[$i] > ( $median + $stdDev ) );
     }
-    $xAvg    = &average( \@xScaleAvg );
-    $xMedian = &median( \@xScaleAvg );
-    $xStdDev = &stdev( \@xScaleAvg );
-    say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian"
-      if $debug;
-    return ( $xAvg, $xMedian, $xStdDev );
-}
-
-sub calculateYScale {
-    $yAvg    = &average( \@yScaleAvg );
-    $yMedian = &median( \@yScaleAvg );
-    $yStdDev = &stdev( \@yScaleAvg );
+    $lengthOfTargetArray = $#$targetArrayRef;
+    $avg                 = &average($targetArrayRef);
+    $median              = &median($targetArrayRef);
+    $stdDev              = &stdev($targetArrayRef);
 
     if ($debug) {
-        say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian";
-        say "Remove data outside 1st standard deviation";
+        say "lengthOfTargetArray: $lengthOfTargetArray";
+        say "Smoothed values: average: "
+          . sprintf( "%.10g", $avg )
+          . "\tstdev: "
+          . sprintf( "%.10g", $stdDev )
+          . "\tmedian: "
+          . sprintf( "%.10g", $median );
+
+        # say "Smoothed values: average:  $avg\tstdev: $stdDev\tmedian: $median";
+        say "";
     }
 
-    #Delete values from the array that are outside 1st dev
-    for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
-        splice( @yScaleAvg, $i, 1 )
-          if ( $yScaleAvg[$i] < ( $yAvg - $yStdDev )
-            || $yScaleAvg[$i] > ( $yAvg + $yStdDev ) );
-    }
-    $yAvg    = &average( \@yScaleAvg );
-    $yMedian = &median( \@yScaleAvg );
-    $yStdDev = &stdev( \@yScaleAvg );
-    say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian"
-      if $debug;
-
-    return;
+    return ( $avg, $median, $stdDev );
 }
 
-sub calculateULX {
-    $ulXAvrg   = &average( \@ulXAvg );
-    $ulXmedian = &median( \@ulXAvg );
-    $ulXStdDev = &stdev( \@ulXAvg );
-    say
-      "Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian"
-      if $debug;
+# sub calculateXScale {
+# my ($targetArrayRef) = @_;
+# $xAvg    = &average( \@xScaleAvg );
+# $xMedian = &median( \@xScaleAvg );
+# $xStdDev = &stdev( \@xScaleAvg );
 
-    #Delete values from the array that are outside 1st dev
-    for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
-        splice( @ulXAvg, $i, 1 )
-          if ( $ulXAvg[$i] < ( $ulXAvrg - $ulXStdDev )
-            || $ulXAvg[$i] > ( $ulXAvrg + $ulXStdDev ) );
-    }
-    $ulXAvrg   = &average( \@ulXAvg );
-    $ulXmedian = &median( \@ulXAvg );
-    $ulXStdDev = &stdev( \@ulXAvg );
-    if ($debug) {
-        say "Remove data outside 1st standard deviation";
-        say
-          "Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian";
+# if ($debug) {
+# say "";
+# say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian";
+# say "Removing data outside 1st standard deviation";
+# }
 
-    }
-    return;
-}
+# #Delete values from the array that are outside 1st dev
+# for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
+# splice( @xScaleAvg, $i, 1 )
+# if ( $xScaleAvg[$i] < ( $xAvg - $xStdDev )
+# || $xScaleAvg[$i] > ( $xAvg + $xStdDev ) );
+# }
+# $xAvg    = &average( \@xScaleAvg );
+# $xMedian = &median( \@xScaleAvg );
+# $xStdDev = &stdev( \@xScaleAvg );
+# say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian"
+# if $debug;
+# return ( $xAvg, $xMedian, $xStdDev );
+# }
 
-sub calculateULY {
-    $ulYAvrg   = &average( \@ulYAvg );
-    $ulYmedian = &median( \@ulYAvg );
-    $ulYStdDev = &stdev( \@ulYAvg );
+# sub calculateYScale {
+# $yAvg    = &average( \@yScaleAvg );
+# $yMedian = &median( \@yScaleAvg );
+# $yStdDev = &stdev( \@yScaleAvg );
 
-    say
-      "Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian"
-      if $debug;
+# if ($debug) {
+# say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian";
+# say "Remove data outside 1st standard deviation";
+# }
 
-    #Delete values from the array that are outside 1st dev
-    for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
-        splice( @ulYAvg, $i, 1 )
-          if ( $ulYAvg[$i] < ( $ulYAvrg - $ulYStdDev )
-            || $ulYAvg[$i] > ( $ulYAvrg + $ulYStdDev ) );
-    }
-    $ulYAvrg   = &average( \@ulYAvg );
-    $ulYmedian = &median( \@ulYAvg );
-    $ulYStdDev = &stdev( \@ulYAvg );
-    if ($debug) {
-        say "Remove data outside 1st standard deviation";
-        say
-          "Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian";
-    }
-    return;
-}
+# #Delete values from the array that are outside 1st dev
+# for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
+# splice( @yScaleAvg, $i, 1 )
+# if ( $yScaleAvg[$i] < ( $yAvg - $yStdDev )
+# || $yScaleAvg[$i] > ( $yAvg + $yStdDev ) );
+# }
+# $yAvg    = &average( \@yScaleAvg );
+# $yMedian = &median( \@yScaleAvg );
+# $yStdDev = &stdev( \@yScaleAvg );
+# say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian"
+# if $debug;
 
-sub calculateLRX {
-    $lrXAvrg   = &average( \@lrXAvg );
-    $lrXmedian = &median( \@lrXAvg );
-    $lrXStdDev = &stdev( \@lrXAvg );
-    say
-      "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian"
-      if $debug;
+# return;
+# }
 
-    #Delete values from the array that are outside 1st dev
-    for ( my $i = 0 ; $i <= $#lrXAvg ; $i++ ) {
-        splice( @lrXAvg, $i, 1 )
-          if ( $lrXAvg[$i] < ( $lrXAvrg - $lrXStdDev )
-            || $lrXAvg[$i] > ( $lrXAvrg + $lrXStdDev ) );
-    }
-    $lrXAvrg   = &average( \@lrXAvg );
-    $lrXmedian = &median( \@lrXAvg );
-    $lrXStdDev = &stdev( \@lrXAvg );
-    if ($debug) {
-        say "Remove data outside 1st standard deviation";
-        say
-          "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian";
-    }
-    return;
-}
+# sub calculateULX {
+# $ulXAvrg   = &average( \@ulXAvg );
+# $ulXmedian = &median( \@ulXAvg );
+# $ulXStdDev = &stdev( \@ulXAvg );
+# say
+# "Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian"
+# if $debug;
 
-sub calculateLRY {
-    $lrYAvrg   = &average( \@lrYAvg );
-    $lrYmedian = &median( \@lrYAvg );
-    $lrYStdDev = &stdev( \@lrYAvg );
-    say
-      "Lower Right Y: average:  $lrYAvrg\tstdev: $lrYStdDev\tmedian: $lrYmedian"
-      if $debug;
+# #Delete values from the array that are outside 1st dev
+# for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
+# splice( @ulXAvg, $i, 1 )
+# if ( $ulXAvg[$i] < ( $ulXAvrg - $ulXStdDev )
+# || $ulXAvg[$i] > ( $ulXAvrg + $ulXStdDev ) );
+# }
+# $ulXAvrg   = &average( \@ulXAvg );
+# $ulXmedian = &median( \@ulXAvg );
+# $ulXStdDev = &stdev( \@ulXAvg );
+# if ($debug) {
+# say "Remove data outside 1st standard deviation";
+# say
+# "Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian";
 
-    #Delete values from the array that are outside 1st dev
-    for ( my $i = 0 ; $i <= $#lrYAvg ; $i++ ) {
-        splice( @lrYAvg, $i, 1 )
-          if ( $lrYAvg[$i] < ( $lrYAvrg - $lrYStdDev )
-            || $lrYAvg[$i] > ( $lrYAvrg + $lrYStdDev ) );
-    }
-    $lrYAvrg   = &average( \@lrYAvg );
-    $lrYmedian = &median( \@lrYAvg );
-    say
-      "Lower Right Y after deleting outside 1st dev: average: $lrYAvrg\tmedian: $lrYmedian"
-      if $debug;
-    say "" if $debug;
-    return;
-}
+# }
+# return;
+# }
+
+# sub calculateULY {
+# $ulYAvrg   = &average( \@ulYAvg );
+# $ulYmedian = &median( \@ulYAvg );
+# $ulYStdDev = &stdev( \@ulYAvg );
+
+# say
+# "Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian"
+# if $debug;
+
+# #Delete values from the array that are outside 1st dev
+# for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
+# splice( @ulYAvg, $i, 1 )
+# if ( $ulYAvg[$i] < ( $ulYAvrg - $ulYStdDev )
+# || $ulYAvg[$i] > ( $ulYAvrg + $ulYStdDev ) );
+# }
+# $ulYAvrg   = &average( \@ulYAvg );
+# $ulYmedian = &median( \@ulYAvg );
+# $ulYStdDev = &stdev( \@ulYAvg );
+# if ($debug) {
+# say "Remove data outside 1st standard deviation";
+# say
+# "Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian";
+# }
+# return;
+# }
+
+# sub calculateLRX {
+# $lrXAvrg   = &average( \@lrXAvg );
+# $lrXmedian = &median( \@lrXAvg );
+# $lrXStdDev = &stdev( \@lrXAvg );
+# say
+# "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian"
+# if $debug;
+
+# #Delete values from the array that are outside 1st dev
+# for ( my $i = 0 ; $i <= $#lrXAvg ; $i++ ) {
+# splice( @lrXAvg, $i, 1 )
+# if ( $lrXAvg[$i] < ( $lrXAvrg - $lrXStdDev )
+# || $lrXAvg[$i] > ( $lrXAvrg + $lrXStdDev ) );
+# }
+# $lrXAvrg   = &average( \@lrXAvg );
+# $lrXmedian = &median( \@lrXAvg );
+# $lrXStdDev = &stdev( \@lrXAvg );
+# if ($debug) {
+# say "Remove data outside 1st standard deviation";
+# say
+# "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian";
+# }
+# return;
+# }
+
+# sub calculateLRY {
+# $lrYAvrg   = &average( \@lrYAvg );
+# $lrYmedian = &median( \@lrYAvg );
+# $lrYStdDev = &stdev( \@lrYAvg );
+# say
+# "Lower Right Y: average:  $lrYAvrg\tstdev: $lrYStdDev\tmedian: $lrYmedian"
+# if $debug;
+
+# #Delete values from the array that are outside 1st dev
+# for ( my $i = 0 ; $i <= $#lrYAvg ; $i++ ) {
+# splice( @lrYAvg, $i, 1 )
+# if ( $lrYAvg[$i] < ( $lrYAvrg - $lrYStdDev )
+# || $lrYAvg[$i] > ( $lrYAvrg + $lrYStdDev ) );
+# }
+# $lrYAvrg   = &average( \@lrYAvg );
+# $lrYmedian = &median( \@lrYAvg );
+# say
+# "Lower Right Y after deleting outside 1st dev: average: $lrYAvrg\tmedian: $lrYmedian"
+# if $debug;
+# say "" if $debug;
+# return;
+# }
 
 sub findAllIcons {
     say ":findAllIcons" if $debug;
@@ -3303,8 +3366,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
             if ( $pixelDistanceY > 10 && $latitudeDiff ) {
                 $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
                 if (
-                       not( between( $latitudeToPixelRatio, .00011, .00024 ) )
-                    && not( between( $latitudeToPixelRatio, .00028, .00031 ) )
+                           not( between( $latitudeToPixelRatio, .00011, .00031 ) )
+                    
                     && not( between( $latitudeToPixelRatio, .00034, .00046 ) )
                     && not( between( $latitudeToPixelRatio, .00056, .00060 ) )
 
@@ -3319,7 +3382,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                         $gcps{$key2}{"Mismatches"} =
                           ( $gcps{$key2}{"Mismatches"} ) + 1;
                         say
-                          "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key-$key2 pair"
+                          "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key->$key2 pair"
                           if $debug;
                     }
 
@@ -3381,6 +3444,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 }
             }
 
+           #TODO BUG Is this a good idea?
+           #This is a hack to weight pairs that have both X and Y scales defined more heavily
             if ( $ulX && $ulY && $lrX && $lrY ) {
 
                 #The X/Y (or Longitude/Latitude) ratio that would result from using this particular pair
@@ -3388,8 +3453,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 $longitudeToLatitudeRatio =
                   abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
 
-                #TODO BUG Is this a good idea?
-                #This is a hack to weight pairs that have both X and Y scales defined more heavily
+     
                 push @xScaleAvg, $longitudeToPixelRatio;
                 push @ulXAvg,    $ulX;
                 push @lrXAvg,    $lrX;
@@ -3397,6 +3461,15 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 push @ulYAvg,    $ulY;
                 push @lrYAvg,    $lrY;
             }
+            
+            
+            $ulY = 0 if not defined $ulY;
+            $ulX = 0 if not defined $ulX;
+            $lrY = 0 if not defined $lrY;
+            $lrX = 0 if not defined $lrX;
+            $longitudeToPixelRatio = 0 if not defined $longitudeToPixelRatio;
+            $latitudeToPixelRatio = 0 if not defined $latitudeToPixelRatio;
+            $longitudeToLatitudeRatio = 0 if not defined $longitudeToLatitudeRatio;
             say
               "$key,$key2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio"
               if $debug;
@@ -3470,13 +3543,13 @@ sub georeferenceTheRaster {
     my $medianLonDiff = $upperLeftLon - $lowerRightLon;
     my $medianLatDiff = $upperLeftLat - $lowerRightLat;
     $lonLatRatio = abs( $medianLonDiff / $medianLatDiff );
-    
- $statistics{'$upperLeftLon'} = $upperLeftLon;
- $statistics{'$upperLeftLat'} = $upperLeftLat;
- $statistics{'$lowerRightLon'} = $lowerRightLon;
- $statistics{'$lowerRightLat'} = $lowerRightLat;
-  $statistics{'$lonLatRatio'} = $lonLatRatio;
- 
+
+    $statistics{'$upperLeftLon'}  = $upperLeftLon;
+    $statistics{'$upperLeftLat'}  = $upperLeftLat;
+    $statistics{'$lowerRightLon'} = $lowerRightLon;
+    $statistics{'$lowerRightLat'} = $lowerRightLat;
+    $statistics{'$lonLatRatio'}   = $lonLatRatio;
+
     if ($debug) {
         say "Output Longitude/Latitude Ratio: " . $lonLatRatio;
         say "Input PDF ratio: " . $pdfXYRatio;
@@ -3560,84 +3633,100 @@ sub georeferenceTheRaster {
     return;
 }
 
-sub calculateRoughRealWorldExtentsOfRasterWithOneGCP {
+# sub calculateRoughRealWorldExtentsOfRasterWithOneGCP {
 
-    # say
-    # "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
+    # # say
+    # # "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
 
-    # my $guessAtLatitudeToPixelRatio = .00038;
-    # my $targetXyRatio =
-    # 0.000007 * ( $airportLatitudeDec**3 ) -
-    # 0.0002 *   ( $airportLatitudeDec**2 ) +
-    # 0.0037 *   ($airportLatitudeDec) + 1.034;
+    # # my $guessAtLatitudeToPixelRatio = .00038;
+    # # my $targetXyRatio =
+    # # 0.000007 * ( $airportLatitudeDec**3 ) -
+    # # 0.0002 *   ( $airportLatitudeDec**2 ) +
+    # # 0.0037 *   ($airportLatitudeDec) + 1.034;
 
-    # my $guessAtLongitudeToPixelRatio =
-    # $targetXyRatio * $guessAtLatitudeToPixelRatio;
+    # # my $guessAtLongitudeToPixelRatio =
+    # # $targetXyRatio * $guessAtLatitudeToPixelRatio;
 
-    # #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
-    # #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
+    # # #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
+    # # #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
 
-    # foreach my $key ( sort keys %gcps ) {
+    # # foreach my $key ( sort keys %gcps ) {
 
-    # #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
-    # my $ulX =
-    # $gcps{$key}{"lon"} -
-    # ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
+    # # #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
+    # # my $ulX =
+    # # $gcps{$key}{"lon"} -
+    # # ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
 
-    # #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
-    # my $ulY =
-    # $gcps{$key}{"lat"} +
-    # ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
+    # # #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
+    # # my $ulY =
+    # # $gcps{$key}{"lat"} +
+    # # ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
 
-    # #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
-    # my $lrX =
-    # $gcps{$key}{"lon"} +
-    # (
-    # abs( $pngXSize - $gcps{$key}{"pngx"} ) *
-    # $guessAtLongitudeToPixelRatio );
+    # # #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
+    # # my $lrX =
+    # # $gcps{$key}{"lon"} +
+    # # (
+    # # abs( $pngXSize - $gcps{$key}{"pngx"} ) *
+    # # $guessAtLongitudeToPixelRatio );
 
-    # #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
-    # my $lrY =
-    # $gcps{$key}{"lat"} -
-    # (
-    # abs( $pngYSize - $gcps{$key}{"pngy"} ) *
-    # $guessAtLatitudeToPixelRatio );
+    # # #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
+    # # my $lrY =
+    # # $gcps{$key}{"lat"} -
+    # # (
+    # # abs( $pngYSize - $gcps{$key}{"pngy"} ) *
+    # # $guessAtLatitudeToPixelRatio );
 
-    # push @xScaleAvg, $guessAtLongitudeToPixelRatio;
-    # push @yScaleAvg, $guessAtLatitudeToPixelRatio;
-    # push @ulXAvg,    $ulX;
-    # push @ulYAvg,    $ulY;
-    # push @lrXAvg,    $lrX;
-    # push @lrYAvg,    $lrY;
-    # }
-    # return;
-}
+    # # push @xScaleAvg, $guessAtLongitudeToPixelRatio;
+    # # push @yScaleAvg, $guessAtLatitudeToPixelRatio;
+    # # push @ulXAvg,    $ulX;
+    # # push @ulYAvg,    $ulY;
+    # # push @lrXAvg,    $lrX;
+    # # push @lrYAvg,    $lrY;
+    # # }
+    # # return;
+# }
+
+#X-scale: average:  0.000487670014404161	stdev: 6.26807390750141e-05	median: 0.000463842054942444
+#Removing data outside 1st standard deviation
+#X-scale: average:  0.000476993619272827	stdev: 5.3573259650277e-05	median: 0.000446597492715171
 
 sub calculateSmoothedRealWorldExtentsOfRaster {
 
     #X-scale average and standard deviation
-
-    calculateXScale();
+    #calculateXScale();
+    say "X-Scale" if $debug;
+    ( $xAvg, $xMedian, $xStdDev ) =
+      calculateSmootherValuesOfArray( \@xScaleAvg );
 
     #Y-scale average and standard deviation
-
-    calculateYScale();
+    # calculateYScale();
+    say "Y-Scale" if $debug;
+    ( $yAvg, $yMedian, $yStdDev ) =
+      calculateSmootherValuesOfArray( \@yScaleAvg );
 
     #ulX average and standard deviation
-
-    calculateULX();
+    # calculateULX();
+    say "ULX" if $debug;
+    ( $ulXAvrg, $ulXmedian, $ulXStdDev ) =
+      calculateSmootherValuesOfArray( \@ulXAvg );
 
     #uly average and standard deviation
-
-    calculateULY();
+    # calculateULY();
+    say "ULY" if $debug;
+    ( $ulYAvrg, $ulYmedian, $ulYStdDev ) =
+      calculateSmootherValuesOfArray( \@ulYAvg );
 
     #lrX average and standard deviation
-
-    calculateLRX();
+    # calculateLRX();
+    say "LRX" if $debug;
+    ( $lrXAvrg, $lrXmedian, $lrXStdDev ) =
+      calculateSmootherValuesOfArray( \@lrXAvg );
 
     #lrY average and standard deviation
-
-    calculateLRY();
+    # calculateLRY();
+    say "LRY" if $debug;
+    ( $lrYAvrg, $lrYmedian, $lrYStdDev ) =
+      calculateSmootherValuesOfArray( \@lrYAvg );
     return;
 }
 
@@ -4559,3 +4648,39 @@ sub findNotToScaleIndicator {
 
     return;
 }
+sub removeIconsAndTextboxesInMaskedAreas{
+    #Remove an icon or a text box if it is in an area that is masked out
+    say "removeIconsAndTextboxesInMaskedAreas" if $debug;
+    my ( $type, $targetHashRef ) = @_;
+    
+    say "type: $type, hashref $targetHashRef" if $debug;
+
+    foreach my $key ( sort keys %$targetHashRef ) {
+
+        my $_pdfX = $targetHashRef->{$key}{"CenterX"};
+        my $_pdfY = $targetHashRef->{$key}{"CenterY"};
+      
+        next unless ( $_pdfX && $_pdfY);
+        
+        my @pixels;
+        my $_rasterX = $_pdfX * $scaleFactorX;
+        my $_rasterY = $pngYSize - ( $_pdfY * $scaleFactorY );
+
+        #Make sure all our info is defined
+        if ( $_rasterX && $_rasterY ) {
+
+            #Get the color value of the pixel at the x,y of the GCP
+            @pixels = $image->GetPixel( x => $_rasterX, y => $_rasterY );
+            say "perlMagick $pixels[0]" if $debug;
+
+            if ( $pixels[0] eq 0 ) {
+            }
+            else {
+                say "$type $key is being deleted" if $debug;
+                delete  $targetHashRef->{$key};
+            }
+
+        }
+    }
+    return;
+    }
