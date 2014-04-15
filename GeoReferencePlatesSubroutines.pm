@@ -27,7 +27,7 @@ use Carp;
 $VERSION = 1.00;
 @ISA     = qw(Exporter);
 @EXPORT =
-  qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev median);
+  qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev median same_sign);
 
 #@EXPORT_OK   = qw(  coordinatetodecimal );
 
@@ -175,4 +175,21 @@ sub by_number {
     else              { 0 }
 }
 
+  sub same_sign {
+$_[0]*$_[1] > 0;
+    # my ($x,$y) = @_;
+
+    # if ( undef($x) or undef($y)) {
+       # return 0;           # "undef" is never same-sign
+    # }
+    # if (   ( ($x >= 0) and ($y >= 0) )
+        # or ( ($x <  0) and ($y <  0) ) )
+    # {
+       # return 1;
+    # }
+    # else 
+    # {
+       # return 0;
+    # }
+  } 
 1;

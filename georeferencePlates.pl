@@ -3,7 +3,7 @@
 # GeoRerencePlates - a utility to automatically georeference FAA Instrument Approach Plates / Terminal Procedures
 # Copyright (C) 2013  Jesse McGraw (jlmcgraw@gmail.com)
 #
-#You MAY NOT use the output of this program, or any modifed versions ,for commercial use without prior arrangement with the original author
+#You MAY NOT use the output of this program, or any modifed versions, for commercial use without prior arrangement with the original author
 #You MAY use the output in non-commercial applications
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -109,8 +109,8 @@ my %statistics = (
     '$upperLeftLon'                    => "0",
     '$upperLeftLat'                    => "0",
     '$lowerRightLon'                   => "0",
-    '$lowerRightLat'                   => "0"
-
+    '$lowerRightLat'                   => "0",
+    '$targetLonLatRatio'   => "0"
 );
 
 use vars qw/ %opt /;
@@ -380,7 +380,6 @@ my %vorTextboxes      = ();
 #
 findAllTextboxes();
 
-
 #----------------------------------------------------------------------------------------------------------
 #Modify the PDF
 #Don't do anything PDF related unless we've asked to create one on the command line
@@ -392,7 +391,6 @@ if ($shouldSaveMarkedPdf) {
 
     #Set up the various types of boxes to draw on the output PDF
     $page = $pdf->openpage(1);
-
 
 }
 
@@ -439,8 +437,10 @@ my ( $image, $perlMagickStatus );
 $image = Image::Magick->new;
 
 if ( !-e "$outputPdfOutlines.png" ) {
+
     #offset from the center to start the fills
     my $offsetFromCenter = 125;
+
     #If the masking PNG doesn't already exist, read in the outlines PDF, floodfill and then save
 
     #Read in the .pdf maskfile
@@ -487,9 +487,6 @@ else {
     warn "$perlMagickStatus" if "$perlMagickStatus";
 }
 
-
-
-
 # $image->Draw(primitive=>'rectangle',method=>'Floodfill',fill=>'black',points=>"$halfPngX1,$halfPngY1,5,100",color=>'black');
 # $image->Draw(fill=>'black',points=>'$halfPngX2,$halfPngY2',floodfill=>'yes',color => 'black');
 #warn "$perlMagickStatus" if "$perlMagickStatus";
@@ -499,16 +496,17 @@ else {
 # warn "$perlMagickStatus" if "$perlMagickStatus";
 
 #We should eliminate icons and textboxes here
-removeIconsAndTextboxesInMaskedAreas("Obstacle Icon",\%obstacleIcons);
-removeIconsAndTextboxesInMaskedAreas("Obstacle TextBox",\%obstacleTextBoxes);
-removeIconsAndTextboxesInMaskedAreas("Fix Icon",\%fixIcons);
-removeIconsAndTextboxesInMaskedAreas("Fix TextBox",\%fixTextboxes);
-removeIconsAndTextboxesInMaskedAreas("Navaid Icon",\%navaidIcons);
-removeIconsAndTextboxesInMaskedAreas("Navaid TextBox",\%vorTextboxes);
-removeIconsAndTextboxesInMaskedAreas("GPS Icon",\%navaidIcons);
+removeIconsAndTextboxesInMaskedAreas( "Obstacle Icon",    \%obstacleIcons );
+removeIconsAndTextboxesInMaskedAreas( "Obstacle TextBox", \%obstacleTextBoxes );
+removeIconsAndTextboxesInMaskedAreas( "Fix Icon",         \%fixIcons );
+removeIconsAndTextboxesInMaskedAreas( "Fix TextBox",      \%fixTextboxes );
+removeIconsAndTextboxesInMaskedAreas( "Navaid Icon",      \%navaidIcons );
+removeIconsAndTextboxesInMaskedAreas( "Navaid TextBox",   \%vorTextboxes );
+removeIconsAndTextboxesInMaskedAreas( "GPS Icon",         \%navaidIcons );
 
-    #Draw boxes around the icons and textboxes we've found so far
-    outlineEverythingWeFound() if $shouldSaveMarkedPdf;
+#Draw boxes around the icons and textboxes we've found so far
+outlineEverythingWeFound() if $shouldSaveMarkedPdf;
+
 #----------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with obstacles
 #Get a list of unique potential obstacle heights from the pdftotext array
@@ -518,7 +516,7 @@ my @obstacle_heights = testfindObstacleHeightTexts(@pdfToTextBbox);
 #Find all obstacles within our defined distance from the airport that have a height in the list of potential obstacleTextBoxes and are unique
 my %unique_obstacles_from_db = ();
 my $unique_obstacles_from_dbCount;
-findObstaclesInDatabase( \%unique_obstacles_from_db );
+findObstaclesNearAirport( \%unique_obstacles_from_db );
 
 #Try to find closest obstacleTextBox center to each obstacleIcon center
 #and then do the reverse
@@ -745,6 +743,7 @@ say
 
 #Calculate the rough X and Y scale values
 if ( $gcpCount == 1 ) {
+    say "Didn't find 2 or more ground control points in $targetPdf";
 
     #Is it better to guess or do nothing?  I think we should do nothing
     #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
@@ -1042,10 +1041,12 @@ sub findAirportLatitudeAndLongitude {
                 $airportFaaId, $_airportLatitudeDec, $_airportLongitudeDec,
                 $airportname
             ) = @$row;
-            say "Airport ID: $airportFaaId";
-            say "Airport Latitude: $_airportLatitudeDec";
-            say "Airport Longitude: $_airportLongitudeDec";
-            say "Airport Name: $airportname";
+            if ($debug) {
+                say "Airport ID: $airportFaaId";
+                say "Airport Latitude: $_airportLatitudeDec";
+                say "Airport Longitude: $_airportLongitudeDec";
+                say "Airport Name: $airportname";
+            }
         }
         if ( $_airportLongitudeDec eq "" or $_airportLatitudeDec eq "" ) {
             say
@@ -1772,7 +1773,7 @@ sub findClosestSquigglyToA {
     return;
 }
 
-sub findObstaclesInDatabase {
+sub findObstaclesNearAirport {
 
     # my $radius     = ".2";
     my $minimumAgl = "0";
@@ -1808,40 +1809,40 @@ sub findObstaclesInDatabase {
         my $rows = $sth->rows();
         say "Found $rows objects of height $heightmsl" if $debug;
 
-        #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
-        #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
-        my $bestDistanceToAirport = 9999;
-        foreach my $row (@$all) {
-            my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
-            my $distanceToAirport =
-              sqrt( ( $lat - $airportLatitudeDec )**2 +
-                  ( $lon - $airportLongitudeDec )**2 );
-
-            #say    "current distance $distanceToAirport, best distance for object of height $heightmsl msl is now $bestDistanceToAirport";
-            next if ( $distanceToAirport > $bestDistanceToAirport );
-
-            $bestDistanceToAirport = $distanceToAirport;
-
-            #say "closest distance for object of height $heightmsl msl is now $bestDistanceToAirport";
-
-            $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
-            $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
-        }
-
-        # #Don't show results of searches that have more than one result, ie not unique
-        # next if ( $rows != 1 );
-
+        # #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
+        # #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
+        # my $bestDistanceToAirport = 9999;
         # foreach my $row (@$all) {
+            # my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+            # my $distanceToAirport =
+              # sqrt( ( $lat - $airportLatitudeDec )**2 +
+                  # ( $lon - $airportLongitudeDec )**2 );
 
-        # #Populate variables from our database lookup
-        # my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
-        # foreach my $pdf_obstacle_height (@obstacle_heights) {
-        # if ( $pdf_obstacle_height == $heightmsl ) {
-        # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
-        # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
+            # #say    "current distance $distanceToAirport, best distance for object of height $heightmsl msl is now $bestDistanceToAirport";
+            # next if ( $distanceToAirport > $bestDistanceToAirport );
+
+            # $bestDistanceToAirport = $distanceToAirport;
+
+            # #say "closest distance for object of height $heightmsl msl is now $bestDistanceToAirport";
+
+            # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
+            # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
         # }
-        # }
-        # }
+
+        #Don't show results of searches that have more than one result, ie not unique
+        next if ( $rows != 1 );
+
+        foreach my $row (@$all) {
+
+        #Populate variables from our database lookup
+        my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+        foreach my $pdf_obstacle_height (@obstacle_heights) {
+        if ( $pdf_obstacle_height == $heightmsl ) {
+        $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
+        $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
+        }
+        }
+        }
 
     }
 
@@ -2600,7 +2601,7 @@ sub findInsetCircles {
 ^S$
 ^Q$/m;
 
-    my @tempInsetCircle = $_output =~ /$insetCircleRegex/ig;
+    my @tempInsetCircle       = $_output =~ /$insetCircleRegex/ig;
     my $insetCircleDataPoints = 3;
 
     my $tempInsetCircleLength = 0 + @tempInsetCircle;
@@ -2864,7 +2865,7 @@ sub findFixIcons {
 ^S$
 ^Q$/m;
 
-    my @tempfixes = $_output =~ /$fixregex/ig;
+    my @tempfixes        = $_output =~ /$fixregex/ig;
     my $tempfixes_length = 0 + @tempfixes;
 
     #4 data points for each fix
@@ -3331,17 +3332,17 @@ sub calculateRoughRealWorldExtentsOfRaster {
 
             #X pixels between points
             my $pixelDistanceX =
-              abs( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
+              ( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
 
             #Y pixels between points
             my $pixelDistanceY =
-              abs( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} );
+              ( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} );
 
             #Longitude degrees between points
-            my $longitudeDiff = abs( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
+            my $longitudeDiff = ( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
 
             #Latitude degrees between points
-            my $latitudeDiff = abs( $gcps{$key}{"lat"} - $gcps{$key2}{"lat"} );
+            my $latitudeDiff = ( $gcps{$key}{"lat"} - $gcps{$key2}{"lat"} );
 
             # unless ( $pixelDistanceX
             # && $pixelDistanceY
@@ -3354,7 +3355,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
             # next;
             # }
 
-            #my $targetLongitudeToPixelRatio1 = 0.000000002*($ulY**3) - 0.00000008*($ulY**2) + 0.000002*$ulY + 0.0004;
+ 
 
             # if ( $latitudeToPixelRatio < .0003 || $latitudeToPixelRatio > .0006 ) {
             #was .00037 < x < .00039 and .00055 < x < .00059
@@ -3363,11 +3364,25 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #There seem to be three bands of scales
 
             #Do some basic sanity checking on the $latitudeToPixelRatio
-            if ( $pixelDistanceY > 10 && $latitudeDiff ) {
+            if ( abs($pixelDistanceY) > 10 && $latitudeDiff ) {
+                say
+                  "pixelDistanceY: $pixelDistanceY, latitudeDiff: $latitudeDiff" if $debug;
+                  
+                if ( same_sign( $pixelDistanceY, $latitudeDiff ) ) {
+                    say
+                      "Bad: for $key->$key2 pixelDistanceY and latitudeDiff have same same sign" if $debug;
+                    next;
+                }
+                
+                $pixelDistanceY = abs($pixelDistanceY);
+                $latitudeDiff         = abs($latitudeDiff);
+                
                 $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
+
+
                 if (
-                           not( between( $latitudeToPixelRatio, .00011, .00031 ) )
-                    
+                    not( between( $latitudeToPixelRatio, .00011, .00033 ) )
+
                     && not( between( $latitudeToPixelRatio, .00034, .00046 ) )
                     && not( between( $latitudeToPixelRatio, .00056, .00060 ) )
 
@@ -3375,12 +3390,12 @@ sub calculateRoughRealWorldExtentsOfRaster {
 
                   )
                 {
+                    $gcps{$key}{"Mismatches"} =
+                      ( $gcps{$key}{"Mismatches"} ) + 1;
+                    $gcps{$key2}{"Mismatches"} =
+                      ( $gcps{$key2}{"Mismatches"} ) + 1;
                     if ($debug) {
 
-                        $gcps{$key}{"Mismatches"} =
-                          ( $gcps{$key}{"Mismatches"} ) + 1;
-                        $gcps{$key2}{"Mismatches"} =
-                          ( $gcps{$key2}{"Mismatches"} ) + 1;
                         say
                           "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key->$key2 pair"
                           if $debug;
@@ -3401,30 +3416,38 @@ sub calculateRoughRealWorldExtentsOfRaster {
                         abs( $pngYSize - $gcps{$key}{"pngy"} ) *
                           $latitudeToPixelRatio );
 
-                    #Save this ratio if it seems nominally valid
+                    #Save this ratio if it seems nominally valid, we'll smooth out these values later
                     push @yScaleAvg, $latitudeToPixelRatio;
                     push @ulYAvg,    $ulY;
                     push @lrYAvg,    $lrY;
                 }
             }
 
-            if ( $pixelDistanceX > 10 && $longitudeDiff ) {
+            if ( abs($pixelDistanceX) > 10 && $longitudeDiff ) {
+                say
+                  "pixelDistanceX: $pixelDistanceX, longitudeDiff $longitudeDiff" if $debug;
+                if ( !( same_sign( $pixelDistanceX, $longitudeDiff ) ) ) {
+                    say
+                      "Bad: for $key->$key2: pixelDistanceX and longitudeDiff don't have same same sign" if $debug;
+                    next;
+                }
+                $longitudeDiff  = abs($longitudeDiff);
+                $pixelDistanceX = abs($pixelDistanceX);
+
                 $longitudeToPixelRatio = $longitudeDiff / $pixelDistanceX;
 
                 #Do some basic sanity checking on the $longitudeToPixelRatio
                 if ( $longitudeToPixelRatio > .0012 ) {
+                    $gcps{$key}{"Mismatches"} =
+                      ( $gcps{$key}{"Mismatches"} ) + 1;
+                      
+                    $gcps{$key2}{"Mismatches"} =
+                      ( $gcps{$key2}{"Mismatches"} ) + 1;
+                      
                     if ($debug) {
-
-                        $gcps{$key}{"Mismatches"} =
-                          ( $gcps{$key}{"Mismatches"} ) + 1;
-                        $gcps{$key2}{"Mismatches"} =
-                          ( $gcps{$key2}{"Mismatches"} ) + 1;
                         say
-                          "Bad longitudeToPixelRatio $longitudeToPixelRatio on $key-$key2 pair"
-                          if $debug;
+                          "Bad longitudeToPixelRatio $longitudeToPixelRatio on $key-$key2 pair";
                     }
-
-                    #   next;
                 }
                 else {
                     #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
@@ -3444,8 +3467,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 }
             }
 
-           #TODO BUG Is this a good idea?
-           #This is a hack to weight pairs that have both X and Y scales defined more heavily
+            #TODO BUG Is this a good idea?
+            #This is a hack to weight pairs that have a valid looking longitudeToPixelRatio more heavily
             if ( $ulX && $ulY && $lrX && $lrY ) {
 
                 #The X/Y (or Longitude/Latitude) ratio that would result from using this particular pair
@@ -3453,33 +3476,45 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 $longitudeToLatitudeRatio =
                   abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
 
-     
-                push @xScaleAvg, $longitudeToPixelRatio;
-                push @ulXAvg,    $ulX;
-                push @lrXAvg,    $lrX;
-                push @yScaleAvg, $latitudeToPixelRatio;
-                push @ulYAvg,    $ulY;
-                push @lrYAvg,    $lrY;
+                #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
+                my $targetLonLatRatio =
+                  0.000000000065 * ( $airportLatitudeDec**6 ) -
+                  0.000000010206 * ( $airportLatitudeDec**5 ) +
+                  0.000000614793 * ( $airportLatitudeDec**4 ) -
+                  0.000014000833 * ( $airportLatitudeDec**3 ) +
+                  0.000124430097 * ( $airportLatitudeDec**2 ) +
+                  0.003297052219 * ($airportLatitudeDec) + 0.618729977577;
+
+                if ( ( $longitudeToLatitudeRatio - $targetLonLatRatio ) < .09 )
+                {
+                    push @xScaleAvg, $longitudeToPixelRatio;
+                    push @ulXAvg,    $ulX;
+                    push @lrXAvg,    $lrX;
+                    push @yScaleAvg, $latitudeToPixelRatio;
+                    push @ulYAvg,    $ulY;
+                    push @lrYAvg,    $lrY;
+                }
+                else {
+                    say
+                      "Bad longitudeToLatitudeRatio: $longitudeToLatitudeRatio, expected $targetLonLatRatio.  Pair $key - $key2" if $debug;
+                }
             }
-            
-            
-            $ulY = 0 if not defined $ulY;
-            $ulX = 0 if not defined $ulX;
-            $lrY = 0 if not defined $lrY;
-            $lrX = 0 if not defined $lrX;
+
+            $ulY                   = 0 if not defined $ulY;
+            $ulX                   = 0 if not defined $ulX;
+            $lrY                   = 0 if not defined $lrY;
+            $lrX                   = 0 if not defined $lrX;
             $longitudeToPixelRatio = 0 if not defined $longitudeToPixelRatio;
-            $latitudeToPixelRatio = 0 if not defined $latitudeToPixelRatio;
-            $longitudeToLatitudeRatio = 0 if not defined $longitudeToLatitudeRatio;
+            $latitudeToPixelRatio  = 0 if not defined $latitudeToPixelRatio;
+            $longitudeToLatitudeRatio = 0
+              if not defined $longitudeToLatitudeRatio;
             say
               "$key,$key2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio"
               if $debug;
 
             #If our XYRatio seems to be out of whack for this object pair then don't use the info we derived
-            #Currently we're just silently ignoring this, should we try to figure out the bad objects and remove?
-            # my $targetLonLatRatio =
-            # 0.000004 * ( $ulY**3 ) -
-            # 0.0001 *   ( $ulY**2 ) +
-            # 0. * $ulY + 0.6739;
+
+            #= 0.000000000065*(B2^6) - 0.000000010206*(B2^5) + 0.000000614793*(B2^4) - 0.000014000833*(B2^3) + 0.000124430097*(B2^2) + 0.003297052219*(B2) + 0.618729977577
 
             # # if (   $longitudeToLatitudeRatio < .65
             # # || $longitudeToLatitudeRatio > 1.6 )
@@ -3543,12 +3578,34 @@ sub georeferenceTheRaster {
     my $medianLonDiff = $upperLeftLon - $lowerRightLon;
     my $medianLatDiff = $upperLeftLat - $lowerRightLat;
     $lonLatRatio = abs( $medianLonDiff / $medianLatDiff );
-
+    
+    #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
+                my $targetLonLatRatio =
+                  0.000000000065 * ( $airportLatitudeDec**6 ) -
+                  0.000000010206 * ( $airportLatitudeDec**5 ) +
+                  0.000000614793 * ( $airportLatitudeDec**4 ) -
+                  0.000014000833 * ( $airportLatitudeDec**3 ) +
+                  0.000124430097 * ( $airportLatitudeDec**2 ) +
+                  0.003297052219 * ($airportLatitudeDec) + 0.618729977577;
+   
+   
     $statistics{'$upperLeftLon'}  = $upperLeftLon;
     $statistics{'$upperLeftLat'}  = $upperLeftLat;
     $statistics{'$lowerRightLon'} = $lowerRightLon;
     $statistics{'$lowerRightLat'} = $lowerRightLat;
     $statistics{'$lonLatRatio'}   = $lonLatRatio;
+    $statistics{'$targetLonLatRatio'}   = $targetLonLatRatio;
+                
+                
+                if ( ( $lonLatRatio - $targetLonLatRatio ) > .09 )
+                {
+                    say
+                      "Bad lonLatRatio $lonLatRatio, expected $targetLonLatRatio.  Not georeferencing." if $debug;
+                      return;
+                }
+                        
+                  
+    
 
     if ($debug) {
         say "Output Longitude/Latitude Ratio: " . $lonLatRatio;
@@ -3635,55 +3692,55 @@ sub georeferenceTheRaster {
 
 # sub calculateRoughRealWorldExtentsOfRasterWithOneGCP {
 
-    # # say
-    # # "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
+# # say
+# # "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
 
-    # # my $guessAtLatitudeToPixelRatio = .00038;
-    # # my $targetXyRatio =
-    # # 0.000007 * ( $airportLatitudeDec**3 ) -
-    # # 0.0002 *   ( $airportLatitudeDec**2 ) +
-    # # 0.0037 *   ($airportLatitudeDec) + 1.034;
+# # my $guessAtLatitudeToPixelRatio = .00038;
+# # my $targetXyRatio =
+# # 0.000007 * ( $airportLatitudeDec**3 ) -
+# # 0.0002 *   ( $airportLatitudeDec**2 ) +
+# # 0.0037 *   ($airportLatitudeDec) + 1.034;
 
-    # # my $guessAtLongitudeToPixelRatio =
-    # # $targetXyRatio * $guessAtLatitudeToPixelRatio;
+# # my $guessAtLongitudeToPixelRatio =
+# # $targetXyRatio * $guessAtLatitudeToPixelRatio;
 
-    # # #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
-    # # #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
+# # #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
+# # #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
 
-    # # foreach my $key ( sort keys %gcps ) {
+# # foreach my $key ( sort keys %gcps ) {
 
-    # # #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
-    # # my $ulX =
-    # # $gcps{$key}{"lon"} -
-    # # ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
+# # #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
+# # my $ulX =
+# # $gcps{$key}{"lon"} -
+# # ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
 
-    # # #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
-    # # my $ulY =
-    # # $gcps{$key}{"lat"} +
-    # # ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
+# # #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
+# # my $ulY =
+# # $gcps{$key}{"lat"} +
+# # ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
 
-    # # #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
-    # # my $lrX =
-    # # $gcps{$key}{"lon"} +
-    # # (
-    # # abs( $pngXSize - $gcps{$key}{"pngx"} ) *
-    # # $guessAtLongitudeToPixelRatio );
+# # #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
+# # my $lrX =
+# # $gcps{$key}{"lon"} +
+# # (
+# # abs( $pngXSize - $gcps{$key}{"pngx"} ) *
+# # $guessAtLongitudeToPixelRatio );
 
-    # # #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
-    # # my $lrY =
-    # # $gcps{$key}{"lat"} -
-    # # (
-    # # abs( $pngYSize - $gcps{$key}{"pngy"} ) *
-    # # $guessAtLatitudeToPixelRatio );
+# # #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
+# # my $lrY =
+# # $gcps{$key}{"lat"} -
+# # (
+# # abs( $pngYSize - $gcps{$key}{"pngy"} ) *
+# # $guessAtLatitudeToPixelRatio );
 
-    # # push @xScaleAvg, $guessAtLongitudeToPixelRatio;
-    # # push @yScaleAvg, $guessAtLatitudeToPixelRatio;
-    # # push @ulXAvg,    $ulX;
-    # # push @ulYAvg,    $ulY;
-    # # push @lrXAvg,    $lrX;
-    # # push @lrYAvg,    $lrY;
-    # # }
-    # # return;
+# # push @xScaleAvg, $guessAtLongitudeToPixelRatio;
+# # push @yScaleAvg, $guessAtLatitudeToPixelRatio;
+# # push @ulXAvg,    $ulX;
+# # push @ulYAvg,    $ulY;
+# # push @lrXAvg,    $lrX;
+# # push @lrYAvg,    $lrY;
+# # }
+# # return;
 # }
 
 #X-scale: average:  0.000487670014404161	stdev: 6.26807390750141e-05	median: 0.000463842054942444
@@ -3764,8 +3821,8 @@ sub outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb {
 
         #Is there a obstacletextbox with the same text as our obstacle's height?
         if (
-            exists
-            $unique_obstacles_from_db{ $obstacleTextBoxes{$key}{"Text"} } )
+            exists $unique_obstacles_from_db{ $obstacleTextBoxes{$key}{"Text"} }
+          )
         {
             #Yes, draw a box around it
             my $obstacle_box = $page->gfx;
@@ -4648,20 +4705,22 @@ sub findNotToScaleIndicator {
 
     return;
 }
-sub removeIconsAndTextboxesInMaskedAreas{
+
+sub removeIconsAndTextboxesInMaskedAreas {
+
     #Remove an icon or a text box if it is in an area that is masked out
     say "removeIconsAndTextboxesInMaskedAreas" if $debug;
     my ( $type, $targetHashRef ) = @_;
-    
+
     say "type: $type, hashref $targetHashRef" if $debug;
 
     foreach my $key ( sort keys %$targetHashRef ) {
 
         my $_pdfX = $targetHashRef->{$key}{"CenterX"};
         my $_pdfY = $targetHashRef->{$key}{"CenterY"};
-      
-        next unless ( $_pdfX && $_pdfY);
-        
+
+        next unless ( $_pdfX && $_pdfY );
+
         my @pixels;
         my $_rasterX = $_pdfX * $scaleFactorX;
         my $_rasterY = $pngYSize - ( $_pdfY * $scaleFactorY );
@@ -4677,10 +4736,10 @@ sub removeIconsAndTextboxesInMaskedAreas{
             }
             else {
                 say "$type $key is being deleted" if $debug;
-                delete  $targetHashRef->{$key};
+                delete $targetHashRef->{$key};
             }
 
         }
     }
     return;
-    }
+}
