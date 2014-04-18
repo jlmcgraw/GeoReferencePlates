@@ -1809,40 +1809,40 @@ sub findObstaclesNearAirport {
         my $rows = $sth->rows();
         say "Found $rows objects of height $heightmsl" if $debug;
 
-        # #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
-        # #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
-        # my $bestDistanceToAirport = 9999;
-        # foreach my $row (@$all) {
-            # my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
-            # my $distanceToAirport =
-              # sqrt( ( $lat - $airportLatitudeDec )**2 +
-                  # ( $lon - $airportLongitudeDec )**2 );
-
-            # #say    "current distance $distanceToAirport, best distance for object of height $heightmsl msl is now $bestDistanceToAirport";
-            # next if ( $distanceToAirport > $bestDistanceToAirport );
-
-            # $bestDistanceToAirport = $distanceToAirport;
-
-            # #say "closest distance for object of height $heightmsl msl is now $bestDistanceToAirport";
-
-            # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
-            # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
-        # }
-
-        #Don't show results of searches that have more than one result, ie not unique
-        next if ( $rows != 1 );
-
+        #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
+        #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
+        my $bestDistanceToAirport = 9999;
         foreach my $row (@$all) {
+            my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+            my $distanceToAirport =
+              sqrt( ( $lat - $airportLatitudeDec )**2 +
+                  ( $lon - $airportLongitudeDec )**2 );
 
-        #Populate variables from our database lookup
-        my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
-        foreach my $pdf_obstacle_height (@obstacle_heights) {
-        if ( $pdf_obstacle_height == $heightmsl ) {
-        $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
-        $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
+            #say    "current distance $distanceToAirport, best distance for object of height $heightmsl msl is now $bestDistanceToAirport";
+            next if ( $distanceToAirport > $bestDistanceToAirport );
+
+            $bestDistanceToAirport = $distanceToAirport;
+
+            #say "closest distance for object of height $heightmsl msl is now $bestDistanceToAirport";
+
+            $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
+            $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
         }
-        }
-        }
+
+        # #Don't show results of searches that have more than one result, ie not unique
+        # next if ( $rows != 1 );
+
+        # foreach my $row (@$all) {
+
+        # #Populate variables from our database lookup
+        # my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+        # foreach my $pdf_obstacle_height (@obstacle_heights) {
+        # if ( $pdf_obstacle_height == $heightmsl ) {
+        # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
+        # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
+        # }
+        # }
+        # }
 
     }
 
