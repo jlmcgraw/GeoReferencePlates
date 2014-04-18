@@ -1,6 +1,9 @@
-Requires a database containing lat/lon info (included in the git repository)
+Requires Instrument Approach Procedure plates
+	Download these with the "downloadPlates.pl" file
 
-Requires Perl > 5.010
+Requires a database containing lat/lon info (currently included in the git repository)
+
+Requires perl version > 5.010
 
 Requires the following external programs
 	GDAL
