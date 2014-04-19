@@ -62,8 +62,8 @@ use POSIX;
 
 # use Math::Round;
 use Time::HiRes q/gettimeofday/;
-use Math::Polygon;
-use Acme::Tools qw(between);
+#use Math::Polygon;
+# use Acme::Tools qw(between);
 use Image::Magick;
 use File::Slurp;
 
@@ -3366,12 +3366,12 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
 
                 if (
-                    not( between( $latitudeToPixelRatio, .00011, .00033 ) )
+                    not( is_between(  .00011, .00033 , $latitudeToPixelRatio) )
 
-                    && not( between( $latitudeToPixelRatio, .00034, .00046 ) )
-                    && not( between( $latitudeToPixelRatio, .00056, .00060 ) )
+                    && not( is_between(  .00034, .00046, $latitudeToPixelRatio ) )
+                    && not( is_between(  .00056, .00060, $latitudeToPixelRatio,) )
 
-                    #&& not( between( $latitudeToPixelRatio, .00084, .00085 ) )
+                    #&& not( is_between(  .00084, .00085, $latitudeToPixelRatio ) )
 
                   )
                 {

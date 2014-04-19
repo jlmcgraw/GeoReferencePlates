@@ -27,7 +27,7 @@ use Carp;
 $VERSION = 1.00;
 @ISA     = qw(Exporter);
 @EXPORT =
-  qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev median same_sign);
+  qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev median same_sign is_between);
 
 #@EXPORT_OK   = qw(  coordinatetodecimal );
 
@@ -193,4 +193,11 @@ sub same_sign {
     # return 0;
     # }
 }
+
+sub is_between {
+    my $lower = shift;
+    my $upper = shift;
+    my $num = shift;
+    return (sort{$a <=> $b} $lower, $upper, $num)[1] == $num;
+    }
 1;
