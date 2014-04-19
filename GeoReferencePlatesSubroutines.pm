@@ -52,14 +52,17 @@ sub coordinatetodecimal {
     return "" if !( $declination =~ /[NSEW]/ );
 
     $coordinate =~ m/^(\d{1,3})-/;
+
     #print $1;
     $deg = $1 / 1;
-    
+
     $coordinate =~ m/-(\d{2})-/;
+
     #print $1;
     $min = $1 / 60;
-    
+
     $coordinate =~ m/-(\d{2}\.\d+)/;
+
     #print $1;
     $sec = $1 / 3600;
 
@@ -196,7 +199,7 @@ sub same_sign {
 sub is_between {
     my $lower = shift;
     my $upper = shift;
-    my $num = shift;
-    return (sort{$a <=> $b} $lower, $upper, $num)[1] == $num;
-    }
+    my $num   = shift;
+    return ( sort { $a <=> $b } $lower, $upper, $num )[1] == $num;
+}
 1;
