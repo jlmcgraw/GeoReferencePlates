@@ -110,7 +110,7 @@ my %statistics = (
     '$upperLeftLat'                    => "0",
     '$lowerRightLon'                   => "0",
     '$lowerRightLat'                   => "0",
-    '$targetLonLatRatio'   => "0"
+    '$targetLonLatRatio'               => "0"
 );
 
 use vars qw/ %opt /;
@@ -421,17 +421,6 @@ if ( !-e $outputPdfOutlines ) {
 
 #---------------------------------------------------
 #Convert the outlines PDF to a PNG
-#TODO Let's make this a uncompressed mono bitmap so we can save the output to an array
-#qx(pdftoppm -png -mono -r $pngDpi $outputPdfOutlines > $outputPdfOutlines.png);
-# my $halfPngX1 = $pngXSize / 2 + 5;
-# my $halfPngY1 = $pngYSize / 2 + 5;
-# my $halfPngX2 = $pngXSize / 2 - 5;
-# my $halfPngY2 = $pngXSize / 2 - 5;
-
-#Do a flood fill on that png with starting points around the middle
-# qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX1,$halfPngY1 floodfill' $outputPdfOutlines.png);
-# qx(convert $outputPdfOutlines.png -fill black -draw 'color $halfPngX2,$halfPngY2 floodfill' $outputPdfOutlines.png);
-
 #testing out using perlMagick
 my ( $image, $perlMagickStatus );
 $image = Image::Magick->new;
@@ -1975,7 +1964,6 @@ sub findGpsWaypointIcons {
             say "$x\t$y\t$x1\t$y1\t$x2\t$y2\t$xOffset\t$yOffset" if $debug;
 
             #put them into a hash
-            #TODO Calculate the midpoint properly, this number is an estimation (although a good one)
             $gpsWaypointIcons{ $i . $rand }{"CenterX"}       = $x + $xOffset;
             $gpsWaypointIcons{ $i . $rand }{"CenterY"}       = $y + $yOffset;
             $gpsWaypointIcons{ $i . $rand }{"Width"}         = $width;
@@ -1983,8 +1971,6 @@ sub findGpsWaypointIcons {
             $gpsWaypointIcons{ $i . $rand }{"GeoreferenceX"} = $x + $xOffset;
             $gpsWaypointIcons{ $i . $rand }{"GeoreferenceY"} = $y + $yOffset;
             $gpsWaypointIcons{ $i . $rand }{"Type"}          = "gps";
-
-            # $gpsWaypointIcons{$i}{"Name"} = "none";
         }
 
     }
@@ -2003,7 +1989,7 @@ sub findGpsWaypointIcons {
 #--------------------------------------------------------------------------------------------------------------------------------------
 sub findNavaidIcons {
 
-    #TODO Add VOR icon, see IN-ASW-ILS-OR-LOC-DME-RWY-27.pdf_obstacle_height
+    #TODO Add VOR icon, see IN-ASW-ILS-OR-LOC-DME-RWY-27.pdf
     #I'm going to lump finding all of the navaid icons into here for now
     #Before I clean it up
     my ($_output) = @_;
@@ -3355,8 +3341,6 @@ sub calculateRoughRealWorldExtentsOfRaster {
             # next;
             # }
 
- 
-
             # if ( $latitudeToPixelRatio < .0003 || $latitudeToPixelRatio > .0006 ) {
             #was .00037 < x < .00039 and .00055 < x < .00059
 
@@ -3366,19 +3350,20 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #Do some basic sanity checking on the $latitudeToPixelRatio
             if ( abs($pixelDistanceY) > 10 && $latitudeDiff ) {
                 say
-                  "pixelDistanceY: $pixelDistanceY, latitudeDiff: $latitudeDiff" if $debug;
-                  
+                  "pixelDistanceY: $pixelDistanceY, latitudeDiff: $latitudeDiff"
+                  if $debug;
+
                 if ( same_sign( $pixelDistanceY, $latitudeDiff ) ) {
                     say
-                      "Bad: for $key->$key2 pixelDistanceY and latitudeDiff have same same sign" if $debug;
+                      "Bad: for $key->$key2 pixelDistanceY and latitudeDiff have same same sign"
+                      if $debug;
                     next;
                 }
-                
-                $pixelDistanceY = abs($pixelDistanceY);
-                $latitudeDiff         = abs($latitudeDiff);
-                
-                $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
 
+                $pixelDistanceY = abs($pixelDistanceY);
+                $latitudeDiff   = abs($latitudeDiff);
+
+                $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
 
                 if (
                     not( between( $latitudeToPixelRatio, .00011, .00033 ) )
@@ -3425,10 +3410,12 @@ sub calculateRoughRealWorldExtentsOfRaster {
 
             if ( abs($pixelDistanceX) > 10 && $longitudeDiff ) {
                 say
-                  "pixelDistanceX: $pixelDistanceX, longitudeDiff $longitudeDiff" if $debug;
+                  "pixelDistanceX: $pixelDistanceX, longitudeDiff $longitudeDiff"
+                  if $debug;
                 if ( !( same_sign( $pixelDistanceX, $longitudeDiff ) ) ) {
                     say
-                      "Bad: for $key->$key2: pixelDistanceX and longitudeDiff don't have same same sign" if $debug;
+                      "Bad: for $key->$key2: pixelDistanceX and longitudeDiff don't have same same sign"
+                      if $debug;
                     next;
                 }
                 $longitudeDiff  = abs($longitudeDiff);
@@ -3440,10 +3427,10 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 if ( $longitudeToPixelRatio > .0012 ) {
                     $gcps{$key}{"Mismatches"} =
                       ( $gcps{$key}{"Mismatches"} ) + 1;
-                      
+
                     $gcps{$key2}{"Mismatches"} =
                       ( $gcps{$key2}{"Mismatches"} ) + 1;
-                      
+
                     if ($debug) {
                         say
                           "Bad longitudeToPixelRatio $longitudeToPixelRatio on $key-$key2 pair";
@@ -3496,7 +3483,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 }
                 else {
                     say
-                      "Bad longitudeToLatitudeRatio: $longitudeToLatitudeRatio, expected $targetLonLatRatio.  Pair $key - $key2" if $debug;
+                      "Bad longitudeToLatitudeRatio: $longitudeToLatitudeRatio, expected $targetLonLatRatio.  Pair $key - $key2"
+                      if $debug;
                 }
             }
 
@@ -3578,34 +3566,29 @@ sub georeferenceTheRaster {
     my $medianLonDiff = $upperLeftLon - $lowerRightLon;
     my $medianLatDiff = $upperLeftLat - $lowerRightLat;
     $lonLatRatio = abs( $medianLonDiff / $medianLatDiff );
-    
+
     #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-                my $targetLonLatRatio =
-                  0.000000000065 * ( $airportLatitudeDec**6 ) -
-                  0.000000010206 * ( $airportLatitudeDec**5 ) +
-                  0.000000614793 * ( $airportLatitudeDec**4 ) -
-                  0.000014000833 * ( $airportLatitudeDec**3 ) +
-                  0.000124430097 * ( $airportLatitudeDec**2 ) +
-                  0.003297052219 * ($airportLatitudeDec) + 0.618729977577;
-   
-   
-    $statistics{'$upperLeftLon'}  = $upperLeftLon;
-    $statistics{'$upperLeftLat'}  = $upperLeftLat;
-    $statistics{'$lowerRightLon'} = $lowerRightLon;
-    $statistics{'$lowerRightLat'} = $lowerRightLat;
-    $statistics{'$lonLatRatio'}   = $lonLatRatio;
-    $statistics{'$targetLonLatRatio'}   = $targetLonLatRatio;
-                
-                
-                if ( ( $lonLatRatio - $targetLonLatRatio ) > .09 )
-                {
-                    say
-                      "Bad lonLatRatio $lonLatRatio, expected $targetLonLatRatio.  Not georeferencing." if $debug;
-                      return;
-                }
-                        
-                  
-    
+    my $targetLonLatRatio =
+      0.000000000065 * ( $airportLatitudeDec**6 ) -
+      0.000000010206 * ( $airportLatitudeDec**5 ) +
+      0.000000614793 * ( $airportLatitudeDec**4 ) -
+      0.000014000833 * ( $airportLatitudeDec**3 ) +
+      0.000124430097 * ( $airportLatitudeDec**2 ) +
+      0.003297052219 * ($airportLatitudeDec) + 0.618729977577;
+
+    $statistics{'$upperLeftLon'}      = $upperLeftLon;
+    $statistics{'$upperLeftLat'}      = $upperLeftLat;
+    $statistics{'$lowerRightLon'}     = $lowerRightLon;
+    $statistics{'$lowerRightLat'}     = $lowerRightLat;
+    $statistics{'$lonLatRatio'}       = $lonLatRatio;
+    $statistics{'$targetLonLatRatio'} = $targetLonLatRatio;
+
+    if ( ( $lonLatRatio - $targetLonLatRatio ) > .09 ) {
+        say
+          "Bad lonLatRatio $lonLatRatio, expected $targetLonLatRatio.  Not georeferencing."
+          if $debug;
+        return;
+    }
 
     if ($debug) {
         say "Output Longitude/Latitude Ratio: " . $lonLatRatio;

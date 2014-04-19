@@ -92,7 +92,7 @@ sub coordinatetodecimal {
 
 sub uniq {
 
-  #Remove duplicates from a hash, leaving only one entry (eg 1 2 3 2 2 -> 1 2 3)
+    #Remove duplicates from a hash, leaving only one entry (eg 1 2 3 2 2 -> 1 2 3)
     my %seen = ();
     my @r    = ();
     foreach my $a (@_) {
@@ -129,8 +129,8 @@ sub onlyuniq {
 sub average {
     my ($data) = @_;
     if ( not @$data ) {
-        croak ("Average: Empty array\n");
-        
+        croak("Average: Empty array\n");
+
     }
     my $total = 0;
     foreach (@$data) {
@@ -175,21 +175,22 @@ sub by_number {
     else              { 0 }
 }
 
-  sub same_sign {
-$_[0]*$_[1] > 0;
+sub same_sign {
+    $_[0] * $_[1] > 0;
+
     # my ($x,$y) = @_;
 
     # if ( undef($x) or undef($y)) {
-       # return 0;           # "undef" is never same-sign
+    # return 0;           # "undef" is never same-sign
     # }
     # if (   ( ($x >= 0) and ($y >= 0) )
-        # or ( ($x <  0) and ($y <  0) ) )
+    # or ( ($x <  0) and ($y <  0) ) )
     # {
-       # return 1;
+    # return 1;
     # }
-    # else 
+    # else
     # {
-       # return 0;
+    # return 0;
     # }
-  } 
+}
 1;
