@@ -130,7 +130,7 @@ if ( $arg_num < 1 ) {
 }
 
 sub usage {
-    say "Usage: $0 <pdf_file>";
+    say "Usage: $0 <options> <pdf_file>";
     say "-v debug";
     say "-a<FAA airport ID>  To specify an airport ID";
     say "-p Output a marked up version of PDF";

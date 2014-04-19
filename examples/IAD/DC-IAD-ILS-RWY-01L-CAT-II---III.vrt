@@ -1,0 +1,41 @@
+<VRTDataset rasterXSize="1613" rasterYSize="2475">
+  <SRS>GEOGCS[&quot;WGS 84&quot;,DATUM[&quot;WGS_1984&quot;,SPHEROID[&quot;WGS 84&quot;,6378137,298.257223563,AUTHORITY[&quot;EPSG&quot;,&quot;7030&quot;]],TOWGS84[0,0,0,0,0,0,0],AUTHORITY[&quot;EPSG&quot;,&quot;6326&quot;]],PRIMEM[&quot;Greenwich&quot;,0,AUTHORITY[&quot;EPSG&quot;,&quot;8901&quot;]],UNIT[&quot;degree&quot;,0.0174532925199433,AUTHORITY[&quot;EPSG&quot;,&quot;9108&quot;]],AUTHORITY[&quot;EPSG&quot;,&quot;4326&quot;]]</SRS>
+  <GeoTransform> -7.7966908903624201e+01,  4.9054621616249092e-04,  0.0000000000000000e+00,  3.9239610661617199e+01,  0.0000000000000000e+00, -3.8443659354545513e-04</GeoTransform>
+  <Metadata />
+  <Metadata domain="IMAGE_STRUCTURE">
+    <MDI key="INTERLEAVE">PIXEL</MDI>
+  </Metadata>
+  <VRTRasterBand dataType="Byte" band="1">
+    <Metadata />
+    <ColorInterp>Red</ColorInterp>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">DC-IAD-ILS-RWY-01L-CAT-II---III.png</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="1613" RasterYSize="2475" DataType="Byte" BlockXSize="1613" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="1613" ySize="2475" />
+      <DstRect xOff="0" yOff="0" xSize="1613" ySize="2475" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Byte" band="2">
+    <Metadata />
+    <ColorInterp>Green</ColorInterp>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">DC-IAD-ILS-RWY-01L-CAT-II---III.png</SourceFilename>
+      <SourceBand>2</SourceBand>
+      <SourceProperties RasterXSize="1613" RasterYSize="2475" DataType="Byte" BlockXSize="1613" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="1613" ySize="2475" />
+      <DstRect xOff="0" yOff="0" xSize="1613" ySize="2475" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Byte" band="3">
+    <Metadata />
+    <ColorInterp>Blue</ColorInterp>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">DC-IAD-ILS-RWY-01L-CAT-II---III.png</SourceFilename>
+      <SourceBand>3</SourceBand>
+      <SourceProperties RasterXSize="1613" RasterYSize="2475" DataType="Byte" BlockXSize="1613" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="1613" ySize="2475" />
+      <DstRect xOff="0" yOff="0" xSize="1613" ySize="2475" />
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

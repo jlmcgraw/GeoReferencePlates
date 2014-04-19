@@ -52,15 +52,14 @@ sub coordinatetodecimal {
     return "" if !( $declination =~ /[NSEW]/ );
 
     $coordinate =~ m/^(\d{1,3})-/;
-
     #print $1;
     $deg = $1 / 1;
+    
     $coordinate =~ m/-(\d{2})-/;
-
     #print $1;
     $min = $1 / 60;
+    
     $coordinate =~ m/-(\d{2}\.\d+)/;
-
     #print $1;
     $sec = $1 / 3600;
 
@@ -71,12 +70,12 @@ sub coordinatetodecimal {
     }
 
     given ($declination) {
-        when (/NS/) {
+        when (/N|S/) {
 
             #Latitude is invalid if less than -90  or greater than 90
             $signeddegrees = "" if ( abs($signeddegrees) > 90 );
         }
-        when (/EW/) {
+        when (/E|W/) {
 
             #Longitude is invalid if less than -180 or greater than 180
             $signeddegrees = "" if ( abs($signeddegrees) > 180 );
@@ -85,8 +84,8 @@ sub coordinatetodecimal {
         }
 
     }
-    print "Coordinate: $coordinate to $signeddegrees\n"        if $debug;
-    print "Deg: $deg, Min:$min, Sec:$sec, Decl:$declination\n" if $debug;
+    say "Coordinate: $coordinate to $signeddegrees"        if $debug;
+    say "Deg: $deg, Min:$min, Sec:$sec, Decl:$declination" if $debug;
     return ($signeddegrees);
 }
 
