@@ -1,25 +1,42 @@
-Requires Instrument Approach Procedure plates
-	Download these with the "downloadPlates.pl" file
+These instructions are based on Ubuntu
 
-Requires a database containing lat/lon info (currently included in the git repository)
+How to get this utility up and running:
+
+Enable the "universe" repository in "Software & Updates" section of System Settings and update
+
+Install git
+	sudo apt-get install git
+
+Download the repository
+	git clone https://github.com/jlmcgraw/GeoReferencePlates
+
+Install the following external programs
+	gdal 			(sudo apt-get install gdal-bin)
+	mupdf-tools 		(sudo apt-get install mupdf-tools)
+	sqlite3 		(sudo apt-get install sqlite3)
+
+Install the following CPAN modules
+	PDF::API2   	(sudo apt-get install libpdf-api2-perl)
+	DBI 		(sudo apt-get install libdbi-perl)
+	DBD::SQLite3	(sudo apt-get install libdbd-sqlite3-perl)
+	 
+	Image::Magick	(sudo apt-get install libimage-magick-perl)
+	use File::Slurp	(sudo apt-get install libfile-slurp-perl)
+
+	XML::Xpath 	(sudo apt-get install libxml-xpath-perl)
+
+Download Instrument Approach Procedure plates
+	- Download these with the "downloadPlates.pl" file
+	- They must be named like state-airport-procedure.pdf
+		eg "VA-OFP-VOR-A-RWY16"
+	
+	downloadPlates.pl requires the following CPAN modules:
+		XML::Xpath (sudo apt-get install libxml-xpath-perl)
+
+Requires a database containing lat/lon info 
+	(currently included in the git repository)
 
 Requires perl version > 5.010
 
-Requires the following external programs
-	GDAL
-	mupdf-tools (sudo apt-get install mupdf-tools)
-	pdftotext
-	sqlite3 (sudo apt-get install sqlite3)
 
-Requires the following CPAN modules
-	PDF::API2   (sudo apt-get install libpdf-api2-perl)
-	DBI
-	Data::Dumper
-	File::Basename
-	Math::Polygon (sudo apt-get install libmath-polygon-perl)
 
-	use Math::Trig
-	use Math::Polygon
-	use Acme::Tools qw(between)
-	use Image::Magick
-	use File::Slurp

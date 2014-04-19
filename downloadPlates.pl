@@ -13,7 +13,8 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Copywrite 2012 Mike Stewart http://www.mstewart.net
+# Copyright 2012 Mike Stewart http://www.mstewart.net
+#
 # Modified 2014 by Jesse McGraw (jlmcgraw@gmail.com)
 
 use v5.10;
@@ -55,18 +56,14 @@ my $procedureLocalName = "";
 my $tppIndex =
   "http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/";
 my $xmlFile   = "d-TPP_Metafile.xml";
-my $outputDir = "rawPlates";
+my $outputDir = "plates";
 
 # Define wgetCmd here as null for global scoping, we'll set it below based on the Operating System
 my $wgetCmd = "";
 
-#my $wgetCmd   = "wget --tries=8 -T 30 --progress=bar:force -nv -O ";
-#my $wgetCmd   = "wget --tries=8 --progress=bar:force -nv -O ";
-
 my $MySlash = "\\";    #thanks Matt
 my $MyDash  = "-";
 
-#my $indexFile = "d-tpp-index.html";#NACO index file to parse to get current cycle
 my $indexFile = "index.html";    #NACO index file to parse to get current cycle
 my $filesize;
 
@@ -220,7 +217,8 @@ foreach my $tpp ( $tppSet->get_nodelist ) {
           "html cycle:$htmlcycle does not equal xml cycle:$xmlcycle  . The XML CATALOG IS OUT OF DATE!!!!\n";
         print
           "I'm getting the files from cycle $htmlcycle but they are NOT CURRENT!\n";
-        $xmlcycle = $htmlcycle
+
+        $xmlcycle = $htmlcycle;
 
           print "xmlcycle now is $xmlcycle\n";
 
