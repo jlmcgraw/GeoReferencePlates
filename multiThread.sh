@@ -45,8 +45,12 @@ if  [ -e ./statistics.csv ]
     rm ./statistics.csv
 fi
 
+#Uncomment this to do a list of airports
 #for target in IAH ATL DCA IAD BOS EWR JFK SFO DEN RIC OFP CHO JGG ORD ORF PHF PHL BWI SEA EDU VCB SMF SAC APN LAX SAN SLC CLE CVG CAE CLT LGA LAS ANC MSP MCO DTW FLL MDW STL MEM HNL PDX OAK HOU IND AUS MCI SAT MSY SDF BNA DAL SJC SJU PIT MKE BUF RSW JAX RDU SSI
+
+#Uncomment this to do all plates in $mainPlatesDirectory (./plates by default)
 #for target in .
+
 for target in SSI
 do
   echo Target: $target
@@ -59,9 +63,10 @@ do
 
   #Georeference all of the plates in the "./plates" subdirectory and below using $cpus processes
   #Ignore airport diagrams, hotspots, lahso, and sids/stars
+  #Change the options here to create statistics or marked PDFs
    desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s
    
-   #Use this command if you have a file "args.txt" containing a specific list of PDFs to process
+   #Use this command if you have a file "args.txt" containing a specific list of PDFs to process (eg a list of plates that didn't work properly)
   #xargs --arg-file=args.txt --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s -p
 
   #Now do stop executing on  error return codes
