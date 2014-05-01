@@ -3,9 +3,6 @@
 # GeoRerencePlates - a utility to automatically georeference FAA Instrument Approach Plates / Terminal Procedures
 # Copyright (C) 2013  Jesse McGraw (jlmcgraw@gmail.com)
 #
-#You MAY NOT use the output of this program, or any modifed versions, for commercial use without prior arrangement with the original author
-#You MAY use the output in non-commercial applications
-
 #--------------------------------------------------------------------------------------------------------------------------------------------
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,6 +30,11 @@
 #Our pixel/RealWorld ratios are hardcoded now for 300dpi, need to make dynamic per our DPI setting
 #
 #TODO
+#Instead of only matching on closest, iterate over every icon making sure it's matched to some textbox
+#    (eg if one icon <-> textbox pair does match as closest to each other, remove that textbox from consideration for the rest of the icons, loop until all icons have a match)
+#
+#Try to find the runways themselves to use as GCPs
+#
 #Generate the text, text w/ bounding box, and pdfdump output once and re-use in future runs (like we're doing with the masks)
 #Generate the mask bitmap totally in memory instead of via pdf->png
 #
@@ -58,6 +60,8 @@ use File::Basename;
 use Getopt::Std;
 use Carp;
 use Math::Trig;
+use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
+use Math::Round;
 use POSIX;
 
 # use Math::Round;
@@ -78,7 +82,7 @@ use GeoReferencePlatesSubroutines;
 
 #Some other constants
 #----------------------------------------------------------------------------------------------
-#Max allowed radius in PDF points from an icon (obstacle, fix, gps) to it's associated textbox's center
+#Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its associated textbox's center
 my $maxDistanceFromObstacleIconToTextBox = 20;
 
 #DPI of the output PNG
@@ -223,11 +227,11 @@ if ( @pdftotext eq "" || $retval != 0 ) {
 }
 $statistics{'$pdftotext'} = scalar(@pdftotext);
 
-if ( scalar(@pdftotext) < 5 ) {
-    say "Not enough pdftotext output for $targetPdf";
-    writeStatistics() if $shouldOutputStatistics;
-    exit(1);
-}
+# if ( scalar(@pdftotext) < 5 ) {
+# say "Not enough pdftotext output for $targetPdf";
+# writeStatistics() if $shouldOutputStatistics;
+# exit(1);
+# }
 
 #Abort if the chart says it's not to scale
 foreach my $line (@pdftotext) {
@@ -343,6 +347,15 @@ my %insetCircles = ();
 my %notToScaleIndicator = ();
 
 # my $notToScaleIndicatorCount = 0;
+my %runwayIcons         = ();
+my %runwaysFromDatabase = ();
+my @validRunwaySlopes   = ();
+
+#Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
+findRunwaysInDatabase();
+# say "runwaysFromDatabase";
+# print Dumper ( \%runwaysFromDatabase );
+# say "";
 
 # #Get number of objects/streams in the targetpdf
 my $objectstreams = getNumberOfStreams();
@@ -361,7 +374,7 @@ findAllIcons();
 
 # #findFinalApproachFixIcons($_output);
 # #findVisualDescentPointIcons($_output);
-# findHorizontalLines($$rawPdf);
+# findHorizontalAndVerticalLines($$rawPdf);
 # findInsetBoxes($$rawPdf);
 # findLargeBoxes($$rawPdf);
 # findInsetCircles($$rawPdf);
@@ -403,7 +416,6 @@ my ( $lowerYCutoff, $upperYCutoff );
 if ( !-e $outputPdfOutlines ) {
 
     #Make our masking PDF
-
     $pdfOutlines = PDF::API2->new();
 
     #Set up the various types of boxes to draw on the output PDF
@@ -422,7 +434,6 @@ if ( !-e $outputPdfOutlines ) {
 
 #---------------------------------------------------
 #Convert the outlines PDF to a PNG
-#testing out using perlMagick
 my ( $image, $perlMagickStatus );
 $image = Image::Magick->new;
 
@@ -485,7 +496,7 @@ else {
 # $perlMagickStatus = $image->Write("$outputPdfOutlines.png");
 # warn "$perlMagickStatus" if "$perlMagickStatus";
 
-#We should eliminate icons and textboxes here
+#Using the created mask file, eliminate icons and textboxes from further consideration
 removeIconsAndTextboxesInMaskedAreas( "Obstacle Icon",    \%obstacleIcons );
 removeIconsAndTextboxesInMaskedAreas( "Obstacle TextBox", \%obstacleTextBoxes );
 removeIconsAndTextboxesInMaskedAreas( "Fix Icon",         \%fixIcons );
@@ -493,9 +504,87 @@ removeIconsAndTextboxesInMaskedAreas( "Fix TextBox",      \%fixTextboxes );
 removeIconsAndTextboxesInMaskedAreas( "Navaid Icon",      \%navaidIcons );
 removeIconsAndTextboxesInMaskedAreas( "Navaid TextBox",   \%vorTextboxes );
 removeIconsAndTextboxesInMaskedAreas( "GPS Icon",         \%navaidIcons );
+removeIconsAndTextboxesInMaskedAreas( "Runway Lines",     \%runwayIcons );
 
+if ($debug) {
+say "runwayIcons";
+print Dumper ( \%runwayIcons );
+say "runwaysFromDatabase";
+print Dumper ( \%runwaysFromDatabase );
+}
 #Draw boxes around the icons and textboxes we've found so far
 outlineEverythingWeFound() if $shouldSaveMarkedPdf;
+
+#------------------------------------------------------------------------------------------------------------------------------------------
+#Runways
+my %matchedRunIconsToDatabase = ();
+
+#If we have the same number of icons as unique runways
+#if ( scalar keys %runwayIcons == scalar keys %runwaysFromDatabase ) {
+    foreach my $key ( keys %runwayIcons ) {
+        foreach my $key2 ( keys %runwaysFromDatabase ) {
+
+            #Find an icon and database entry that match
+            if (abs($runwayIcons{$key}{Slope} -$runwaysFromDatabase{$key2}{Slope}) <= 1)            {
+                my $x = $runwayIcons{$key}{"X"};
+                my $y = $runwayIcons{$key}{"Y"};
+                my $x2 = $runwayIcons{$key}{"X2"};
+                my $y2 = $runwayIcons{$key}{"Y2"};
+                        my $HEHeading = $runwaysFromDatabase{$key2}{HEHeading};
+                        my $HELatitude = $runwaysFromDatabase{$key2}{HELatitude};
+                        my $HELongitude = $runwaysFromDatabase{$key2}{HELongitude};
+                        my $LEHeading= $runwaysFromDatabase{$key2}{LEHeading};
+                        my $LELatitude = $runwaysFromDatabase{$key2}{LELatitude};
+                        my $LELongitude = $runwaysFromDatabase{$key2}{LELongitude};
+                #If the line matches the LEHeading vector
+                if (abs($runwayIcons{$key}{TrueHeading} -$runwaysFromDatabase{$key2}{LEHeading}) <= 1)                {
+                    say "Matched LE" if $debug;
+                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x;
+                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
+                     $matchedRunIconsToDatabase{$LEHeading}{"Text"} = "Runway".$LEHeading;
+                     $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
+                      
+                      $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x2;
+                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y2;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
+                     $matchedRunIconsToDatabase{$HEHeading}{"Text"} = "Runway".$HEHeading;
+                     $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
+            
+
+                }
+                else {
+                    say "Matched HE" if $debug;
+                                        $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x2;
+                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y2;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
+                     $matchedRunIconsToDatabase{$LEHeading}{"Text"} = "Runway".$LEHeading;
+                      $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
+                      
+                      $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x;
+                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
+                     $matchedRunIconsToDatabase{$HEHeading}{"Text"} = "Runway".$HEHeading;
+                     $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
+                    
+             
+
+                    #It has to match the HEHeading vector
+                }
+                
+            }
+        }
+    }
+    
+    if ($debug) {
+    say "matchedRunIconsToDatabase";
+print Dumper ( \%matchedRunIconsToDatabase );
+}
+#}
 
 #----------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with obstacles
@@ -508,8 +597,7 @@ my %unique_obstacles_from_db = ();
 my $unique_obstacles_from_dbCount;
 findObstaclesNearAirport( \%unique_obstacles_from_db );
 
-#Try to find closest obstacleTextBox center to each obstacleIcon center
-#and then do the reverse
+#Try to find closest obstacleTextBox center to each obstacleIcon center and then do the reverse
 findClosestBToA( \%obstacleIcons,     \%obstacleTextBoxes );
 findClosestBToA( \%obstacleTextBoxes, \%obstacleIcons, );
 
@@ -525,11 +613,11 @@ if ($debug) {
 }
 
 #Draw a line from obstacle icon to closest text boxes
-drawLineFromEachIconToMatchedTextBox( \%obstacleIcons, \%obstacleTextBoxes )
-  if $shouldSaveMarkedPdf;
-
-outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb()
-  if $shouldSaveMarkedPdf;
+if ($shouldSaveMarkedPdf) {
+    drawLineFromEachIconToMatchedTextBox( \%obstacleIcons,
+        \%obstacleTextBoxes );
+    outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb();
+}
 
 #------------------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with fixes
@@ -573,8 +661,6 @@ if ($debug) {
 #Indicate which textbox we matched to
 drawLineFromEachIconToMatchedTextBox( \%fixIcons, \%fixTextboxes )
   if $shouldSaveMarkedPdf;
-
-# drawLineFromEachFixToClosestTextBox() if $shouldSaveMarkedPdf;
 
 #---------------------------------------------------------------------------------------------------------------------------------------
 #Everything to do with GPS waypoints
@@ -669,6 +755,9 @@ drawLineFromEachIconToMatchedTextBox( \%navaidIcons, \%vorTextboxes )
 #Create the combined hash of Ground Control Points
 my %gcps = ();
 
+#Add Runway endpoints to Ground Control Points hash
+addCombinedHashToGroundControlPoints( "runway", \%matchedRunIconsToDatabase );
+
 #Add Obstacles to Ground Control Points hash
 addCombinedHashToGroundControlPoints( "obstacle",
     $matchedObstacleIconsToTextBoxes );
@@ -693,13 +782,6 @@ if ($debug) {
 
 #build the GCP portion of the command line parameters
 my $gcpstring = createGcpString();
-
-#Remove GCPs which are inside insetBoxes or outside the horizontal bounds
-#Commented out since we're using  image mask code now
-#deleteBadGCPs();
-
-# $gcpCount = scalar( keys(%gcps) );
-# say "Using $gcpCount Ground Control Points" if $debug;
 
 #outline the GCP points we ended up using
 drawCircleAroundGCPs() if $shouldSaveMarkedPdf;
@@ -874,7 +956,7 @@ sub drawFeaturesOnPdf {
 
 sub latitudeToPixel {
     my ($_latitude) = @_;
-
+   return 0 unless $yMedian;
     # say $_latitude;
     #say "$ulYmedian, $yMedian";
     my $_pixel = abs( ( $ulYmedian - $_latitude ) / $yMedian );
@@ -886,7 +968,7 @@ sub latitudeToPixel {
 
 sub longitudeToPixel {
     my ($_longitude) = @_;
-
+ return 0 unless $xMedian;
     # say $_longitude;
     #say "$ulXmedian, $xMedian";
     my $_pixel = abs( ( $ulXmedian - $_longitude ) / $xMedian );
@@ -1575,12 +1657,12 @@ sub findAllIcons {
 
         #findFinalApproachFixIcons($_output);
         #findVisualDescentPointIcons($_output);
-        findHorizontalLines($_output);
+        findHorizontalAndVerticalLines($_output);
         findInsetBoxes($_output);
         findLargeBoxes($_output);
         findInsetCircles($_output);
         findNotToScaleIndicator($_output);
-
+        findRunwayIcons($_output);
         say "" if $debug;
     }
 
@@ -1596,9 +1678,11 @@ sub findAllIcons {
     # print Dumper ( \%navaidIcons );
     # say "notToScaleIndicators:";
     # print Dumper ( \%notToScaleIndicators );
+       # say "runwayIcons";
+    # print Dumper ( \%runwayIcons );
+    # return;
     # }
-
-    return;
+ 
 }
 
 sub returnRawPdf {
@@ -2588,7 +2672,7 @@ sub findInsetCircles {
 ^S$
 ^Q$/m;
 
-    my @tempInsetCircle       = $_output =~ /$insetCircleRegex/ig;
+    my @tempInsetCircle = $_output =~ /$insetCircleRegex/ig;
     my $insetCircleDataPoints = 3;
 
     my $tempInsetCircleLength = 0 + @tempInsetCircle;
@@ -2652,7 +2736,7 @@ sub findInsetCircles {
     return;
 }
 
-sub findHorizontalLines {
+sub findHorizontalAndVerticalLines {
     my ($_output) = @_;
 
     #REGEX building blocks
@@ -2750,7 +2834,7 @@ sub findObstacleIcons {
 
     #A regex that matches how an obstacle is drawn in the PDF
     #TODO Modify this to have a return to Y of zero in the regex
-    my ($obstacleregex) = qr/^$transformCaptureXYRegex$
+    my ($obstacleRegex) = qr/^$transformCaptureXYRegex$
 ^$originRegex$
 ^([\.0-9]+) [\.0-9]+ l$
 ^([\.0-9]+) [\.0-9]+ l$
@@ -2765,22 +2849,22 @@ sub findObstacleIcons {
 ^f\*$
 ^Q$/m;
 
-    #each entry in @tempobstacles will have the numbered captures from the regex, 6 for each one
-    my (@tempobstacles)           = $_output =~ /$obstacleregex/ig;
-    my ($tempobstacles_length)    = 0 + @tempobstacles;
+    #each entry in @tempObstacles will have the numbered captures from the regex, 6 for each one
+    my (@tempObstacles)           = $_output =~ /$obstacleRegex/ig;
+    my ($tempObstacles_length)    = 0 + @tempObstacles;
     my $dataPointsPerObstacleIcon = 6;
 
     #Divide length of array by 6 data points for each obstacle to get count of obstacles
-    my ($tempobstacles_count) =
-      $tempobstacles_length / $dataPointsPerObstacleIcon;
+    my ($tempObstacles_count) =
+      $tempObstacles_length / $dataPointsPerObstacleIcon;
 
-    if ( $tempobstacles_length >= $dataPointsPerObstacleIcon ) {
+    if ( $tempObstacles_length >= $dataPointsPerObstacleIcon ) {
 
-        #say "Found $tempobstacles_count obstacles in stream $stream";
+        #say "Found $tempObstacles_count obstacles in stream $stream";
 
         for (
             my $i = 0 ;
-            $i < $tempobstacles_length ;
+            $i < $tempObstacles_length ;
             $i = $i + $dataPointsPerObstacleIcon
           )
         {
@@ -2801,15 +2885,15 @@ sub findObstacleIcons {
             #                                               3: Y of top of triangle
             #                                               4: X of dot
             #                                               5: Y of dot
-            my $x = $tempobstacles[$i];
-            my $y = $tempobstacles[ $i + 1 ];
+            my $x = $tempObstacles[$i];
+            my $y = $tempObstacles[ $i + 1 ];
 
             my $centerX = "";
             my $centerY = "";
 
             #Note that this is half the width of the whole icon
-            my $width  = $tempobstacles[ $i + 2 ] * 2;
-            my $height = $tempobstacles[ $i + 3 ];
+            my $width  = $tempObstacles[ $i + 2 ] * 2;
+            my $height = $tempObstacles[ $i + 3 ];
 
             $obstacleIcons{ $i . $rand }{"GeoreferenceX"} = $x + $width / 2;
             $obstacleIcons{ $i . $rand }{"GeoreferenceY"} = $y;
@@ -2831,7 +2915,7 @@ sub findObstacleIcons {
     #Save statistics
     $statistics{'$obstacleCount'} = $obstacleCount;
     if ($debug) {
-        print "$tempobstacles_count obstacles ";
+        print "$tempObstacles_count obstacles ";
 
         #print Dumper ( \%obstacleIcons );
     }
@@ -2852,7 +2936,7 @@ sub findFixIcons {
 ^S$
 ^Q$/m;
 
-    my @tempfixes        = $_output =~ /$fixregex/ig;
+    my @tempfixes = $_output =~ /$fixregex/ig;
     my $tempfixes_length = 0 + @tempfixes;
 
     #4 data points for each fix
@@ -3318,12 +3402,10 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #TODO: Should make sure that the signs of the differences agree
 
             #X pixels between points
-            my $pixelDistanceX =
-              ( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
+            my $pixelDistanceX = ( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
 
             #Y pixels between points
-            my $pixelDistanceY =
-              ( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} );
+            my $pixelDistanceY = ( $gcps{$key}{"pngy"} - $gcps{$key2}{"pngy"} );
 
             #Longitude degrees between points
             my $longitudeDiff = ( $gcps{$key}{"lon"} - $gcps{$key2}{"lon"} );
@@ -3349,7 +3431,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
             #There seem to be three bands of scales
 
             #Do some basic sanity checking on the $latitudeToPixelRatio
-            if ( abs($pixelDistanceY) > 10 && $latitudeDiff ) {
+            if ( abs($pixelDistanceY) > 5 && $latitudeDiff ) {
                 say
                   "pixelDistanceY: $pixelDistanceY, latitudeDiff: $latitudeDiff"
                   if $debug;
@@ -3367,13 +3449,13 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
 
                 if (
-                    not( is_between( .00011, .00033, $latitudeToPixelRatio ) )
-
+                   not( is_between( .00011, .00033, $latitudeToPixelRatio ) )
                     && not(
                         is_between( .00034, .00046, $latitudeToPixelRatio ) )
                     && not(
-                        is_between( .00056, .00060, $latitudeToPixelRatio, ) )
-
+                        is_between( .00056, .00060, $latitudeToPixelRatio, ) ) 
+          # not( is_between(.00008 , .00009, $latitudeToPixelRatio ) )
+                    # &&
                     #&& not( is_between(  .00084, .00085, $latitudeToPixelRatio ) )
 
                   )
@@ -3411,7 +3493,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 }
             }
 
-            if ( abs($pixelDistanceX) > 10 && $longitudeDiff ) {
+            if ( abs($pixelDistanceX) > 5 && $longitudeDiff ) {
                 say
                   "pixelDistanceX: $pixelDistanceX, longitudeDiff $longitudeDiff"
                   if $debug;
@@ -4055,7 +4137,7 @@ sub findNavaidsNearAirport {
         say "We have selected $fields field(s)";
         say "We have selected $rows row(s)";
 
-        print Dumper ( \%navaids_from_db );
+        # print Dumper ( \%navaids_from_db );
         say "";
     }
     return;
@@ -4086,6 +4168,7 @@ sub addCombinedHashToGroundControlPoints {
             #Get the color value of the pixel at the x,y of the GCP
             # my $pixelTextOutput;
             # qx(convert $outputPdfOutlines.png -format '%[pixel:p{$_rasterX,$_rasterY}]' info:-);
+            #TODO Delete this since it's being done earlier already
             @pixels = $image->GetPixel( x => $_rasterX, y => $_rasterY );
             say "perlMagick $pixels[0]" if $debug;
 
@@ -4716,7 +4799,7 @@ sub removeIconsAndTextboxesInMaskedAreas {
 
             #Get the color value of the pixel at the x,y of the GCP
             @pixels = $image->GetPixel( x => $_rasterX, y => $_rasterY );
-            say "perlMagick $pixels[0]" if $debug;
+            say "perlMagick: $pixels[0]" if $debug;
 
             if ( $pixels[0] eq 0 ) {
             }
@@ -4728,4 +4811,254 @@ sub removeIconsAndTextboxesInMaskedAreas {
         }
     }
     return;
+}
+
+sub WGS84toGoogleBing {
+    my ( $lon, $lat ) = @_;
+    my $x = $lon * 20037508.34 / 180;
+    my $y = log( tan( ( 90 + $lat ) * pi / 360 ) ) / ( pi / 180 );
+    $y = $y * 20037508.34 / 180;
+    return ( $x, $y );
+}
+
+sub GoogleBingtoWGS84Mercator {
+    my ( $x, $y ) = @_;
+    my $lon = ( $x / 20037508.34 ) * 180;
+    my $lat = ( $y / 20037508.34 ) * 180;
+
+    $lat = 180 / pi * ( 2 * atan( exp( $lat * pi / 180 ) ) - pi / 2 );
+    return ( $lon, $lat );
+}
+
+sub slopeAngle {
+    my ( $x1, $y1, $x2, $y2 ) = @_;
+    return rad2deg( atan2( $y2 - $y1, $x2 - $x1 ) ) %180;
+}
+
+sub NESW {
+
+    # Notice the 90 - latitude: phi zero is at the North Pole.
+    return deg2rad( $_[0] ), deg2rad( 90 - $_[1] );
+}
+
+sub findRunwayIcons {
+    my ($_output) = @_;
+    say ":findRunwayIcons" if $debug;
+
+    # Military plate runways are drawn in one fell swoop like this (from SSC TACAN 22R)
+    # q 1 0 0 1 152.36 347.08 cm 0 0 m
+    # -9.72 -14.04 l
+    # S 1 0 0 1 -6.12 -14.28 cm 0 0 m
+    # 8.16 11.52 l
+    # S
+
+    #REGEX building blocks
+    #A  line
+    my $runwayLineRegex = qr/^$transformCaptureXYRegex$
+^$originRegex$
+^($numberRegex)\s($numberRegex)\s+l$
+^S$
+^Q$/m;
+
+    my @tempRunwayIcon = $_output =~ /$runwayLineRegex/ig;
+
+    my $tempRunwayIconLength = 0 + @tempRunwayIcon;
+    my $tempRunwayIconCount  = $tempRunwayIconLength / 4;
+
+    if ( $tempRunwayIconLength >= 4 ) {
+        my $random = rand();
+        for ( my $i = 0 ; $i < $tempRunwayIconLength ; $i = $i + 4 ) {
+            my $_x1    = $tempRunwayIcon[$i];
+            my $_y1    = $tempRunwayIcon[ $i + 1 ];
+            my $_xDiff = $tempRunwayIcon[ $i + 2 ];
+            my $_yDiff = $tempRunwayIcon[ $i + 3 ];
+            my $_x2    = $_x1 + $_xDiff;
+            my $_y2    = $_y1 + $_yDiff;
+
+            # say "$_x1 $_y1 $_x2 $_y2";
+            my $runwayLineLength =
+              sqrt( ( $_x1 - $_x2 )**2 + ( $_y1 - $_y2 )**2 );
+
+            # say $runwayLineLength;
+            #Runway lines must be between these lengths in points
+            # Some of the visual procedures are higher scale and the runway lines can be +57 pts
+            next
+              if ( abs($runwayLineLength) > 22 || abs($runwayLineLength) < 4 );
+
+            #Calculate the true heading of a line given starting and ending points
+            my $runwayLineTrueHeading =
+              round( trueHeading( $_x1, $_y1, $_x2, $_y2 ) );
+            my $runwayLineSlope = round( slopeAngle( $_x1, $_y1, $_x2, $_y2 ) );
+            my $_midpointX      = ( $_x1 + $_x2 ) / 2;
+            my $_midpointY      = ( $_y1 + $_y2 ) / 2;
+
+            # say
+            # "Line True Heading  $runwayLineTrueHeading Length: $runwayLineLength Line X: $tempRunwayIcon[$i] Line Y: $tempRunwayIcon[$i+1]"
+            # if $debug;
+
+            #Iterate through the array of valid runway slopes that we calculated earlier
+            # if ( "$runwayLineTrueHeading" ~~ @validRunwaySlopes ) {
+            foreach my $validSlope (@validRunwaySlopes) {
+
+                #Only match lines that are +- 1 degree of our desired slopel
+                next if ( abs( $validSlope - $runwayLineTrueHeading ) > 1 );
+
+                #put them into a hash
+                $runwayIcons{ $i . $random }{"X"}      = $_x1;
+                $runwayIcons{ $i . $random }{"Y"}      = $_y1;
+                $runwayIcons{ $i . $random }{"X2"}     = $_x2;
+                $runwayIcons{ $i . $random }{"Y2"}     = $_y2;
+                $runwayIcons{ $i . $random }{"Length"} = $runwayLineLength;
+                $runwayIcons{ $i . $random }{"TrueHeading"} =
+                  $runwayLineTrueHeading;
+                $runwayIcons{ $i . $random }{"Slope"}   = $runwayLineSlope;
+                $runwayIcons{ $i . $random }{"CenterX"} = $_midpointX;
+                $runwayIcons{ $i . $random }{"CenterY"} = $_midpointY;
+            }
+        }
+
+    }
+
+    # print Dumper ( \%runwayIcons );
+    my $runwayIconsCount = keys(%runwayIcons);
+
+    #Save statistics
+    $statistics{'$runwayIconsCount'} = $runwayIconsCount;
+
+    # if ($debug) {
+    # print "$runwayIconsCount possible runway lines ";
+
+    # }
+
+    #-----------------------------------
+
+    return;
+}
+
+sub findRunwaysInDatabase {
+
+    #
+    $sth = $dbh->prepare(
+        "SELECT * FROM runways WHERE 
+                                       FaaID like \"$airportId\"
+                                       "
+    );
+    $sth->execute();
+
+    my $all = $sth->fetchall_arrayref();
+
+    #How many rows did this search return
+    my $rows = $sth->rows();
+    say "Found $rows runways for $airportId" if $debug;
+
+    foreach my $row (@$all) {
+        my (
+            $FaaID,      $Length,      $Width,       $LEName,
+            $LELatitude, $LELongitude, $LEElevation, $LEHeading,
+            $HEName,     $HELatitude,  $HELongitude, $HEElevation,
+            $HEHeading
+        ) = @$row;
+
+        # foreach my $row2 (@$all) {
+        # my (
+        # $FaaID2,      $Length2,      $Width2,       $LEName2,
+        # $LELatitude2, $LELongitude2, $LEElevation2, $LEHeading2,
+        # $HEName2,     $HELatitude2,  $HELongitude2, $HEElevation2,
+        # $HEHeading2
+        # ) = @$row2;
+        # #Don't testg
+        # next if ($LEName eq $LEName2);
+
+        # }
+        #Skip helipads or waterways
+        next if ( $LEName =~ /[HW]/i );
+        next unless ($FaaID && $Length &&  $Width &&  $LEName && 
+            $LELatitude && $LELongitude &&  $LEElevation &&  $LEHeading && 
+            $HEName &&     $HELatitude &&   $HELongitude &&  $HEElevation && 
+            $HEHeading);
+        #Convert lon/at to EPSG 3857
+        my ( $x1, $y1 ) = WGS84toGoogleBing( $LELongitude, $LELatitude );
+        my ( $x2, $y2 ) = WGS84toGoogleBing( $HELongitude, $HELatitude );
+
+        my $trueHeading = round( trueHeading( $x1, $y1, $x2, $y2 ) );
+        my $slope = round( slopeAngle( $x1, $y1, $x2, $y2 ) );
+
+        say
+          "EPSG:4326 -> 3857 conversion true heading for runway $LEName: $trueHeading" if $debug;
+
+        my @A = NESW( $LELongitude, $LELatitude );
+        my @B = NESW( $HELongitude, $HELatitude );
+
+        # my $km = great_circle_distance( @A, @B, 6378.137 );    # About 9600 km.
+        # say "Distance: " . $km . "km";
+
+        my $rad = great_circle_direction( @A, @B );
+
+        say "True course for $LEName: " . round( rad2deg($rad) ) if $debug;
+  
+        #$runwaysFromDatabase{$LEName}{} = $trueHeading;
+        $runwaysFromDatabase{$LEName.$HEName}{'LELatitude'}  = $LELatitude;
+        $runwaysFromDatabase{$LEName.$HEName}{'LELongitude'} = $LELongitude;
+        $runwaysFromDatabase{$LEName.$HEName}{'LEHeading'}   = $LEHeading;
+        $runwaysFromDatabase{$LEName.$HEName}{'HELatitude'}  = $HELatitude;
+        $runwaysFromDatabase{$LEName.$HEName}{'HELongitude'} = $HELongitude;
+        $runwaysFromDatabase{$LEName.$HEName}{'HEHeading'}   = $HEHeading;
+        $runwaysFromDatabase{$LEName.$HEName}{'Slope'}       = $slope;
+
+        #say "$FaaID, $Length ,$Width ,$LEName ,$LELatitude ,$LELongitude ,$LEElevation , $LEHeading , $HEName ,$HELatitude ,$HELongitude ,$HEElevation ,$HEHeading";
+        # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
+        # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
+
+    }
+
+    # print Dumper ( \%runwaysFromDatabase );
+    my @runwaysToDelete = ();
+
+    #Delete any runways that share a slope within +-5
+    foreach my $key ( sort keys %runwaysFromDatabase ) {
+
+        # say $key;
+        my $slope1      = $runwaysFromDatabase{$key}{Slope};
+        my $LELatitude1 = $runwaysFromDatabase{$key}{"LELatitude"};
+
+        # say $slope1;
+        foreach my $key2 ( sort keys %runwaysFromDatabase ) {
+
+            # say $key2;
+            my $slope2      = $runwaysFromDatabase{$key2}{Slope};
+            my $LELatitude2 = $runwaysFromDatabase{$key2}{"LELatitude"};
+
+            # say $slope2;
+            #Don't test against ourself
+            next if ( $LELatitude1 == $LELatitude2 );
+
+            if ( abs( $slope1 - $slope2 ) < 5 ) {
+
+                #Mark these runways for deletion if their slopes match
+                push @runwaysToDelete, $key;
+                push @runwaysToDelete, $key2;
+            }
+
+        }
+    }
+
+    # say @runwaysToDelete;
+    foreach my $key (@runwaysToDelete) {
+
+        #Delete the runways we marked earlier
+        delete $runwaysFromDatabase{$key};
+    }
+
+    foreach my $key ( sort keys %runwaysFromDatabase ) {
+        push @validRunwaySlopes, $runwaysFromDatabase{$key}{"LEHeading"};
+        push @validRunwaySlopes, $runwaysFromDatabase{$key}{"HEHeading"};
+    }
+
+    return;
+}
+
+sub trueHeading {
+    my ( $_x1, $_y1, $_x2, $_y2 ) = @_;
+
+    return rad2deg( pi / 2 - atan2( $_y2 - $_y1, $_x2 - $_x1 ) );
 }
