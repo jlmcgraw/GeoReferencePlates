@@ -108,7 +108,7 @@ do
     vrt | rev | cut -d\. -f1 --complement| rev | sort > vrt.txt
 
     #Get the counts of each category
-    allCount=$( allPdf| wc -l )
+    allCount=$( allPdf | wc -l )
     notToScaleCount=$( notToScalePdf | wc -l )
     desirableCount=$( cat desirable.txt | wc -l )
     vrtCount=$( cat vrt.txt | wc -l )

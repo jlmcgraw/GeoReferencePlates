@@ -441,6 +441,7 @@ $image = Image::Magick->new;
 
 if ( !-e "$outputPdfOutlines.png" ) {
 
+    #If the .PNG doesn't already exist lets create it
     #offset from the center to start the fills
     my $offsetFromCenter = 125;
 
@@ -448,19 +449,21 @@ if ( !-e "$outputPdfOutlines.png" ) {
 
     #Read in the .pdf maskfile
     # $image->Set(units=>'1');
-    $image->Set( units      => 'PixelsPerInch' );
-    $image->Set( density    => '300' );
-    $image->Set( depth      => 1 );
-    $image->Set( background => 'white' );
-    $image->Set( alpha      => 'off' );
+    $image->Set( units   => 'PixelsPerInch' );
+    $image->Set( density => '300' );
+    $image->Set( depth   => 1 );
+
+    #$image->Set( background => 'white' );
+    $image->Set( alpha => 'off' );
     $perlMagickStatus = $image->Read("$outputPdfOutlines");
 
     #Now do two fills from just around the middle of the inner box, just in case there's something in the middle of the box blocking the fill
     #I've only seen this be an issue once
     # $image->Draw(primitive=>'color',method=>'Replace',fill=>'black',x=>1,y=>1,color => 'black');
-    $image->Set( depth      => 1 );
-    $image->Set( background => 'white' );
-    $image->Set( alpha      => 'off' );
+    $image->Set( depth => 1 );
+
+    #$image->Set( background => 'white' );
+    $image->Set( alpha => 'off' );
     $image->ColorFloodfill(
         fill        => 'black',
         x           => $pngXSize / 2 - $offsetFromCenter,
@@ -474,6 +477,8 @@ if ( !-e "$outputPdfOutlines.png" ) {
         bordercolor => 'black'
     );
 
+    # $image->Draw(stroke=>'red',  fill        => 'white',primitive=>'rectangle', points=>'20,20 100,100');
+
     #Write out to a .png do we don't have to do this work again
     $perlMagickStatus = $image->write("$outputPdfOutlines.png");
     warn "$perlMagickStatus" if "$perlMagickStatus";
@@ -481,7 +486,8 @@ if ( !-e "$outputPdfOutlines.png" ) {
 else {
     # $image->Set( units      => 'PixelsPerInch' );
     # $image->Set( density    => '300' );
-    # $image->Set( depth      => 1 );
+    $image->Set( depth => 1 );
+
     # $image->Set( background => 'white' );
     # $image->Set( alpha      => 'off' );
 
@@ -527,17 +533,20 @@ my %matchedRunIconsToDatabase = ();
 foreach my $key ( keys %runwayIcons ) {
     foreach my $key2 ( keys %runwaysFromDatabase ) {
 
-        #Find an icon and database entry that match
+        #Find an icon and database entry that match slopes
+        #Margin of error here is +- 2 degrees,
+        #TODO: Narrow this as much as possible
         if (
             abs(
                 $runwayIcons{$key}{Slope} - $runwaysFromDatabase{$key2}{Slope}
-            ) <= 1
+            ) <= 2
           )
         {
-            my $x           = $runwayIcons{$key}{"X"};
-            my $y           = $runwayIcons{$key}{"Y"};
-            my $x2          = $runwayIcons{$key}{"X2"};
-            my $y2          = $runwayIcons{$key}{"Y2"};
+            my $x  = $runwayIcons{$key}{"X"};
+            my $y  = $runwayIcons{$key}{"Y"};
+            my $x2 = $runwayIcons{$key}{"X2"};
+            my $y2 = $runwayIcons{$key}{"Y2"};
+
             my $HEHeading   = $runwaysFromDatabase{$key2}{HEHeading};
             my $HELatitude  = $runwaysFromDatabase{$key2}{HELatitude};
             my $HELongitude = $runwaysFromDatabase{$key2}{HELongitude};
@@ -553,45 +562,38 @@ foreach my $key ( keys %runwayIcons ) {
                 ) <= 1
               )
             {
+                #TODO: Simplify these two choices more
                 say "Matched LE" if $debug;
+
                 $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x;
                 $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y;
-                $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
-                $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
-                $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
-                  "Runway" . $LEHeading;
-                $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
 
                 $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x2;
                 $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y2;
-                $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
-                $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
-                $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
-                  "Runway" . $HEHeading;
-                $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
 
             }
             else {
+                #It has to match the HEHeading vector
+                #Line starts from the High End (HE()
                 say "Matched HE" if $debug;
                 $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x2;
                 $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y2;
-                $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
-                $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
-                $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
-                  "Runway" . $LEHeading;
-                $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
 
                 $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x;
                 $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y;
-                $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
-                $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
-                $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
-                  "Runway" . $HEHeading;
-                $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
 
-                #It has to match the HEHeading vector
             }
+            $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
+            $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
+            $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
+              "Runway" . $LEHeading;
+            $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
 
+            $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
+            $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
+            $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
+              "Runway" . $HEHeading;
+            $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
         }
     }
 }
@@ -3530,7 +3532,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 $longitudeToPixelRatio = $longitudeDiff / $pixelDistanceX;
 
                 #Do some basic sanity checking on the $longitudeToPixelRatio
-                if ( $longitudeToPixelRatio > .0012 ) {
+                if ( $longitudeToPixelRatio > .0016 ) {
                     $gcps{$key}{"Mismatches"} =
                       ( $gcps{$key}{"Mismatches"} ) + 1;
 
@@ -3689,7 +3691,7 @@ sub georeferenceTheRaster {
     $statistics{'$lonLatRatio'}       = $lonLatRatio;
     $statistics{'$targetLonLatRatio'} = $targetLonLatRatio;
 
-    if ( ( $lonLatRatio - $targetLonLatRatio ) > .09 ) {
+    if ( abs( $lonLatRatio - $targetLonLatRatio ) > .09 ) {
         say
           "Bad lonLatRatio $lonLatRatio, expected $targetLonLatRatio.  Not georeferencing."
           if $debug;
@@ -3697,6 +3699,7 @@ sub georeferenceTheRaster {
     }
 
     if ($debug) {
+        say "Target Longitude/Latitude ratio: " . $targetLonLatRatio;
         say "Output Longitude/Latitude Ratio: " . $lonLatRatio;
         say "Input PDF ratio: " . $pdfXYRatio;
         say "";
@@ -4289,6 +4292,8 @@ sub findHorizontalCutoff {
     #Find the highest purely horizonal line below the midpoint of the page
     foreach my $key ( sort keys %horizontalAndVerticalLines ) {
 
+        #TODO separate hashes for horz and vertical?
+
         my $x      = $horizontalAndVerticalLines{$key}{"X"};
         my $x2     = $horizontalAndVerticalLines{$key}{"X2"};
         my $length = abs( $x - $x2 );
@@ -4296,7 +4301,6 @@ sub findHorizontalCutoff {
         my $yCoord = $horizontalAndVerticalLines{$key}{"Y"};
 
         #Check that this is a horizonal line since we're also currently storing vertical ones in this hash too
-        #TODO separate hashes for horz and vertical
         next unless ( $yCoord == $y2 );
 
         if (   ( $yCoord > $_lowerYCutoff )
@@ -4306,22 +4310,33 @@ sub findHorizontalCutoff {
 
             $_lowerYCutoff = $yCoord;
         }
-    }
-
-    #Find the lowest purely horizonal line above the midpoint of the page
-    foreach my $key ( sort keys %horizontalAndVerticalLines ) {
-        my $y2     = $horizontalAndVerticalLines{$key}{"Y2"};
-        my $yCoord = $horizontalAndVerticalLines{$key}{"Y"};
-
-        #Check that this is a horizonal line since we're also currently storing vertical ones in this hash too
-        #TODO separate hashes for horz and vertical
-        next unless ( $yCoord == $y2 );
-
-        if ( ( $yCoord < $_upperYCutoff ) && ( $yCoord > .5 * $pdfYSize ) ) {
+        if (   ( $yCoord < $_upperYCutoff )
+            && ( $yCoord > .5 * $pdfYSize )
+            && ( $length > .2 * $pdfXSize ) )
+        {
 
             $_upperYCutoff = $yCoord;
         }
     }
+
+    # #Find the lowest purely horizonal line above the midpoint of the page
+    # foreach my $key ( sort keys %horizontalAndVerticalLines ) {
+    # my $x      = $horizontalAndVerticalLines{$key}{"X"};
+    # my $x2     = $horizontalAndVerticalLines{$key}{"X2"};
+    # my $length = abs( $x - $x2 );
+    # my $y2     = $horizontalAndVerticalLines{$key}{"Y2"};
+    # my $yCoord = $horizontalAndVerticalLines{$key}{"Y"};
+
+    # #Check that this is a horizonal line since we're also currently storing vertical ones in this hash too
+    # #TODO separate hashes for horz and vertical
+    # next unless ( $yCoord == $y2 );
+    # #TODO BUG We may not always have large contiguous horizonal lines at the top, we may
+    # #need to make the length check something smaller
+    # if ( ( $yCoord < $_upperYCutoff ) && ( $yCoord > .5 * $pdfYSize )  && ( $length > .2 * $pdfXSize )) {
+
+    # $_upperYCutoff = $yCoord;
+    # }
+    # }
     say "Returning $_upperYCutoff and $_lowerYCutoff  as horizontal cutoffs"
       if $debug;
     return ( $_lowerYCutoff, $_upperYCutoff );
@@ -4601,45 +4616,53 @@ sub drawLineFromEachIconToMatchedTextBox {
 sub outlines {
     say ":outlines" if $debug;
     my $outlineWidth = 1;
+    my $outlineColor = "black";
+
+    my $EGTransparent = $pdfOutlines->egstate();
+    my $EGNormal      = $pdfOutlines->egstate();
+    $EGTransparent->transparency(0.5);
+    $EGNormal->transparency(0);
 
     #Draw the various types of boxes on the output PDF
 
-    my %font = (
-        Helvetica => {
-            Bold =>
-              $pdfOutlines->corefont( 'Helvetica-Bold', -encoding => 'latin1' ),
+    #Uncomment this if we ever need to write text on PDF
+    # my %font = (
+    # Helvetica => {
+    # Bold =>
+    # $pdfOutlines->corefont( 'Helvetica-Bold', -encoding => 'latin1' ),
 
-            #      Roman  => $pdfOutlines->corefont('Helvetica',         -encoding => 'latin1'),
-            #      Italic => $pdfOutlines->corefont('Helvetica-Oblique', -encoding => 'latin1'),
-        },
-        Times => {
+    # #      Roman  => $pdfOutlines->corefont('Helvetica',         -encoding => 'latin1'),
+    # #      Italic => $pdfOutlines->corefont('Helvetica-Oblique', -encoding => 'latin1'),
+    # },
+    # Times => {
 
-            #      Bold   => $pdfOutlines->corefont('Times-Bold',        -encoding => 'latin1'),
-            Roman => $pdfOutlines->corefont( 'Times', -encoding => 'latin1' ),
+    # #      Bold   => $pdfOutlines->corefont('Times-Bold',        -encoding => 'latin1'),
+    # Roman => $pdfOutlines->corefont( 'Times', -encoding => 'latin1' ),
 
-            #      Italic => $pdfOutlines->corefont('Times-Italic',      -encoding => 'latin1'),
-        },
-    );
+    # #      Italic => $pdfOutlines->corefont('Times-Italic',      -encoding => 'latin1'),
+    # },
+    # );
 
     #TODO This was yellow just for testing
     my ($bigOleBox) = $pageOutlines->gfx;
+    $bigOleBox->egstate($EGNormal);
 
     #Draw a big box to stop the flood because we can't always find the main box in the PDF
-    $bigOleBox->strokecolor('black');
+    $bigOleBox->strokecolor($outlineColor);
     $bigOleBox->linewidth(5);
     $bigOleBox->rect( 20, 40, 350, 500 );
     $bigOleBox->stroke;
 
     #Draw a horizontal line at the $lowerYCutoff to stop the flood in case we don't findNavaidTextboxes
     #all of the lines
-    $bigOleBox->move( 20, $lowerYCutoff );
-    $bigOleBox->line( 500, $lowerYCutoff );
+    $bigOleBox->move( 0, $lowerYCutoff );
+    $bigOleBox->line( $pdfXSize, $lowerYCutoff );
     $bigOleBox->stroke;
 
     foreach my $key ( sort keys %horizontalAndVerticalLines ) {
 
         my ($lines) = $pageOutlines->gfx;
-        $lines->strokecolor('black');
+        $lines->strokecolor($outlineColor);
         $lines->linewidth($outlineWidth);
         $lines->move(
             $horizontalAndVerticalLines{$key}{"X"},
@@ -4655,14 +4678,11 @@ sub outlines {
     foreach my $key ( sort keys %insetBoxes ) {
 
         my ($insetBox) = $pageOutlines->gfx;
-        $insetBox->strokecolor('black');
+        $insetBox->strokecolor($outlineColor);
         $insetBox->linewidth($outlineWidth);
         $insetBox->rect(
-            $insetBoxes{$key}{X},
-            $insetBoxes{$key}{Y},
-            $insetBoxes{$key}{Width},
-            $insetBoxes{$key}{Height},
-
+            $insetBoxes{$key}{X},     $insetBoxes{$key}{Y},
+            $insetBoxes{$key}{Width}, $insetBoxes{$key}{Height},
         );
 
         $insetBox->stroke;
@@ -4670,7 +4690,7 @@ sub outlines {
     foreach my $key ( sort keys %largeBoxes ) {
 
         my ($largeBox) = $pageOutlines->gfx;
-        $largeBox->strokecolor('black');
+        $largeBox->strokecolor($outlineColor);
         $largeBox->linewidth($outlineWidth);
         $largeBox->rect(
             $largeBoxes{$key}{X},     $largeBoxes{$key}{Y},
@@ -4683,7 +4703,7 @@ sub outlines {
     foreach my $key ( sort keys %insetCircles ) {
 
         my ($insetCircle) = $pageOutlines->gfx;
-        $insetCircle->strokecolor('black');
+        $insetCircle->strokecolor($outlineColor);
         $insetCircle->linewidth($outlineWidth);
         $insetCircle->circle(
             $insetCircles{$key}{X},
@@ -4694,6 +4714,24 @@ sub outlines {
         $insetCircle->stroke;
     }
 
+    #Draw a filled rectangle from $upperYCutoff to top of PDF
+    my ($cutoffRectangles) = $pageOutlines->gfx;
+    $cutoffRectangles->egstate($EGNormal);
+    $cutoffRectangles->strokecolor('black');
+    $cutoffRectangles->linewidth(5);
+    $cutoffRectangles->fillcolor('white');
+    $cutoffRectangles->rectxy( 0, $upperYCutoff, $pdfXSize, $pdfYSize );
+    $cutoffRectangles->fillstroke;
+
+    #Draw a filled rectangle from $upperYCutoff to bottom of PDF
+    $cutoffRectangles->egstate($EGNormal);
+    $cutoffRectangles->strokecolor('black');
+    $cutoffRectangles->linewidth(5);
+    $cutoffRectangles->fillcolor('white');
+    $cutoffRectangles->rectxy( 0, $lowerYCutoff, $pdfXSize, 0 );
+    $cutoffRectangles->fillstroke;
+
+    # $bigOleBox->stroke;
     return;
 }
 
@@ -4810,11 +4848,16 @@ sub removeIconsAndTextboxesInMaskedAreas {
 
             #Get the color value of the pixel at the x,y of the GCP
             @pixels = $image->GetPixel( x => $_rasterX, y => $_rasterY );
+
+            #This is actually a RGB triplet rather than just 1 byte so I'm cheating a little bit here
             say "perlMagick: $pixels[0]" if $debug;
 
+            #say @pixels;
+            #Only keep this feature if the pixel at this point is black
             if ( $pixels[0] eq 0 ) {
             }
             else {
+                #Otherwise delete it
                 say "$type $key is being deleted" if $debug;
                 delete $targetHashRef->{$key};
             }
@@ -4886,11 +4929,10 @@ sub findRunwayIcons {
             my $_x2    = $_x1 + $_xDiff;
             my $_y2    = $_y1 + $_yDiff;
 
-            # say "$_x1 $_y1 $_x2 $_y2";
             my $runwayLineLength =
               sqrt( ( $_x1 - $_x2 )**2 + ( $_y1 - $_y2 )**2 );
 
-            # say $runwayLineLength;
+            # say "$_x1 $_y1 $_x2 $_y2 $runwayLineLength";
             #Runway lines must be between these lengths in points
             # Some of the visual procedures are higher scale and the runway lines can be +57 pts
             next
@@ -4903,8 +4945,7 @@ sub findRunwayIcons {
             my $_midpointX      = ( $_x1 + $_x2 ) / 2;
             my $_midpointY      = ( $_y1 + $_y2 ) / 2;
 
-            # say
-            # "Line True Heading  $runwayLineTrueHeading Length: $runwayLineLength Line X: $tempRunwayIcon[$i] Line Y: $tempRunwayIcon[$i+1]"
+            # say "Line True Heading  $runwayLineTrueHeading Length: $runwayLineLength Line X: $tempRunwayIcon[$i] Line Y: $tempRunwayIcon[$i+1]"
             # if $debug;
 
             #Iterate through the array of valid runway slopes that we calculated earlier

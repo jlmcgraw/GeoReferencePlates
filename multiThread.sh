@@ -51,12 +51,12 @@ fi
 #Uncomment this to do all plates in $mainPlatesDirectory (./plates by default)
 for target in .
 
-# for target in SSI
+# for target in I22 MYU AKP IXD ENM PNI DEN
 do
   echo Target: $target
   
   #Remove old .VRTs in our target
-  find $mainPlatesDirectory/$target -wholename "*.vrt" -delete
+  find $mainPlatesDirectory/$target -iname "*.vrt" -delete
 
   #Don't stop executing on  error return codes
   set +e
@@ -70,11 +70,11 @@ do
   #xargs --arg-file=args.txt --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s -p
 
   #Now do stop executing on  error return codes
-  set -e
+
   
   #Get a count of expected/actual plates and show the differences in the two lists
   ./countAndDiff.sh $target
-
+  set -e
 done
 
 #Copy the statistics to a new file based on date and time
