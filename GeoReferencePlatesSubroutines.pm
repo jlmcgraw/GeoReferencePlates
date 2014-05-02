@@ -24,6 +24,8 @@ use Exporter;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 use Carp;
 
+no if $] >= 5.018, warnings => "experimental";
+
 $VERSION = 1.00;
 @ISA     = qw(Exporter);
 @EXPORT =

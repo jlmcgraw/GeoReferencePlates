@@ -123,8 +123,9 @@ do
     #Hardcoded count of known miltary plates
     let militaryCount=1093
     let possibleCount=$allCount-$notToScaleCount-$militaryCount
+    let desirableMissingCount=$allCount-$notToScaleCount-$vrtCount
     let missingCount=$possibleCount-$vrtCount
     
-    echo $allCount allCount, $notToScaleCount notToScale, $militaryCount military, $possibleCount possible, $desirableCount desirable, $vrtCount vrt, $missingCount missing
+    echo $allCount allCount, $notToScaleCount notToScale, $militaryCount military, $possibleCount possible, $desirableCount desirable, $vrtCount vrt, $desirableMissingCount missing, $missingCount missing overall
 
 done

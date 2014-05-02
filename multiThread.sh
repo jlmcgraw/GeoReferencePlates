@@ -64,7 +64,7 @@ do
   #Georeference all of the plates in the "./plates" subdirectory and below using $cpus processes
   #Ignore airport diagrams, hotspots, lahso, and sids/stars
   #Change the options here to create statistics or marked PDFs
-   desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s -p
+   desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s
    
    #Use this command if you have a file "args.txt" containing a specific list of PDFs to process (eg a list of plates that didn't work properly)
   #xargs --arg-file=args.txt --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s -p

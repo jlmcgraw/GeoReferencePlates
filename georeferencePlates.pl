@@ -80,6 +80,8 @@ use constant pt => 1;
 #Some subroutines
 use GeoReferencePlatesSubroutines;
 
+
+
 #Some other constants
 #----------------------------------------------------------------------------------------------
 #Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its associated textbox's center
@@ -115,7 +117,8 @@ my %statistics = (
     '$upperLeftLat'                    => "0",
     '$lowerRightLon'                   => "0",
     '$lowerRightLat'                   => "0",
-    '$targetLonLatRatio'               => "0"
+    '$targetLonLatRatio'               => "0",
+    '$runwayIconsCount' => "0"
 );
 
 use vars qw/ %opt /;
@@ -227,11 +230,11 @@ if ( @pdftotext eq "" || $retval != 0 ) {
 }
 $statistics{'$pdftotext'} = scalar(@pdftotext);
 
-# if ( scalar(@pdftotext) < 5 ) {
-# say "Not enough pdftotext output for $targetPdf";
-# writeStatistics() if $shouldOutputStatistics;
-# exit(1);
-# }
+if ( scalar(@pdftotext) < 5 ) {
+say "Not enough pdftotext output for $targetPdf";
+writeStatistics() if $shouldOutputStatistics;
+exit(1);
+}
 
 #Abort if the chart says it's not to scale
 foreach my $line (@pdftotext) {
@@ -792,6 +795,7 @@ say "Found $gcpCount potential Ground Control Points" if $debug;
 
 #Save statistics
 $statistics{'$gcpCount'} = $gcpCount;
+
 if ($shouldSaveMarkedPdf) {
     $pdf->saveas($outputPdf);
 }
@@ -3860,9 +3864,9 @@ sub writeStatistics {
     open my $file, '>>', $targetStatistics
       or croak "can't open '$targetStatistics' for writing : $!";
 
-    my $_header = join ",", keys %statistics;
-    my $_data   = join ",", values %statistics;
-
+    my $_header = join ",", sort keys %statistics;
+    # my $_data   = join ",", sort values %statistics;
+my $_data = join(", ", map { "$statistics{$_}" } sort keys %statistics);
     say {$file} "$_header" or croak "Cannot write to $targetStatistics: ";
     say {$file} "$_data"   or croak "Cannot write to $targetStatistics: ";
 
