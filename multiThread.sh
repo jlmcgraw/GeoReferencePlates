@@ -78,7 +78,7 @@ do
 done
 
 #Copy the statistics to a new file based on date and time
-cat statistics.csv | sort | uniq > $statfile
+cat statistics.csv | sort -r | uniq > $statfile
 
 #Pull out the vital stats about each processed plate
 #find ./plates/ -iname "*.vrt" ! -iname "marked*" -type f -exec sh -c 'gdalinfo "{}" | ./getVrtInfo.pl' \; > stats.csv

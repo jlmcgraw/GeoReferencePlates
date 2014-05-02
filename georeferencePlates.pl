@@ -80,8 +80,6 @@ use constant pt => 1;
 #Some subroutines
 use GeoReferencePlatesSubroutines;
 
-
-
 #Some other constants
 #----------------------------------------------------------------------------------------------
 #Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its associated textbox's center
@@ -118,7 +116,7 @@ my %statistics = (
     '$lowerRightLon'                   => "0",
     '$lowerRightLat'                   => "0",
     '$targetLonLatRatio'               => "0",
-    '$runwayIconsCount' => "0"
+    '$runwayIconsCount'                => "0"
 );
 
 use vars qw/ %opt /;
@@ -231,9 +229,9 @@ if ( @pdftotext eq "" || $retval != 0 ) {
 $statistics{'$pdftotext'} = scalar(@pdftotext);
 
 if ( scalar(@pdftotext) < 5 ) {
-say "Not enough pdftotext output for $targetPdf";
-writeStatistics() if $shouldOutputStatistics;
-exit(1);
+    say "Not enough pdftotext output for $targetPdf";
+    writeStatistics() if $shouldOutputStatistics;
+    exit(1);
 }
 
 #Abort if the chart says it's not to scale
@@ -356,6 +354,7 @@ my @validRunwaySlopes   = ();
 
 #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
 findRunwaysInDatabase();
+
 # say "runwaysFromDatabase";
 # print Dumper ( \%runwaysFromDatabase );
 # say "";
@@ -506,15 +505,16 @@ removeIconsAndTextboxesInMaskedAreas( "Fix Icon",         \%fixIcons );
 removeIconsAndTextboxesInMaskedAreas( "Fix TextBox",      \%fixTextboxes );
 removeIconsAndTextboxesInMaskedAreas( "Navaid Icon",      \%navaidIcons );
 removeIconsAndTextboxesInMaskedAreas( "Navaid TextBox",   \%vorTextboxes );
-removeIconsAndTextboxesInMaskedAreas( "GPS Icon",         \%navaidIcons );
+removeIconsAndTextboxesInMaskedAreas( "GPS Icon",         \%gpsWaypointIcons );
 removeIconsAndTextboxesInMaskedAreas( "Runway Lines",     \%runwayIcons );
 
 if ($debug) {
-say "runwayIcons";
-print Dumper ( \%runwayIcons );
-say "runwaysFromDatabase";
-print Dumper ( \%runwaysFromDatabase );
+    say "runwayIcons";
+    print Dumper ( \%runwayIcons );
+    say "runwaysFromDatabase";
+    print Dumper ( \%runwaysFromDatabase );
 }
+
 #Draw boxes around the icons and textboxes we've found so far
 outlineEverythingWeFound() if $shouldSaveMarkedPdf;
 
@@ -524,69 +524,83 @@ my %matchedRunIconsToDatabase = ();
 
 #If we have the same number of icons as unique runways
 #if ( scalar keys %runwayIcons == scalar keys %runwaysFromDatabase ) {
-    foreach my $key ( keys %runwayIcons ) {
-        foreach my $key2 ( keys %runwaysFromDatabase ) {
+foreach my $key ( keys %runwayIcons ) {
+    foreach my $key2 ( keys %runwaysFromDatabase ) {
 
-            #Find an icon and database entry that match
-            if (abs($runwayIcons{$key}{Slope} -$runwaysFromDatabase{$key2}{Slope}) <= 1)            {
-                my $x = $runwayIcons{$key}{"X"};
-                my $y = $runwayIcons{$key}{"Y"};
-                my $x2 = $runwayIcons{$key}{"X2"};
-                my $y2 = $runwayIcons{$key}{"Y2"};
-                        my $HEHeading = $runwaysFromDatabase{$key2}{HEHeading};
-                        my $HELatitude = $runwaysFromDatabase{$key2}{HELatitude};
-                        my $HELongitude = $runwaysFromDatabase{$key2}{HELongitude};
-                        my $LEHeading= $runwaysFromDatabase{$key2}{LEHeading};
-                        my $LELatitude = $runwaysFromDatabase{$key2}{LELatitude};
-                        my $LELongitude = $runwaysFromDatabase{$key2}{LELongitude};
-                #If the line matches the LEHeading vector
-                if (abs($runwayIcons{$key}{TrueHeading} -$runwaysFromDatabase{$key2}{LEHeading}) <= 1)                {
-                    say "Matched LE" if $debug;
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x;
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y;
-                    $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
-                    $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
-                     $matchedRunIconsToDatabase{$LEHeading}{"Text"} = "Runway".$LEHeading;
-                     $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
-                      
-                      $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x2;
-                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y2;
-                    $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
-                    $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
-                     $matchedRunIconsToDatabase{$HEHeading}{"Text"} = "Runway".$HEHeading;
-                     $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
-            
+        #Find an icon and database entry that match
+        if (
+            abs(
+                $runwayIcons{$key}{Slope} - $runwaysFromDatabase{$key2}{Slope}
+            ) <= 1
+          )
+        {
+            my $x           = $runwayIcons{$key}{"X"};
+            my $y           = $runwayIcons{$key}{"Y"};
+            my $x2          = $runwayIcons{$key}{"X2"};
+            my $y2          = $runwayIcons{$key}{"Y2"};
+            my $HEHeading   = $runwaysFromDatabase{$key2}{HEHeading};
+            my $HELatitude  = $runwaysFromDatabase{$key2}{HELatitude};
+            my $HELongitude = $runwaysFromDatabase{$key2}{HELongitude};
+            my $LEHeading   = $runwaysFromDatabase{$key2}{LEHeading};
+            my $LELatitude  = $runwaysFromDatabase{$key2}{LELatitude};
+            my $LELongitude = $runwaysFromDatabase{$key2}{LELongitude};
 
-                }
-                else {
-                    say "Matched HE" if $debug;
-                                        $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x2;
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y2;
-                    $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
-                    $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
-                     $matchedRunIconsToDatabase{$LEHeading}{"Text"} = "Runway".$LEHeading;
-                      $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
-                      
-                      $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x;
-                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y;
-                    $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
-                    $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
-                     $matchedRunIconsToDatabase{$HEHeading}{"Text"} = "Runway".$HEHeading;
-                     $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
-                    
-             
+            #If the line matches the LEHeading vector
+            if (
+                abs(
+                    $runwayIcons{$key}{TrueHeading} -
+                      $runwaysFromDatabase{$key2}{LEHeading}
+                ) <= 1
+              )
+            {
+                say "Matched LE" if $debug;
+                $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x;
+                $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y;
+                $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
+                $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
+                $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
+                  "Runway" . $LEHeading;
+                $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
 
-                    #It has to match the HEHeading vector
-                }
-                
+                $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x2;
+                $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y2;
+                $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
+                $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
+                $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
+                  "Runway" . $HEHeading;
+                $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
+
             }
+            else {
+                say "Matched HE" if $debug;
+                $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} = $x2;
+                $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} = $y2;
+                $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
+                $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
+                $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
+                  "Runway" . $LEHeading;
+                $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
+
+                $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} = $x;
+                $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} = $y;
+                $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
+                $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
+                $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
+                  "Runway" . $HEHeading;
+                $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
+
+                #It has to match the HEHeading vector
+            }
+
         }
     }
-    
-    if ($debug) {
-    say "matchedRunIconsToDatabase";
-print Dumper ( \%matchedRunIconsToDatabase );
 }
+
+if ($debug) {
+    say "matchedRunIconsToDatabase";
+    print Dumper ( \%matchedRunIconsToDatabase );
+}
+
 #}
 
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -960,7 +974,8 @@ sub drawFeaturesOnPdf {
 
 sub latitudeToPixel {
     my ($_latitude) = @_;
-   return 0 unless $yMedian;
+    return 0 unless $yMedian;
+
     # say $_latitude;
     #say "$ulYmedian, $yMedian";
     my $_pixel = abs( ( $ulYmedian - $_latitude ) / $yMedian );
@@ -972,7 +987,8 @@ sub latitudeToPixel {
 
 sub longitudeToPixel {
     my ($_longitude) = @_;
- return 0 unless $xMedian;
+    return 0 unless $xMedian;
+
     # say $_longitude;
     #say "$ulXmedian, $xMedian";
     my $_pixel = abs( ( $ulXmedian - $_longitude ) / $xMedian );
@@ -1682,11 +1698,11 @@ sub findAllIcons {
     # print Dumper ( \%navaidIcons );
     # say "notToScaleIndicators:";
     # print Dumper ( \%notToScaleIndicators );
-       # say "runwayIcons";
+    # say "runwayIcons";
     # print Dumper ( \%runwayIcons );
     # return;
     # }
- 
+
 }
 
 sub returnRawPdf {
@@ -3453,12 +3469,13 @@ sub calculateRoughRealWorldExtentsOfRaster {
                 $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
 
                 if (
-                   not( is_between( .00011, .00033, $latitudeToPixelRatio ) )
+                    not( is_between( .00011, .00033, $latitudeToPixelRatio ) )
                     && not(
                         is_between( .00034, .00046, $latitudeToPixelRatio ) )
                     && not(
-                        is_between( .00056, .00060, $latitudeToPixelRatio, ) ) 
-          # not( is_between(.00008 , .00009, $latitudeToPixelRatio ) )
+                        is_between( .00056, .00060, $latitudeToPixelRatio, ) )
+
+                    # not( is_between(.00008 , .00009, $latitudeToPixelRatio ) )
                     # &&
                     #&& not( is_between(  .00084, .00085, $latitudeToPixelRatio ) )
 
@@ -3865,22 +3882,12 @@ sub writeStatistics {
       or croak "can't open '$targetStatistics' for writing : $!";
 
     my $_header = join ",", sort keys %statistics;
+
     # my $_data   = join ",", sort values %statistics;
-my $_data = join(", ", map { "$statistics{$_}" } sort keys %statistics);
+    #A basic routine for outputting CSV for our statistics hash
+    my $_data = join( ",", map { "$statistics{$_}" } sort keys %statistics );
     say {$file} "$_header" or croak "Cannot write to $targetStatistics: ";
     say {$file} "$_data"   or croak "Cannot write to $targetStatistics: ";
-
-    # #Count of entries in this array
-    # my $xScaleAvgSize = @xScaleAvg;
-
-    # #Count of entries in this array
-    # my $yScaleAvgSize = @yScaleAvg;
-    # say {$file}
-    # '$dir$filename,$airportLatitudeDec,$airportLongitudeDec,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount,$pdfXYRatio,$lonLatRatio,$xScaleAvgSize,$xAvg,$xMedian,$yScaleAvgSize,$yAvg,$yMedian';
-
-    # say {$file}
-    # "$dir$filename$ext,$airportLatitudeDec,$airportLongitudeDec,$obstacleCount,$fixCount,$gpsCount,$finalApproachFixCount,$visualDescentPointCount,$gcpCount,$unique_obstacles_from_dbCount,$pdfXYRatio,$lonLatRatio,$xScaleAvgSize,$xAvg,$xMedian,$yScaleAvgSize,$yAvg,$yMedian"
-    # or croak "Cannot write to $targetStatistics: ";    #$OS_ERROR
 
     close $file;
     return;
@@ -4836,7 +4843,7 @@ sub GoogleBingtoWGS84Mercator {
 
 sub slopeAngle {
     my ( $x1, $y1, $x2, $y2 ) = @_;
-    return rad2deg( atan2( $y2 - $y1, $x2 - $x1 ) ) %180;
+    return rad2deg( atan2( $y2 - $y1, $x2 - $x1 ) ) % 180;
 }
 
 sub NESW {
@@ -4976,10 +4983,21 @@ sub findRunwaysInDatabase {
         # }
         #Skip helipads or waterways
         next if ( $LEName =~ /[HW]/i );
-        next unless ($FaaID && $Length &&  $Width &&  $LEName && 
-            $LELatitude && $LELongitude &&  $LEElevation &&  $LEHeading && 
-            $HEName &&     $HELatitude &&   $HELongitude &&  $HEElevation && 
-            $HEHeading);
+        next
+          unless ( $FaaID
+            && $Length
+            && $Width
+            && $LEName
+            && $LELatitude
+            && $LELongitude
+            && $LEElevation
+            && $LEHeading
+            && $HEName
+            && $HELatitude
+            && $HELongitude
+            && $HEElevation
+            && $HEHeading );
+
         #Convert lon/at to EPSG 3857
         my ( $x1, $y1 ) = WGS84toGoogleBing( $LELongitude, $LELatitude );
         my ( $x2, $y2 ) = WGS84toGoogleBing( $HELongitude, $HELatitude );
@@ -4988,7 +5006,8 @@ sub findRunwaysInDatabase {
         my $slope = round( slopeAngle( $x1, $y1, $x2, $y2 ) );
 
         say
-          "EPSG:4326 -> 3857 conversion true heading for runway $LEName: $trueHeading" if $debug;
+          "EPSG:4326 -> 3857 conversion true heading for runway $LEName: $trueHeading"
+          if $debug;
 
         my @A = NESW( $LELongitude, $LELatitude );
         my @B = NESW( $HELongitude, $HELatitude );
@@ -4999,15 +5018,15 @@ sub findRunwaysInDatabase {
         my $rad = great_circle_direction( @A, @B );
 
         say "True course for $LEName: " . round( rad2deg($rad) ) if $debug;
-  
+
         #$runwaysFromDatabase{$LEName}{} = $trueHeading;
-        $runwaysFromDatabase{$LEName.$HEName}{'LELatitude'}  = $LELatitude;
-        $runwaysFromDatabase{$LEName.$HEName}{'LELongitude'} = $LELongitude;
-        $runwaysFromDatabase{$LEName.$HEName}{'LEHeading'}   = $LEHeading;
-        $runwaysFromDatabase{$LEName.$HEName}{'HELatitude'}  = $HELatitude;
-        $runwaysFromDatabase{$LEName.$HEName}{'HELongitude'} = $HELongitude;
-        $runwaysFromDatabase{$LEName.$HEName}{'HEHeading'}   = $HEHeading;
-        $runwaysFromDatabase{$LEName.$HEName}{'Slope'}       = $slope;
+        $runwaysFromDatabase{ $LEName . $HEName }{'LELatitude'}  = $LELatitude;
+        $runwaysFromDatabase{ $LEName . $HEName }{'LELongitude'} = $LELongitude;
+        $runwaysFromDatabase{ $LEName . $HEName }{'LEHeading'}   = $LEHeading;
+        $runwaysFromDatabase{ $LEName . $HEName }{'HELatitude'}  = $HELatitude;
+        $runwaysFromDatabase{ $LEName . $HEName }{'HELongitude'} = $HELongitude;
+        $runwaysFromDatabase{ $LEName . $HEName }{'HEHeading'}   = $HEHeading;
+        $runwaysFromDatabase{ $LEName . $HEName }{'Slope'}       = $slope;
 
         #say "$FaaID, $Length ,$Width ,$LEName ,$LELatitude ,$LELongitude ,$LEElevation , $LEHeading , $HEName ,$HELatitude ,$HELongitude ,$HEElevation ,$HEHeading";
         # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
