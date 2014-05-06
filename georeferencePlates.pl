@@ -120,7 +120,7 @@ my %statistics = (
 );
 
 use vars qw/ %opt /;
-my $opt_string = 'cspva:';
+my $opt_string = 'cspvoba:';
 my $arg_num    = scalar @ARGV;
 
 #This will fail if we receive an invalid option
@@ -142,11 +142,15 @@ sub usage {
     say "-p Output a marked up version of PDF";
     say "-s Output statistics about the PDF";
     say "-c Don't overwrite existing .vrt";
+    say "-o Re-create outlines/mask files";
+    say "-b Allow creation of vrt with known bad lon/lat ratio";
 
 }
 my $debug                  = $opt{v};
 my $shouldSaveMarkedPdf    = $opt{p};
 my $shouldOutputStatistics = $opt{s};
+my $shouldRecreateOutlineFiles = $opt{o};
+my $shouldSaveBadRatio = $opt{b};
 
 #Get the airport ID in case we can't guess it from PDF (KSSC is an example)
 my $airportId = $opt{a};
@@ -415,7 +419,7 @@ my ( $lowerYCutoff, $upperYCutoff );
 
 #Don't recreate the outlines PDF if it already exists
 
-if ( !-e $outputPdfOutlines ) {
+if ( !-e $outputPdfOutlines || $shouldRecreateOutlineFiles ) {
 
     #Make our masking PDF
     $pdfOutlines = PDF::API2->new();
@@ -439,7 +443,7 @@ if ( !-e $outputPdfOutlines ) {
 my ( $image, $perlMagickStatus );
 $image = Image::Magick->new;
 
-if ( !-e "$outputPdfOutlines.png" ) {
+if ( !-e "$outputPdfOutlines.png" || $shouldRecreateOutlineFiles ) {
 
     #If the .PNG doesn't already exist lets create it
     #offset from the center to start the fills
@@ -3296,7 +3300,10 @@ sub findNavaidTextboxes {
             #say "$_vorName , $validNavaidNames";
             #This can't be a valid navaidTextBox if it doesn't contain a valid nearby navaid
             next unless $validNavaidNames =~ m/$_vorName/;
-
+       
+            #Ignore vertically oriented textboxes
+            next if $height > $width;
+    
             #Check that the box isn't too big
             #This is a workaround for "CO-DEN-ILS-RWY-34L-CAT-II---III.pdf" where it finds a bad box due to ordering of text in PDF
             next if ( abs($width) > 50 );
@@ -3691,11 +3698,21 @@ sub georeferenceTheRaster {
     $statistics{'$lonLatRatio'}       = $lonLatRatio;
     $statistics{'$targetLonLatRatio'} = $targetLonLatRatio;
 
-    if ( abs( $lonLatRatio - $targetLonLatRatio ) > .09 ) {
+    
+    #    say "lonLatRatio $lonLatRatio, targetLonLatRatio: $targetLonLatRatio, Difference: " . abs( $lonLatRatio - $targetLonLatRatio) . "$targetPdf";
+    
+    if ( abs( $lonLatRatio - $targetLonLatRatio ) > .1 ) {
         say
-          "Bad lonLatRatio $lonLatRatio, expected $targetLonLatRatio.  Not georeferencing."
-          if $debug;
+          "Bad lonLatRatio $lonLatRatio, expected $targetLonLatRatio, Difference: " . abs( $lonLatRatio - $targetLonLatRatio) ;
+          
+        if ($shouldSaveBadRatio) {
+           $targetvrt         = $dir . "badRatio-" . $filename . ".vrt";
+           
+        } 
+        else {
+            say "Not georeferencing $targetPdf";
         return;
+    }
     }
 
     if ($debug) {
@@ -4312,7 +4329,7 @@ sub findHorizontalCutoff {
         }
         if (   ( $yCoord < $_upperYCutoff )
             && ( $yCoord > .5 * $pdfYSize )
-            && ( $length > .2 * $pdfXSize ) )
+            && ( $length > .3 * $pdfXSize ) )
         {
 
             $_upperYCutoff = $yCoord;

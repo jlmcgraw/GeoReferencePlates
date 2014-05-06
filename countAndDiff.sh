@@ -20,6 +20,7 @@ if [ $# -eq 0 ]
 fi
 
 
+
 allPdf() {
     #Output a list of all PDFs that aren't output from geoReferencePlates.pl)
      find $mainPlatesDirectory/$target -type f \
@@ -29,6 +30,7 @@ allPdf() {
       ! -iname "outlines*" \
       \)
 }
+
 notToScalePdf() {
   #Output a list of all PDFs known not to be to scale
   find $mainPlatesDirectory/$target -type f \
@@ -54,6 +56,7 @@ notToScalePdf() {
        \) \
     \) 
 }
+
 desirablePdf() {
   #Output a list of PDFs we should be able to georeference
      find $mainPlatesDirectory/$target -type f \
@@ -78,6 +81,24 @@ desirablePdf() {
       \)
    }
    
+ visualAndLandingPdf() {
+  #Output a list of PDFs we should be able to georeference
+     find $mainPlatesDirectory/$target -type f \
+     \( \
+          -iname "*VISUAL*.pdf" -o \
+          -iname "*LANDING*.pdf" \
+      \)
+   }
+   
+    visualAndLandingVrt() {
+  #Output a list of PDFs we should be able to georeference
+     find $mainPlatesDirectory/$target -type f \
+     \( \
+          -iname "*VISUAL*.vrt" -o \
+          -iname "*LANDING*.vrt" \
+      \)
+   }    
+   
  vrt() {
      #Output a list of all files that end in .vrt
      find $mainPlatesDirectory/$target -type f \
@@ -87,7 +108,10 @@ desirablePdf() {
         ! -iname "outlines*" \
    \) 
  }
- 
+
+vrtFile=./listOfVrts-$(date +%F-%T).txt
+pdfFile=./listOfPdfs-$(date +%F-%T).txt
+echo $vrtFile $pdfFile
 
 #for the list of all arguments from command line
 for target in $@
@@ -101,31 +125,34 @@ do
    | cut -d\. -f1 --complement \
    | rev \
    | sort \
-    > desirable.txt   
+    > $pdfFile   
   
     #List of plates the process did succeed for 
     #The "cut" is removing the file extension
-    vrt | rev | cut -d\. -f1 --complement| rev | sort > vrt.txt
+    vrt | rev | cut -d\. -f1 --complement| rev | sort > $vrtFile
 
     #Get the counts of each category
     allCount=$( allPdf | wc -l )
     notToScaleCount=$( notToScalePdf | wc -l )
-    desirableCount=$( cat desirable.txt | wc -l )
-    vrtCount=$( cat vrt.txt | wc -l )
+    desirableCount=$( cat $pdfFile | wc -l )
+    visualAndLandingPdfCount=$( visualAndLandingPdf | wc -l )
+    visualAndLandingVrtCount=$( visualAndLandingVrt| wc -l )
+    vrtCount=$( cat $vrtFile | wc -l )
 
-    echo $target: $allCount ALL, $desirableCount Desirable, $vrtCount VRT, 
+    echo $target: $allCount ALL, $desirableCount Desirable, $vrtCount VRT
   
     #List the differences between the two lists
-    set +e
-    diff --suppress-common-lines desirable.txt vrt.txt
-    set -e
+    # set +e
+    # diff --suppress-common-lines $pdfFile $vrtFile
+    # set -e
 
+   rm $pdfFile $vrtFile
     #Hardcoded count of known miltary plates
-    let militaryCount=1093
+    let militaryCount=0
     let possibleCount=$allCount-$notToScaleCount-$militaryCount
     let desirableMissingCount=$allCount-$notToScaleCount-$vrtCount
     let missingCount=$possibleCount-$vrtCount
     
-    echo $allCount allCount, $notToScaleCount notToScale, $militaryCount military, $possibleCount possible, $desirableCount desirable, $vrtCount vrt, $desirableMissingCount missing, $missingCount missing overall
+    echo $allCount allCount, $notToScaleCount notToScale, $militaryCount military, $possibleCount possible, $desirableCount desirable, $vrtCount vrt, $desirableMissingCount missing, $missingCount missing overall, $visualAndLandingPdfCount visual\/landing PDF, $visualAndLandingVrtCount visual\/landing VRT
 
 done

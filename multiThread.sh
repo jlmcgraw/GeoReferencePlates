@@ -5,6 +5,19 @@ IFS="`printf '\n\t'`"  # Always put this in Bourne shell scripts
 # This script assumes all of the plates are in a "./plates" subdirectory with a separate directory for each airport
 mainPlatesDirectory=./plates
 
+# if [ $# -eq 0 ]
+  # then
+    # echo "No arguments supplied"
+    # echo ""
+    # echo "Usage: "
+    # echo "$0 <subdirectory to count plates for in $mainPlatesDirectory/>"
+    # echo "  eg: $0 TPA SSI (process one or more specific airports"
+    # echo "  eg: $0 . (does all plates)"
+    # echo ""
+    # echo "This script assumes all plates are in a separate subdirectory for each airport in $mainPlatesDirectory"
+    # exit
+# fi
+
 desirablePdf() {
   #Output a list of PDFs we should be able to georeference
      find $mainPlatesDirectory/$target -type f \
@@ -64,10 +77,10 @@ do
   #Georeference all of the plates in the "./plates" subdirectory and below using $cpus processes
   #Ignore airport diagrams, hotspots, lahso, and sids/stars
   #Change the options here to create statistics or marked PDFs
-   desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s
+   desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s -b
    
    #Use this command if you have a file "args.txt" containing a specific list of PDFs to process (eg a list of plates that didn't work properly)
-  #xargs --arg-file=args.txt --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -s -p
+  #xargs --arg-file=listOfPlatesThatDontWork.txt --max-args=1 --max-procs=1  ./georeferencePlates.pl -s -p -o
 
   #Now do stop executing on  error return codes
 
