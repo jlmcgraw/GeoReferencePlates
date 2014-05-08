@@ -170,7 +170,7 @@ else {
     my $sourceFile =
       $webServer . $htmlcycle . $MySlash . $xmlDataDir . $MySlash . $xmlFile;
     my $outputFile = $xmlFile;
-
+    say "Getting $sourceFile ->  $outputFile";
     #Get d-TPP file
     getstore( $sourceFile, $outputFile );
 
@@ -394,10 +394,10 @@ foreach my $tpp ( $tppSet->get_nodelist ) {
                             $procedureLocalName =
                               "$outputDir" . "/" . "$pdfName";
 
-                            getstore( $sourceFile, $outputFile );
-                            die
-                              "Can't download plate $sourceFile to $outputFile"
-                              unless -f $outputFile;
+                            # getstore( $sourceFile, $outputFile );
+                            # die
+                              # "Can't download plate $sourceFile to $outputFile"
+                              # unless -f $outputFile;
                             say "$sourceFile->$outputFile";
                             $iDownloaded++;
                             $filesize = ( $filesize + ( -s "$outputFile" ) );

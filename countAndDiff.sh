@@ -85,8 +85,12 @@ desirablePdf() {
   #Output a list of PDFs we should be able to georeference
      find $mainPlatesDirectory/$target -type f \
      \( \
+       ! -iname "marked*" -a\
+      ! -iname "outlines*" -a \
+         \( \
           -iname "*VISUAL*.pdf" -o \
           -iname "*LANDING*.pdf" \
+          \) \
       \)
    }
    
@@ -106,6 +110,14 @@ desirablePdf() {
           -iname "*.vrt" -a \
         ! -iname "marked*" -a \
         ! -iname "outlines*" \
+   \) 
+ }
+ 
+  badVrt() {
+     #Output a list of all files that end in .vrt
+     find $mainPlatesDirectory/$target -type f \
+  \( \
+          -iname "bad*.vrt" \
    \) 
  }
 
@@ -138,21 +150,31 @@ do
     visualAndLandingPdfCount=$( visualAndLandingPdf | wc -l )
     visualAndLandingVrtCount=$( visualAndLandingVrt| wc -l )
     vrtCount=$( cat $vrtFile | wc -l )
-
-    echo $target: $allCount ALL, $desirableCount Desirable, $vrtCount VRT
+    badVrtCount=$( badVrt | wc -l )
+    #echo $target: $allCount ALL, $desirableCount Desirable, $vrtCount VRT
   
     #List the differences between the two lists
-    # set +e
-    # diff --suppress-common-lines $pdfFile $vrtFile
-    # set -e
+    set +e
+    diff --suppress-common-lines $pdfFile $vrtFile
+    set -e
 
-   rm $pdfFile $vrtFile
+     rm $pdfFile $vrtFile   
     #Hardcoded count of known miltary plates
-    let militaryCount=0
+    let militaryCount=1
     let possibleCount=$allCount-$notToScaleCount-$militaryCount
     let desirableMissingCount=$allCount-$notToScaleCount-$vrtCount
     let missingCount=$possibleCount-$vrtCount
     
-    echo $allCount allCount, $notToScaleCount notToScale, $militaryCount military, $possibleCount possible, $desirableCount desirable, $vrtCount vrt, $desirableMissingCount missing, $missingCount missing overall, $visualAndLandingPdfCount visual\/landing PDF, $visualAndLandingVrtCount visual\/landing VRT
+    echo $allCount PDF files
+    echo $notToScaleCount Not to scale
+    echo $militaryCount Military plates
+    echo $possibleCount possible with this program
+    echo $desirableCount desirable
+    echo  $vrtCount vrt
+    echo  $badVrtCount bad ratio vrt
+    echo $desirableMissingCount missing 
+    echo $missingCount missing overall
+    echo $visualAndLandingPdfCount visual\/landing PDFs
+    echo $visualAndLandingVrtCount visual\/landing VRT
 
 done
