@@ -33,7 +33,9 @@
 #Instead of only matching on closest, iterate over every icon making sure it's matched to some textbox
 #    (eg if one icon <-> textbox pair does match as closest to each other, remove that textbox from consideration for the rest of the icons, loop until all icons have a match)
 #
-#Try to find the runways themselves to use as GCPs
+#Try with both unique and non-unique obstacles, save whichever has closest lon/lat ratio to targetLonLatRatio
+#
+#Iterate over a list of files from command line or stdin
 #
 #Generate the text, text w/ bounding box, and pdfdump output once and re-use in future runs (like we're doing with the masks)
 #Generate the mask bitmap totally in memory instead of via pdf->png
@@ -44,6 +46,7 @@
 #Integrate OCR so we can process miltary plates too
 #       The miltary plates are not rendered the same as the civilian ones, it will require full on image processing to do those
 #
+#Try to find the runways themselves to use as GCPs (DONE)
 
 use 5.010;
 
@@ -63,14 +66,13 @@ use Math::Trig;
 use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
 use Math::Round;
 use POSIX;
-
 # use Math::Round;
 use Time::HiRes q/gettimeofday/;
-
 #use Math::Polygon;
 # use Acme::Tools qw(between);
 use Image::Magick;
 use File::Slurp;
+
 
 #PDF constants
 use constant mm => 25.4 / 72;
@@ -120,6 +122,7 @@ my %statistics = (
 );
 
 use vars qw/ %opt /;
+#Define the valid command line options
 my $opt_string = 'cspvobma:';
 my $arg_num    = scalar @ARGV;
 
@@ -135,29 +138,28 @@ if ( $arg_num < 1 ) {
     exit(1);
 }
 
-sub usage {
-    say "Usage: $0 <options> <pdf_file>";
-    say "-v debug";
-    say "-a<FAA airport ID>  To specify an airport ID";
-    say "-p Output a marked up version of PDF";
-    say "-s Output statistics about the PDF";
-    say "-c Don't overwrite existing .vrt";
-    say "-o Re-create outlines/mask files";
-    say "-b Allow creation of vrt with known bad lon/lat ratio";
-    say "-m Allow use of non-unique obstacles";
-
-}
-my $debug                      = $opt{v};
-my $shouldSaveMarkedPdf        = $opt{p};
+my $shouldNotOverwriteVrt = $opt{c};
 my $shouldOutputStatistics     = $opt{s};
+my $shouldSaveMarkedPdf        = $opt{p};
+my $debug                      = $opt{v};
 my $shouldRecreateOutlineFiles = $opt{o};
 my $shouldSaveBadRatio         = $opt{b};
 my $shouldUseMultipleObstacles = $opt{m};
-
-#Get the airport ID in case we can't guess it from PDF (KSSC is an example)
 my $airportId = $opt{a};
 
-my $shouldOverwriteVrt = $opt{c};
+# my $file = shift @ARGV;
+# my $ifh;
+# my $is_stdin = 0;
+# if (defined $file){
+  # open $ifh, "<", $file or die $!;
+# } else {
+  # $ifh = *STDIN;
+  # $is_stdin++;
+# }
+
+# while (<$ifh>){
+   # print
+# }
 
 #Get the target PDF file from command line options
 my ($targetPdf) = $ARGV[0];
@@ -177,15 +179,15 @@ my ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
 ($airportId) = $filename =~ m/^\w\w-(\w\w\w)-/;
 
 #Set some output file names based on the input filename
-my $outputPdf         = $dir . "marked-" . $filename . ".pdf";
-my $outputPdfOutlines = $dir . "outlines-" . $filename . ".pdf";
-my $outputPdfRaw      = $dir . "raw-" . $filename . ".txt";
-my $targetpng         = $dir . $filename . ".png";
-my $gcpPng            = $dir . "gcp-" . $filename . ".png";
-my $targettif         = $dir . $filename . ".tif";
-my $targetvrt         = $dir . $filename . ".vrt";
-my $targetStatistics  = "./statistics.csv";
-
+my $outputPdf                  = $dir . "marked-" . $filename . ".pdf";
+our $outputPdfOutlines = $dir . "outlines-" . $filename . ".pdf";
+my $outputPdfRaw         = $dir . "raw-" . $filename . ".txt";
+our $targetpng                   = $dir . $filename . ".png";
+our $gcpPng                      = $dir . "gcp-" . $filename . ".png";
+my $targettif                   = $dir . $filename . ".tif";
+my $targetvrt                   = $dir . $filename . ".vrt";
+my $targetStatistics          = "./statistics.csv";
+my $touchFile = $dir . "noPoints-" . $filename . ".vrt";
 # #Non-zero if we only want to use GPS waypoints for GCPs on this plate
 # my $rnavPlate = 0;
 
@@ -218,7 +220,7 @@ if ($debug) {
 $statistics{'$targetPdf'} = $targetPdf;
 
 #This is a quick hack to abort if we've already created a .vrt for this plate
-if ( $shouldOverwriteVrt && -e $targetvrt ) {
+if ( $shouldNotOverwriteVrt && -e $targetvrt ) {
     say "$targetvrt exists, exiting";
     exit(1);
 }
@@ -260,7 +262,7 @@ $dbh = DBI->connect(
 ) or croak $DBI::errstr;
 
 #Pull airport location from chart text or, if a name was supplied on command line, from database
-my ( $airportLatitudeDec, $airportLongitudeDec ) =
+our ( $airportLatitudeDec, $airportLongitudeDec ) =
   findAirportLatitudeAndLongitude();
 
 #Get the mediabox size and other variables from the PDF
@@ -271,7 +273,7 @@ my ( $pdfXSize, $pdfYSize, $pdfCenterX, $pdfCenterY, $pdfXYRatio ) =
 convertPdfToPng();
 
 #Get PNG dimensions and the PDF->PNG scale factors
-my ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
+our ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
   getPngSize();
 
 #--------------------------------------------------------------------------------------------------------------
@@ -312,50 +314,18 @@ my ($originRegex) = qr/0\s+0\s+m/x;
 
 #Global variables filled in by the "findAllIcons" subroutine.  At some point I'll convert the subroutines to work with local variables and return values instead
 my %icons = ();
-
 my %obstacleIcons = ();
-
-# my $obstacleCount = 0;
-
 my %fixIcons = ();
-
-# my $fixCount = 0;
-
 my %gpsWaypointIcons = ();
-
-# my $gpsCount         = 0;
-
 my %navaidIcons = ();
-
-# my $navaidCount = 0;
-
-# my %finalApproachFixIcons = ();
-# my $finalApproachFixCount = 0;
-
-# my %visualDescentPointIcons = ();
-# my $visualDescentPointCount = 0;
-
 my %horizontalAndVerticalLines = ();
-
-# my $horizontalAndVerticalLinesCount = 0;
-
 my %insetBoxes = ();
-
-# my $insetBoxesCount = 0;
-
 my %largeBoxes = ();
-
-# my $largeBoxesCount = 0;
-
 my %insetCircles = ();
-
-# my $insetCirclesCount = 0;
-
 my %notToScaleIndicator = ();
-
-# my $notToScaleIndicatorCount = 0;
 my %runwayIcons         = ();
 my %runwaysFromDatabase = ();
+our %runwaysToDraw = ();
 my @validRunwaySlopes   = ();
 
 #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
@@ -395,11 +365,12 @@ findNavaidsNearAirport();
 my @validNavaidNames = keys %navaids_from_db;
 my $validNavaidNames = join( " ", @validNavaidNames );
 
+#Find all of the text boxes in the PDF
 my @pdfToTextBbox     = ();
 my %fixTextboxes      = ();
 my %obstacleTextBoxes = ();
 my %vorTextboxes      = ();
-#
+
 findAllTextboxes();
 
 #----------------------------------------------------------------------------------------------------------
@@ -426,7 +397,7 @@ if ( !-e $outputPdfOutlines || $shouldRecreateOutlineFiles ) {
 
 #---------------------------------------------------
 #Convert the outlines PDF to a PNG
-my ( $image, $perlMagickStatus );
+our ( $image, $perlMagickStatus );
 $image = Image::Magick->new;
 
 #Either create or load the masking file for determining which portions of the image to use for GCPs
@@ -700,25 +671,22 @@ drawLineFromEachIconToMatchedTextBox( \%navaidIcons, \%vorTextboxes )
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------
 #Create the combined hash of Ground Control Points
-my %gcps = ();
+our %gcps = ();
 
 #Add Runway endpoints to Ground Control Points hash
 addCombinedHashToGroundControlPoints( "runway", \%matchedRunIconsToDatabase );
 
 #Add Obstacles to Ground Control Points hash
-addCombinedHashToGroundControlPoints( "obstacle",
-    $matchedObstacleIconsToTextBoxes );
+addCombinedHashToGroundControlPoints( "obstacle",    $matchedObstacleIconsToTextBoxes );
 
 #Add Fixes to Ground Control Points hash
 addCombinedHashToGroundControlPoints( "fix", $matchedFixIconsToTextBoxes );
 
 #Add Navaids to Ground Control Points hash
-addCombinedHashToGroundControlPoints( "navaid",
-    $matchedNavaidIconsToTextBoxes );
+addCombinedHashToGroundControlPoints( "navaid",    $matchedNavaidIconsToTextBoxes );
 
 #Add GPS waypoints to Ground Control Points hash
-addCombinedHashToGroundControlPoints( "gps",
-    $matchedGpsWaypointIconsToTextBoxes );
+addCombinedHashToGroundControlPoints( "gps",    $matchedGpsWaypointIconsToTextBoxes );
 
 if ($debug) {
     say "";
@@ -726,6 +694,7 @@ if ($debug) {
     print Dumper ( \%gcps );
     say "";
 }
+
 
 #build the GCP portion of the command line parameters
 my $gcpstring = createGcpString();
@@ -747,7 +716,11 @@ if ($shouldSaveMarkedPdf) {
 #Can't do anything if we didn't find any valid ground control points
 if ( $gcpCount < 2 ) {
     say "Didn't find 2 or more ground control points in $targetPdf";
-
+    say "Touching $touchFile";
+    open(my $fh, ">", "$touchFile")
+    or die "cannot open > $touchFile: $!";
+    close($fh);
+    #touch($touchFile);
     writeStatistics() if $shouldOutputStatistics;
     exit(1);
 }
@@ -755,6 +728,7 @@ if ( $gcpCount < 2 ) {
 #----------------------------------------------------------------------------------------------------------------------------------------------------
 #Now some math
 my ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
+
 
 #Print a header so you could paste the following output into a spreadsheet to analyze
 say
@@ -764,7 +738,10 @@ say
 #Calculate the rough X and Y scale values
 if ( $gcpCount == 1 ) {
     say "Didn't find 2 or more ground control points in $targetPdf";
-
+    say "Touching $touchFile";
+    open(my $fh, ">", "$touchFile")
+    or die "cannot open > $touchFile: $!";
+    close($fh);
     #Is it better to guess or do nothing?  I think we should do nothing
     #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
 }
@@ -772,10 +749,10 @@ else {
     calculateRoughRealWorldExtentsOfRaster();
 }
 
-my ( $xAvg,    $xMedian,   $xStdDev )   = 0;
-my ( $yAvg,    $yMedian,   $yStdDev )   = 0;
-my ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
-my ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
+our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
+our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
+our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
+our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
 my ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
 my ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
 my ($lonLatRatio) = 0;
@@ -812,6 +789,12 @@ if ( @xScaleAvg && @yScaleAvg ) {
 }
 else {
     say "No points actually added to the scale arrays for $targetPdf";
+    
+    say "Touching $touchFile";
+     
+      open(my $fh, ">", "$touchFile")
+    or die "cannot open > $touchFile: $!";
+    close($fh);
 }
 
 #Write out the statistics of this file if requested
@@ -825,109 +808,14 @@ drawFeaturesOnPdf() if $shouldSaveMarkedPdf;
 # if ($shouldSaveMarkedPdf) {
 # $pdf->saveas($outputPdf);
 # }
-
+say "TargetLonLat: " . $statistics{'$targetLonLatRatio'} . ",  LatLon: $lonLatRatio , Difference: " . ($statistics{'$targetLonLatRatio'} - $lonLatRatio);
 #Close the database
 $sth->finish();
 $dbh->disconnect();
-
+exit(0);
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #SUBROUTINES
 #------------------------------------------------------------------------------------------------------------------------------------------
-sub drawFeaturesOnPdf {
-
-    if ( -e "$targetpng" ) {
-
-        #say $airportLatitudeDec;
-        my $y1 = latitudeToPixel($airportLatitudeDec) - 2;
-        my $x1 = longitudeToPixel($airportLongitudeDec) - 2;
-        my $x2 = $x1 + 4;
-        my $y2 = $y1 + 4;
-        my ( $image, $perlMagickStatus );
-        $image = Image::Magick->new;
-
-        $perlMagickStatus = $image->Read("$targetpng");
-        warn $perlMagickStatus if $perlMagickStatus;
-
-        # $image->Draw(
-        # fill        => 'red',
-        # x           => $x1,
-        # y           => $y1,
-        # stroke      => 'red',
-        # strokewidth => '50',
-        # primitive   => 'circle',
-        # opacity     => '100'
-
-        # );
-
-       # $image->Draw(primitive=>'RoundRectangle',fill=>'blue',stroke=>'maroon',
-       # strokewidth=>4,points=>"$x1,$y1 30,30 10,10");
-
-        $image->Draw(
-            primitive => 'circle',
-            stroke    => 'none',
-            fill      => 'green',
-            points    => "$x1,$y1 $x2,$y2",
-            alpha     => '100'
-        );
-
-        # $image->Draw(
-        # primitive   => 'line',
-        # stroke      => 'none',
-        # fill        => 'yellow',
-        # points      => "$x1,$y1 $x2,$y2",
-        # strokewidth => '50',
-        # alpha       => '100'
-        # );
-
-        foreach my $key ( sort keys %gcps ) {
-
-            my $lon = $gcps{$key}{"lon"};
-            my $lat = $gcps{$key}{"lat"};
-            my $y1  = latitudeToPixel($lat) - 1;
-            my $x1  = longitudeToPixel($lon) - 1;
-            my $x2  = $x1 + 2;
-            my $y2  = $y1 + 2;
-            $image->Draw(
-                primitive => 'circle',
-                stroke    => 'none',
-                fill      => 'red',
-                points    => "$x1,$y1 $x2,$y2",
-                alpha     => '100'
-            );
-
-        }
-        $perlMagickStatus = $image->write("$gcpPng");
-        warn $perlMagickStatus if $perlMagickStatus;
-        return;
-    }
-}
-
-sub latitudeToPixel {
-    my ($_latitude) = @_;
-    return 0 unless $yMedian;
-
-    # say $_latitude;
-    #say "$ulYmedian, $yMedian";
-    my $_pixel = abs( ( $ulYmedian - $_latitude ) / $yMedian );
-
-    #say "$_latitude to $_pixel";
-
-    return $_pixel;
-}
-
-sub longitudeToPixel {
-    my ($_longitude) = @_;
-    return 0 unless $xMedian;
-
-    # say $_longitude;
-    #say "$ulXmedian, $xMedian";
-    my $_pixel = abs( ( $ulXmedian - $_longitude ) / $xMedian );
-
-    #say "$_longitude to $_pixel";
-
-    return $_pixel;
-}
-
 sub findObstacleHeightTexts {
 
     #The text from the PDF
@@ -1424,164 +1312,12 @@ sub calculateSmootherValuesOfArray {
           . sprintf( "%.10g", $stdDev )
           . "\tmedian: "
           . sprintf( "%.10g", $median );
-
-       # say "Smoothed values: average:  $avg\tstdev: $stdDev\tmedian: $median";
         say "";
     }
 
     return ( $avg, $median, $stdDev );
 }
 
-# sub calculateXScale {
-# my ($targetArrayRef) = @_;
-# $xAvg    = &average( \@xScaleAvg );
-# $xMedian = &median( \@xScaleAvg );
-# $xStdDev = &stdev( \@xScaleAvg );
-
-# if ($debug) {
-# say "";
-# say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian";
-# say "Removing data outside 1st standard deviation";
-# }
-
-# #Delete values from the array that are outside 1st dev
-# for ( my $i = 0 ; $i <= $#xScaleAvg ; $i++ ) {
-# splice( @xScaleAvg, $i, 1 )
-# if ( $xScaleAvg[$i] < ( $xAvg - $xStdDev )
-# || $xScaleAvg[$i] > ( $xAvg + $xStdDev ) );
-# }
-# $xAvg    = &average( \@xScaleAvg );
-# $xMedian = &median( \@xScaleAvg );
-# $xStdDev = &stdev( \@xScaleAvg );
-# say "X-scale: average:  $xAvg\tstdev: $xStdDev\tmedian: $xMedian"
-# if $debug;
-# return ( $xAvg, $xMedian, $xStdDev );
-# }
-
-# sub calculateYScale {
-# $yAvg    = &average( \@yScaleAvg );
-# $yMedian = &median( \@yScaleAvg );
-# $yStdDev = &stdev( \@yScaleAvg );
-
-# if ($debug) {
-# say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian";
-# say "Remove data outside 1st standard deviation";
-# }
-
-# #Delete values from the array that are outside 1st dev
-# for ( my $i = 0 ; $i <= $#yScaleAvg ; $i++ ) {
-# splice( @yScaleAvg, $i, 1 )
-# if ( $yScaleAvg[$i] < ( $yAvg - $yStdDev )
-# || $yScaleAvg[$i] > ( $yAvg + $yStdDev ) );
-# }
-# $yAvg    = &average( \@yScaleAvg );
-# $yMedian = &median( \@yScaleAvg );
-# $yStdDev = &stdev( \@yScaleAvg );
-# say "Y-scale: average:  $yAvg\tstdev: $yStdDev\tmedian: $yMedian"
-# if $debug;
-
-# return;
-# }
-
-# sub calculateULX {
-# $ulXAvrg   = &average( \@ulXAvg );
-# $ulXmedian = &median( \@ulXAvg );
-# $ulXStdDev = &stdev( \@ulXAvg );
-# say
-# "Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian"
-# if $debug;
-
-# #Delete values from the array that are outside 1st dev
-# for ( my $i = 0 ; $i <= $#ulXAvg ; $i++ ) {
-# splice( @ulXAvg, $i, 1 )
-# if ( $ulXAvg[$i] < ( $ulXAvrg - $ulXStdDev )
-# || $ulXAvg[$i] > ( $ulXAvrg + $ulXStdDev ) );
-# }
-# $ulXAvrg   = &average( \@ulXAvg );
-# $ulXmedian = &median( \@ulXAvg );
-# $ulXStdDev = &stdev( \@ulXAvg );
-# if ($debug) {
-# say "Remove data outside 1st standard deviation";
-# say
-# "Upper Left X: average:  $ulXAvrg\tstdev: $ulXStdDev\tmedian: $ulXmedian";
-
-# }
-# return;
-# }
-
-# sub calculateULY {
-# $ulYAvrg   = &average( \@ulYAvg );
-# $ulYmedian = &median( \@ulYAvg );
-# $ulYStdDev = &stdev( \@ulYAvg );
-
-# say
-# "Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian"
-# if $debug;
-
-# #Delete values from the array that are outside 1st dev
-# for ( my $i = 0 ; $i <= $#ulYAvg ; $i++ ) {
-# splice( @ulYAvg, $i, 1 )
-# if ( $ulYAvg[$i] < ( $ulYAvrg - $ulYStdDev )
-# || $ulYAvg[$i] > ( $ulYAvrg + $ulYStdDev ) );
-# }
-# $ulYAvrg   = &average( \@ulYAvg );
-# $ulYmedian = &median( \@ulYAvg );
-# $ulYStdDev = &stdev( \@ulYAvg );
-# if ($debug) {
-# say "Remove data outside 1st standard deviation";
-# say
-# "Upper Left Y: average:  $ulYAvrg\tstdev: $ulYStdDev\tmedian: $ulYmedian";
-# }
-# return;
-# }
-
-# sub calculateLRX {
-# $lrXAvrg   = &average( \@lrXAvg );
-# $lrXmedian = &median( \@lrXAvg );
-# $lrXStdDev = &stdev( \@lrXAvg );
-# say
-# "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian"
-# if $debug;
-
-# #Delete values from the array that are outside 1st dev
-# for ( my $i = 0 ; $i <= $#lrXAvg ; $i++ ) {
-# splice( @lrXAvg, $i, 1 )
-# if ( $lrXAvg[$i] < ( $lrXAvrg - $lrXStdDev )
-# || $lrXAvg[$i] > ( $lrXAvrg + $lrXStdDev ) );
-# }
-# $lrXAvrg   = &average( \@lrXAvg );
-# $lrXmedian = &median( \@lrXAvg );
-# $lrXStdDev = &stdev( \@lrXAvg );
-# if ($debug) {
-# say "Remove data outside 1st standard deviation";
-# say
-# "Lower Right X: average:  $lrXAvrg\tstdev: $lrXStdDev\tmedian: $lrXmedian";
-# }
-# return;
-# }
-
-# sub calculateLRY {
-# $lrYAvrg   = &average( \@lrYAvg );
-# $lrYmedian = &median( \@lrYAvg );
-# $lrYStdDev = &stdev( \@lrYAvg );
-# say
-# "Lower Right Y: average:  $lrYAvrg\tstdev: $lrYStdDev\tmedian: $lrYmedian"
-# if $debug;
-
-# #Delete values from the array that are outside 1st dev
-# for ( my $i = 0 ; $i <= $#lrYAvg ; $i++ ) {
-# splice( @lrYAvg, $i, 1 )
-# if ( $lrYAvg[$i] < ( $lrYAvrg - $lrYStdDev )
-# || $lrYAvg[$i] > ( $lrYAvrg + $lrYStdDev ) );
-# }
-# $lrYAvrg   = &average( \@lrYAvg );
-# $lrYmedian = &median( \@lrYAvg );
-# say
-# "Lower Right Y after deleting outside 1st dev: average: $lrYAvrg\tmedian: $lrYmedian"
-# if $debug;
-# say "" if $debug;
-# return;
-# }
 
 sub findAllIcons {
     say ":findAllIcons" if $debug;
@@ -1632,7 +1368,7 @@ sub findAllIcons {
     # print Dumper ( \%runwayIcons );
     # return;
     # }
-
+    return;
 }
 
 sub returnRawPdf {
@@ -2200,15 +1936,12 @@ sub findNavaidIcons {
 
 #put them into a hash
 #TODO Calculate the midpoint properly, this number is an estimation (although a good one)
-#Could use $length/2 here for X center offset
-            $navaidIcons{ $i . $rand }{"GeoreferenceX"} = $x + 2;
+            $navaidIcons{ $i . $rand }{"GeoreferenceX"} = $x + ($length / 2);
             $navaidIcons{ $i . $rand }{"GeoreferenceY"} = $y - 3;
-            $navaidIcons{ $i . $rand }{"CenterX"}       = $x + 2;
+            $navaidIcons{ $i . $rand }{"CenterX"}       = $x + ($length / 2);
             $navaidIcons{ $i . $rand }{"CenterY"}       = $y - 3;
             $navaidIcons{ $i . $rand }{"Width"}         = $width;
             $navaidIcons{ $i . $rand }{"Height"}        = $height;
-
-            # $navaidIcons{ $i . $rand }{"Name"}           = "none";
             $navaidIcons{ $i . $rand }{"Type"} = "VORTAC";
         }
 
@@ -2346,7 +2079,7 @@ sub findNavaidIcons {
         my $rand = rand();
         for ( my $i = 0 ; $i < $mergedLength ; $i = $i + $iconDataPoints ) {
 
-#TODO Test that the length of the first line is less than ~6 (one sample value is 3.17, so that's plenty of margin)
+
             my $x = $merged[$i];
             my $y = $merged[ $i + 1 ];
 
@@ -3267,45 +3000,6 @@ qr/^\s+<word xMin="($numberRegex)" yMin="($numberRegex)" xMax="($numberRegex)" y
     return;
 }
 
-# sub matchObstacleIconToUniqueObstaclesFromDb {
-# say ":matchObstacleIconToUniqueObstaclesFromDb" if $debug;
-
-# #Find a obstacle icon with text that matches the height of each of our unique_obstacles_from_db
-# #Add the center coordinates of its closest height text box to unique_obstacles_from_db hash
-# #
-# #The key for %unique_obstacles_from_db is the height of each obstacle
-# foreach my $key ( keys %unique_obstacles_from_db ) {
-
-# foreach my $key2 ( keys %obstacleIcons ) {
-
-# #Next icon if this one doesn't have a matching textbox
-# next unless ( $obstacleIcons{$key2}{"MatchedTo"} );
-# #TODO Make a new hash with all of our info, don't just update unique_obstacles_from_db
-# my $keyOfMatchedTextbox =  $obstacleIcons{$key2}{"MatchedTo"};
-# my $thisIconsGeoreferenceX =  $obstacleIcons{$key2}{"GeoreferenceX"};
-# my $thisIconsGeoreferenceY =  $obstacleIcons{$key2}{"GeoreferenceY"};
-# my $textOfMatchedTextbox = $obstacleTextBoxes{$keyOfMatchedTextbox}{"Text"};
-# #$obstacleIcons{$key2}{"Name"}
-
-# if ( $textOfMatchedTextbox eq $key ) {
-
-# #print $obstacleTextBoxes{$key2}{"Text"} . "$key\n";
-# $unique_obstacles_from_db{$key}{"Label"} =                  $textOfMatchedTextbox;
-# $unique_obstacles_from_db{$key}{"GeoreferenceX"} = $thisIconsGeoreferenceX                   ;
-# $unique_obstacles_from_db{$key}{"GeoreferenceY"} =$thisIconsGeoreferenceY                  ;
-# # $unique_obstacles_from_db{$key}{"TextBoxX"} =
-# # $obstacleIcons{$key2}{"TextBoxX"};
-
-# # $unique_obstacles_from_db{$key}{"TextBoxY"} =
-# # $obstacleIcons{$key2}{"TextBoxY"};
-
-# }
-
-# }
-# }
-# return;
-# }
-
 sub matchIconToDatabase {
     my ( $iconHashRef, $textboxHashRef, $databaseHashRef ) = @_;
     say ":matchIconToDatabase" if $debug;
@@ -3362,8 +3056,6 @@ sub calculateRoughRealWorldExtentsOfRaster {
             my ( $ulX, $ulY, $lrX, $lrY, $longitudeToPixelRatio,
                 $latitudeToPixelRatio, $longitudeToLatitudeRatio );
 
-            #TODO: Should make sure that the signs of the differences agree
-
             #X pixels between points
             my $pixelDistanceX = ( $gcps{$key}{"pngx"} - $gcps{$key2}{"pngx"} );
 
@@ -3401,7 +3093,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
 
                 if ( same_sign( $pixelDistanceY, $latitudeDiff ) ) {
                     say
-"Bad: for $key->$key2 pixelDistanceY and latitudeDiff have same same sign"
+"Bad: $key->$key2 pixelDistanceY and latitudeDiff have same same sign"
                       if $debug;
                     next;
                 }
@@ -3463,7 +3155,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                   if $debug;
                 if ( !( same_sign( $pixelDistanceX, $longitudeDiff ) ) ) {
                     say
-"Bad: for $key->$key2: pixelDistanceX and longitudeDiff don't have same same sign"
+"Bad: $key->$key2: pixelDistanceX and longitudeDiff don't have same same sign"
                       if $debug;
                     next;
                 }
@@ -3513,14 +3205,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
                   abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
 
 #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-                my $targetLonLatRatio =
-                  0.000000000065 * ( $airportLatitudeDec**6 ) -
-                  0.000000010206 * ( $airportLatitudeDec**5 ) +
-                  0.000000614793 * ( $airportLatitudeDec**4 ) -
-                  0.000014000833 * ( $airportLatitudeDec**3 ) +
-                  0.000124430097 * ( $airportLatitudeDec**2 ) +
-                  0.003297052219 * ($airportLatitudeDec) + 0.618729977577;
-
+                my $targetLonLatRatio = targetLonLatRatio($airportLatitudeDec);
+           
                 if ( ( $longitudeToLatitudeRatio - $targetLonLatRatio ) < .09 )
                 {
                     push @xScaleAvg, $longitudeToPixelRatio;
@@ -3617,13 +3303,7 @@ sub georeferenceTheRaster {
     $lonLatRatio = abs( $medianLonDiff / $medianLatDiff );
 
 #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-    my $targetLonLatRatio =
-      0.000000000065 * ( $airportLatitudeDec**6 ) -
-      0.000000010206 * ( $airportLatitudeDec**5 ) +
-      0.000000614793 * ( $airportLatitudeDec**4 ) -
-      0.000014000833 * ( $airportLatitudeDec**3 ) +
-      0.000124430097 * ( $airportLatitudeDec**2 ) +
-      0.003297052219 * ($airportLatitudeDec) + 0.618729977577;
+    my $targetLonLatRatio = targetLonLatRatio($airportLatitudeDec);
 
     $statistics{'$upperLeftLon'}      = $upperLeftLon;
     $statistics{'$upperLeftLat'}      = $upperLeftLat;
@@ -3732,64 +3412,6 @@ sub georeferenceTheRaster {
 # say $output;
     return;
 }
-
-# sub calculateRoughRealWorldExtentsOfRasterWithOneGCP {
-
-# # say
-# # "Found only one Ground Control Point.  Let's try a wild guess on $targetPdf";
-
-# # my $guessAtLatitudeToPixelRatio = .00038;
-# # my $targetXyRatio =
-# # 0.000007 * ( $airportLatitudeDec**3 ) -
-# # 0.0002 *   ( $airportLatitudeDec**2 ) +
-# # 0.0037 *   ($airportLatitudeDec) + 1.034;
-
-# # my $guessAtLongitudeToPixelRatio =
-# # $targetXyRatio * $guessAtLatitudeToPixelRatio;
-
-# # #my $targetLonLatRatio = 0.000004*($airportLatitudeDec**3) - 0.0001*($airportLatitudeDec**2) + 0.0024*$airportLatitudeDec + 0.6739;
-# # #my $targetLongitudeToPixelRatio1 = 0.000000002*($airportLatitudeDec**3) - 0.00000008*($airportLatitudeDec**2) + 0.000002*$airportLatitudeDec + 0.0004;
-
-# # foreach my $key ( sort keys %gcps ) {
-
-# # #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
-# # my $ulX =
-# # $gcps{$key}{"lon"} -
-# # ( $gcps{$key}{"pngx"} * $guessAtLongitudeToPixelRatio );
-
-# # #For the raster, calculate the latitude of the upper-left corner based on this object's latitude and the degrees per pixel
-# # my $ulY =
-# # $gcps{$key}{"lat"} +
-# # ( $gcps{$key}{"pngy"} * $guessAtLatitudeToPixelRatio );
-
-# # #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
-# # my $lrX =
-# # $gcps{$key}{"lon"} +
-# # (
-# # abs( $pngXSize - $gcps{$key}{"pngx"} ) *
-# # $guessAtLongitudeToPixelRatio );
-
-# # #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
-# # my $lrY =
-# # $gcps{$key}{"lat"} -
-# # (
-# # abs( $pngYSize - $gcps{$key}{"pngy"} ) *
-# # $guessAtLatitudeToPixelRatio );
-
-# # push @xScaleAvg, $guessAtLongitudeToPixelRatio;
-# # push @yScaleAvg, $guessAtLatitudeToPixelRatio;
-# # push @ulXAvg,    $ulX;
-# # push @ulYAvg,    $ulY;
-# # push @lrXAvg,    $lrX;
-# # push @lrYAvg,    $lrY;
-# # }
-# # return;
-# }
-
-#X-scale: average:  0.000487670014404161	stdev: 6.26807390750141e-05	median: 0.000463842054942444
-#Removing data outside 1st standard deviation
-#X-scale: average:  0.000476993619272827	stdev: 5.3573259650277e-05	median: 0.000446597492715171
-
 sub calculateSmoothedRealWorldExtentsOfRaster {
 
     #X-scale average and standard deviation
@@ -4777,76 +4399,9 @@ sub findNotToScaleIndicator {
     return;
 }
 
-sub removeIconsAndTextboxesInMaskedAreas {
 
-    #Remove an icon or a text box if it is in an area that is masked out
-    say "removeIconsAndTextboxesInMaskedAreas" if $debug;
-    my ( $type, $targetHashRef ) = @_;
 
-    say "type: $type, hashref $targetHashRef" if $debug;
 
-    foreach my $key ( sort keys %$targetHashRef ) {
-
-        my $_pdfX = $targetHashRef->{$key}{"CenterX"};
-        my $_pdfY = $targetHashRef->{$key}{"CenterY"};
-
-        next unless ( $_pdfX && $_pdfY );
-
-        my @pixels;
-        my $_rasterX = $_pdfX * $scaleFactorX;
-        my $_rasterY = $pngYSize - ( $_pdfY * $scaleFactorY );
-
-        #Make sure all our info is defined
-        if ( $_rasterX && $_rasterY ) {
-
-            #Get the color value of the pixel at the x,y of the GCP
-            @pixels = $image->GetPixel( x => $_rasterX, y => $_rasterY );
-
-#This is actually a RGB triplet rather than just 1 byte so I'm cheating a little bit here
-            say "perlMagick: $pixels[0]" if $debug;
-
-            #say @pixels;
-            #Only keep this feature if the pixel at this point is black
-            if ( $pixels[0] eq 0 ) {
-            }
-            else {
-                #Otherwise delete it
-                say "$type $key is being deleted" if $debug;
-                delete $targetHashRef->{$key};
-            }
-
-        }
-    }
-    return;
-}
-
-sub WGS84toGoogleBing {
-    my ( $lon, $lat ) = @_;
-    my $x = $lon * 20037508.34 / 180;
-    my $y = log( tan( ( 90 + $lat ) * pi / 360 ) ) / ( pi / 180 );
-    $y = $y * 20037508.34 / 180;
-    return ( $x, $y );
-}
-
-sub GoogleBingtoWGS84Mercator {
-    my ( $x, $y ) = @_;
-    my $lon = ( $x / 20037508.34 ) * 180;
-    my $lat = ( $y / 20037508.34 ) * 180;
-
-    $lat = 180 / pi * ( 2 * atan( exp( $lat * pi / 180 ) ) - pi / 2 );
-    return ( $lon, $lat );
-}
-
-sub slopeAngle {
-    my ( $x1, $y1, $x2, $y2 ) = @_;
-    return rad2deg( atan2( $y2 - $y1, $x2 - $x1 ) ) % 180;
-}
-
-sub NESW {
-
-    # Notice the 90 - latitude: phi zero is at the North Pole.
-    return deg2rad( $_[0] ), deg2rad( 90 - $_[1] );
-}
 
 sub findRunwayIcons {
     my ($_output) = @_;
@@ -4941,7 +4496,6 @@ sub findRunwayIcons {
 }
 
 sub findRunwaysInDatabase {
-
     #
     $sth = $dbh->prepare(
         "SELECT * FROM runways WHERE 
@@ -5022,6 +4576,13 @@ sub findRunwaysInDatabase {
         $runwaysFromDatabase{ $LEName . $HEName }{'HEHeading'}   = $HEHeading;
         $runwaysFromDatabase{ $LEName . $HEName }{'Slope'}       = $slope;
 
+        $runwaysToDraw{ $LEName . $HEName }{'LELatitude'}  = $LELatitude;
+        $runwaysToDraw{ $LEName . $HEName }{'LELongitude'} = $LELongitude;
+        $runwaysToDraw{ $LEName . $HEName }{'HELatitude'}  = $HELatitude;
+        $runwaysToDraw{ $LEName . $HEName }{'HELongitude'} = $HELongitude;
+
+
+
 #say "$FaaID, $Length ,$Width ,$LEName ,$LELatitude ,$LELongitude ,$LEElevation , $LEHeading , $HEName ,$HELatitude ,$HELongitude ,$HEElevation ,$HEHeading";
 # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
 # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
@@ -5074,11 +4635,7 @@ sub findRunwaysInDatabase {
     return;
 }
 
-sub trueHeading {
-    my ( $_x1, $_y1, $_x2, $_y2 ) = @_;
 
-    return rad2deg( pi / 2 - atan2( $_y2 - $_y1, $_x2 - $_x1 ) );
-}
 
 sub createOutlinesPdf {
 
@@ -5103,86 +4660,7 @@ sub createOutlinesPdf {
     return;
 }
 
-sub processMaskingFile {
-    if ( !-e "$outputPdfOutlines.png" || $shouldRecreateOutlineFiles ) {
 
-        #If the .PNG doesn't already exist lets create it
-        #offset from the center to start the fills
-        my $offsetFromCenter = 120;
 
-#If the masking PNG doesn't already exist, read in the outlines PDF, floodfill and then save
 
-        #Read in the .pdf maskfile
-        # $image->Set(units=>'1');
-        $image->Set( units   => 'PixelsPerInch' );
-        $image->Set( density => '300' );
-        $image->Set( depth   => 1 );
 
-        #$image->Set( background => 'white' );
-        $image->Set( alpha => 'off' );
-        $perlMagickStatus = $image->Read("$outputPdfOutlines");
-
-#Now do two fills from just around the middle of the inner box, just in case there's something in the middle of the box blocking the fill
-#I've only seen this be an issue once
-# $image->Draw(primitive=>'color',method=>'Replace',fill=>'black',x=>1,y=>1,color => 'black');
-        $image->Set( depth => 1 );
-
-        #$image->Set( background => 'white' );
-        $image->Set( alpha => 'off' );
-        $image->ColorFloodfill(
-            fill        => 'black',
-            x           => $pngXSize / 2 - $offsetFromCenter,
-            y           => $pngYSize / 2 - $offsetFromCenter,
-            bordercolor => 'black'
-        );
-        $image->ColorFloodfill(
-            fill        => 'black',
-            x           => $pngXSize / 2 + $offsetFromCenter,
-            y           => $pngYSize / 2 + $offsetFromCenter,
-            bordercolor => 'black'
-        );
-
-# $image->Draw(stroke=>'red',  fill        => 'white',primitive=>'rectangle', points=>'20,20 100,100');
-
-        #Write out to a .png do we don't have to do this work again
-        $perlMagickStatus = $image->write("$outputPdfOutlines.png");
-        warn "$perlMagickStatus" if "$perlMagickStatus";
-    }
-    else {
-        # $image->Set( units      => 'PixelsPerInch' );
-        # $image->Set( density    => '300' );
-        $image->Set( depth => 1 );
-
-        # $image->Set( background => 'white' );
-        # $image->Set( alpha      => 'off' );
-
-        #Use the already created mask image
-        $perlMagickStatus = $image->Read("$outputPdfOutlines.png");
-        warn "$perlMagickStatus" if "$perlMagickStatus";
-    }
-
-# $image->Draw(primitive=>'rectangle',method=>'Floodfill',fill=>'black',points=>"$halfPngX1,$halfPngY1,5,100",color=>'black');
-# $image->Draw(fill=>'black',points=>'$halfPngX2,$halfPngY2',floodfill=>'yes',color => 'black');
-#warn "$perlMagickStatus" if "$perlMagickStatus";
-#Uncomment these lines to write out the mask file so you can see what it looks like
-#Black pixel represent areas to keep, what is what to ignore
-# $perlMagickStatus = $image->Write("$outputPdfOutlines.png");
-# warn "$perlMagickStatus" if "$perlMagickStatus";
-}
-
-sub hashHasUnmatchedIcons {
-
-    # Return true if the passed hash has icons that aren't matched
-
-    my ($hashRefA) = @_;
-
-    # say "hashHasUnmatchedIcons if $debug;
-
-    foreach my $key ( sort keys %$hashRefA ) {
-
-        if ( !$hashRefA->{$key}{"MatchedTo"} ) {
-            return 1;
-        }
-    }
-    return 0;
-}

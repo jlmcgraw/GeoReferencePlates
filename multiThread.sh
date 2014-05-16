@@ -62,14 +62,14 @@ fi
 #for target in IAH ATL DCA IAD BOS EWR JFK SFO DEN RIC OFP CHO JGG ORD ORF PHF PHL BWI SEA EDU VCB SMF SAC APN LAX SAN SLC CLE CVG CAE CLT LGA LAS ANC MSP MCO DTW FLL MDW STL MEM HNL PDX OAK HOU IND AUS MCI SAT MSY SDF BNA DAL SJC SJU PIT MKE BUF RSW JAX RDU SSI
 
 # #Uncomment this to do all plates in $mainPlatesDirectory (./plates by default)
-# for target in .
+#for target in .
 
-for target in SSI I22 MYU AKP IXD ENM PNI DEN
+ for target in RIC SSI I22 MYU AKP IXD ENM PNI DEN
 do
   echo Target: $target
   
   #Remove old .VRTs in our target
-  find $mainPlatesDirectory/$target -iname "*.vrt" -delete
+  #find $mainPlatesDirectory/$target -iname "*.vrt" -delete
 
   #Don't stop executing on  error return codes
   set +e
@@ -77,7 +77,7 @@ do
   #Georeference all of the plates in the "./plates" subdirectory and below using $cpus processes
   #Ignore airport diagrams, hotspots, lahso, and sids/stars
   #Change the options here to create statistics or marked PDFs
-   desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -b -o
+   desirablePdf | xargs --null --max-args=1 --max-procs=$cpus  ./georeferencePlates.pl -b -m
    
    #Use this command if you have a file "args.txt" containing a specific list of PDFs to process (eg a list of plates that didn't work properly)
   #xargs --arg-file=listOfPlatesThatDontWork.txt --max-args=1 --max-procs=1  ./georeferencePlates.pl -s -p -o
