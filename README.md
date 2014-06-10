@@ -16,9 +16,9 @@ How to get this utility up and running:
 		git clone https://github.com/jlmcgraw/GeoReferencePlates
 
 	Install the following external programs
-		gdal 		(sudo apt-get install gdal-bin)
-		mupdf-tools 	(sudo apt-get install mupdf-tools)
-		sqlite3 	(sudo apt-get install sqlite3)
+		gdal 		| (sudo apt-get install gdal-bin)
+		mupdf-tools 	| (sudo apt-get install mupdf-tools)
+		sqlite3 	| (sudo apt-get install sqlite3)
 
 	Install the following CPAN modules
 		PDF::API2   	(sudo apt-get install libpdf-api2-perl)
