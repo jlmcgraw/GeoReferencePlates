@@ -44,6 +44,7 @@ How to get this utility up and running:
 	Requires perl version > 5.010
 
 How to use this utility
+
 	Usage: ./georeferencePlates.pl <options> <pdf_file>
 		-v debug
 		-a<FAA airport ID>  To specify an airport ID
