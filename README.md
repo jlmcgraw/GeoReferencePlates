@@ -3,7 +3,7 @@ GeoReferencePlates
 
 A utility for automatically georeferencing FAA / AeroNav Instrument Approach Plates
 
-These instructions are based on using Ubuntu
+These instructions are based on using Ubuntu, no testing has been done on other operating systems
 
 How to get this utility up and running:
 
@@ -16,21 +16,19 @@ How to get this utility up and running:
 		git clone https://github.com/jlmcgraw/GeoReferencePlates
 
 	Install the following external programs
-		Program		| Command
-		-------		| ------
-		gdal 		| (sudo apt-get install gdal-bin)
-		mupdf-tools 	| (sudo apt-get install mupdf-tools)
-		sqlite3 	| (sudo apt-get install sqlite3)
+		
+		gdal 		 (sudo apt-get install gdal-bin)
+		mupdf-tools 	 (sudo apt-get install mupdf-tools)
+		sqlite3 	 (sudo apt-get install sqlite3)
 
 	Install the following CPAN modules
-		Module		| Command
-		-------		| ------
-		PDF::API2   	| (sudo apt-get install libpdf-api2-perl)
-		DBI 		| (sudo apt-get install libdbi-perl)
-		DBD::SQLite3	| (sudo apt-get install libdbd-sqlite3-perl) 
-		Image::Magick	| (sudo apt-get install libimage-magick-perl)
-		File::Slurp	| (sudo apt-get install libfile-slurp-perl)
-		XML::Xpath 	| (sudo apt-get install libxml-xpath-perl)
+		
+		PDF::API2   	 (sudo apt-get install libpdf-api2-perl)
+		DBI 		 (sudo apt-get install libdbi-perl)
+		DBD::SQLite3	 (sudo apt-get install libdbd-sqlite3-perl) 
+		Image::Magick	 (sudo apt-get install libimage-magick-perl)
+		File::Slurp	 (sudo apt-get install libfile-slurp-perl)
+		XML::Xpath 	 (sudo apt-get install libxml-xpath-perl)
 
 	Download some Instrument Approach Procedure plates
 		- Download these with the "downloadPlates.pl" file
