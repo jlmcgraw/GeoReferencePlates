@@ -150,18 +150,21 @@ if ( !-e ($dtppDirectory) ) {
 
 #Default to all airports for the SQL query
 our $airportId = "%";
-if ($opt{a}) {
-#If something  provided on the command line use it instead
-$airportId = $opt{a} ;
+if ( $opt{a} ) {
+
+    #If something  provided on the command line use it instead
+    $airportId = $opt{a};
     say "Supplied airport ID: $airportId";
 }
+
 #Default to all states for the SQL query
 our $stateId = "%";
 
- if ($opt{i}) {
-#If something  provided on the command line use it instead
-$stateId = $opt{i};
-   say "Supplied state ID: $stateId";
+if ( $opt{i} ) {
+
+    #If something  provided on the command line use it instead
+    $stateId = $opt{i};
+    say "Supplied state ID: $stateId";
 }
 
 our $shouldNotOverwriteVrt      = $opt{c};
@@ -172,32 +175,28 @@ our $shouldRecreateOutlineFiles = $opt{o};
 our $shouldSaveBadRatio         = $opt{b};
 our $shouldUseMultipleObstacles = $opt{m};
 
-
-#database of metadta for dtpp
-my $dbfile = "./dtpp.db";
-my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "" )
+#database of metadata for dtpp
+my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=./dtpp.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
-#Open the database
+#Open the locations database
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect(
-    "dbi:SQLite:dbname=locationinfo.db",
-    "", "", { RaiseError => 1 },
-) or croak $DBI::errstr;
+$dbh = DBI->connect(    "dbi:SQLite:dbname=locationinfo.db",    "", "", { RaiseError => 1 }) 
+or croak $DBI::errstr;
 
 our (
     $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
     $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
-    $MILITARY_USE, $COPTER_USE, $STATE_ID
+    $MILITARY_USE, $COPTER_USE,  $STATE_ID
 );
 
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
-#Query the database for charts
+#Query the dtpp database for charts
 my $dtppSth = $dtppDbh->prepare(
     "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
              FROM dtpp  
@@ -210,17 +209,20 @@ my $dtppSth = $dtppDbh->prepare(
                 "
 );
 $dtppSth->execute();
-my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 
-foreach my $row (@$_allSqlQueryResults) {
+my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+my $_rows               = $dtppSth->rows;
+say "Processing $_rows charts";
+
+foreach my $_row (@$_allSqlQueryResults) {
 
     (
         $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
         $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
-        $MILITARY_USE, $COPTER_USE, $STATE_ID
-    ) = @$row;
-    say
-      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
+        $MILITARY_USE, $COPTER_USE,  $STATE_ID
+    ) = @$_row;
+
+    # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
     say
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
@@ -246,7 +248,6 @@ sub doAPlate {
 
     my $retval;
 
-
     #Say what our input PDF is
     say $targetPdf;
 
@@ -262,29 +263,19 @@ sub doAPlate {
     our $targetpng         = $dir . $filename . ".png";
     our $gcpPng            = $dir . "gcp-" . $filename . ".png";
     our $targettif         = $dir . $filename . ".tif";
+
     # our $targetvrt         = $dir . $filename . ".vrt";
-    our $targetvrt         = $dir . $STATE_ID . "-" . $FAA_CODE . "-" . $CHART_NAME . ".vrt";
-     # convert spaces, ., and slashes to dash
-      $targetvrt =~ s/[ |\/|\\|\.]/-/g;
-    our $targetStatistics  = "./statistics.csv";
-    our $touchFile         = $dir . "noPoints-" . $filename . ".vrt";
+    our $targetVrtFile =
+      $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
 
-    # #Non-zero if we only want to use GPS waypoints for GCPs on this plate
-    # my $rnavPlate = 0;
+    # convert spaces, ., and slashes to dash
+    $targetVrtFile =~ s/[ |\/|\\|\.]/-/g;
+    our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
+    our $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
+    our $targetvrt         = $dir . $targetVrtFile . ".vrt";
 
-    #Check that the source is a PDF (or at least has that extension)
-    if ( !$ext =~ m/^\.pdf$/ix ) {
+    our $targetStatistics = "./statistics.csv";
 
-        #Check that suffix is PDF for input file
-        say "Source file needs to be a PDF";
-        exit(1);
-    }
-
-    # #Try using only GPS fixes on RNAV plates
-    # if ( $filename =~ m/^\d+R/ ) {
-    # say "Input is a GPS plate, using only GPS waypoints for references";
-    # $rnavPlate = 1;
-    # }
     if ($debug) {
         say "Directory: " . $dir;
         say "File:      " . $filename;
@@ -304,7 +295,7 @@ sub doAPlate {
     #This is a quick hack to abort if we've already created a .vrt for this plate
     if ( $shouldNotOverwriteVrt && -e $targetvrt ) {
         say "$targetvrt exists, exiting";
-        exit(1);
+        return (1);
     }
 
     #Pull all text out of the PDF
@@ -315,15 +306,15 @@ sub doAPlate {
     if ( @pdftotext eq "" || $retval != 0 ) {
         say
           "No output from pdftotext.  Is it installed?  Return code was $retval";
-        exit(1);
+        return(1);
     }
     $statistics{'$pdftotext'} = scalar(@pdftotext);
 
-    if ( scalar(@pdftotext) < 5 ) {
-        say "Not enough pdftotext output for $targetPdf";
-        writeStatistics() if $shouldOutputStatistics;
-        exit(1);
-    }
+    # if ( scalar(@pdftotext) < 5 ) {
+    # say "Not enough pdftotext output for $targetPdf";
+    # writeStatistics() if $shouldOutputStatistics;
+    # return(1);
+    # }
 
     #Abort if the chart says it's not to scale
     foreach my $line (@pdftotext) {
@@ -331,7 +322,7 @@ sub doAPlate {
         if ( $line =~ m/chartnott/i ) {
             say "$targetPdf not to scale, can't georeference";
             writeStatistics() if $shouldOutputStatistics;
-            exit(1);
+            return (1);
         }
 
     }
@@ -387,7 +378,8 @@ sub doAPlate {
     #q     Save graphics state
     #Q     Restore graphics state
 
-    #Global variables filled in by the "findAllIcons" subroutine.  At some point I'll convert the subroutines to work with local variables and return values instead
+    #Global variables filled in by the "findAllIcons" subroutine. 
+    #TODO BUG: At some point I'll convert the subroutines to work with local variables and return values instead
     our %icons                      = ();
     our %obstacleIcons              = ();
     our %fixIcons                   = ();
@@ -480,8 +472,7 @@ sub doAPlate {
 
     #Using the created mask file, eliminate icons and textboxes from further consideration
     removeIconsAndTextboxesInMaskedAreas( "Obstacle Icon", \%obstacleIcons );
-    removeIconsAndTextboxesInMaskedAreas( "Obstacle TextBox",
-        \%obstacleTextBoxes );
+    removeIconsAndTextboxesInMaskedAreas( "Obstacle TextBox",        \%obstacleTextBoxes );
     removeIconsAndTextboxesInMaskedAreas( "Fix Icon",       \%fixIcons );
     removeIconsAndTextboxesInMaskedAreas( "Fix TextBox",    \%fixTextboxes );
     removeIconsAndTextboxesInMaskedAreas( "Navaid Icon",    \%navaidIcons );
@@ -810,7 +801,7 @@ sub doAPlate {
 
         #touch($touchFile);
         writeStatistics() if $shouldOutputStatistics;
-        exit(1);
+        return (1);
     }
 
     #----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -852,6 +843,7 @@ sub doAPlate {
     # say "";
     # }
 
+    
     if ( @xScaleAvg && @yScaleAvg ) {
 
         #Smooth out the X and Y scales we previously calculated
@@ -867,11 +859,11 @@ sub doAPlate {
         my $yScaleAvgSize = @yScaleAvg;
 
         #Save statistics
-        $statistics{'$xAvg'}          = $xAvg;
-        $statistics{'$xMedian'}       = $xMedian;
+        $statistics{'$xAvg'}                  = $xAvg;
+        $statistics{'$xMedian'}          = $xMedian;
         $statistics{'$xScaleAvgSize'} = $xScaleAvgSize;
-        $statistics{'$yAvg'}          = $yAvg;
-        $statistics{'$yMedian'}       = $yMedian;
+        $statistics{'$yAvg'}                   = $yAvg;
+        $statistics{'$yMedian'}           = $yMedian;
         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
         $statistics{'$lonLatRatio'}   = $lonLatRatio;
     }
@@ -892,15 +884,15 @@ sub doAPlate {
     #With our work
     drawFeaturesOnPdf() if $shouldSaveMarkedPdf;
 
-    # #Save our new PDF since we're done with it
-    # if ($shouldSaveMarkedPdf) {
-    # $pdf->saveas($outputPdf);
-    # }
-    say "TargetLonLat: "
+    say "TargetLonLatRatio: "
       . $statistics{'$targetLonLatRatio'}
-      . ",  LatLon: $lonLatRatio , Difference: "
+      . ",  LonLatRatio: $lonLatRatio , Difference: "
       . ( $statistics{'$targetLonLatRatio'} - $lonLatRatio );
 
+
+
+   
+    
     return;
 }
 
@@ -1026,7 +1018,7 @@ sub findAirportLatitudeAndLongitude {
         if ( !$airportId ) {
             say
               "You must specify an airport ID (eg. -a SMF) since there was no info found in $main::targetPdf";
-            exit(1);
+            return(1);
         }
 
         #Query the database for airport
@@ -1036,12 +1028,12 @@ sub findAirportLatitudeAndLongitude {
         $sth->execute();
         my $_allSqlQueryResults = $sth->fetchall_arrayref();
 
-        foreach my $row (@$_allSqlQueryResults) {
+        foreach my $_row (@$_allSqlQueryResults) {
             my ( $airportFaaId, $airportname );
             (
                 $airportFaaId, $_airportLatitudeDec, $_airportLongitudeDec,
                 $airportname
-            ) = @$row;
+            ) = @$_row;
             if ($debug) {
                 say "Airport ID: $airportFaaId";
                 say "Airport Latitude: $_airportLatitudeDec";
@@ -1051,8 +1043,8 @@ sub findAirportLatitudeAndLongitude {
         }
         if ( $_airportLongitudeDec eq "" or $_airportLatitudeDec eq "" ) {
             say
-              "No airport coordinate information found in $main::targetPdf  or database, try   -a <airport> ";
-            exit(1);
+              "No airport coordinate information found for $airportId in $main::targetPdf  or database";
+            return(1);
         }
 
     }
@@ -1373,8 +1365,8 @@ sub outlineEverythingWeFound {
 sub calculateSmootherValuesOfArray {
     my ($targetArrayRef)    = @_;
     my $avg                 = &average($targetArrayRef);
-    my $median              = &median($targetArrayRef);
-    my $stdDev              = &stdev($targetArrayRef);
+    my $median         = &median($targetArrayRef);
+    my $stdDev          = &stdev($targetArrayRef);
     my $lengthOfTargetArray = $#$targetArrayRef;
 
     if ($debug) {
@@ -1397,8 +1389,8 @@ sub calculateSmootherValuesOfArray {
     }
     $lengthOfTargetArray = $#$targetArrayRef;
     $avg                 = &average($targetArrayRef);
-    $median              = &median($targetArrayRef);
-    $stdDev              = &stdev($targetArrayRef);
+    $median         = &median($targetArrayRef);
+    $stdDev          = &stdev($targetArrayRef);
 
     if ($debug) {
         say "lengthOfTargetArray: $lengthOfTargetArray";
@@ -1473,12 +1465,11 @@ sub returnRawPdf {
     my ($_output);
 
     if ( -e $main::outputPdfRaw ) {
-
         #If the raw output already exists just read it and return
         $_output = read_file($main::outputPdfRaw);
     }
     else {
-        #create, save for future use, and return raw PDF outputPdf
+        #create, save for future use, and return raw PDF output
         open( my $fh, '>', $main::outputPdfRaw )
           or die "Could not open file '$main::outputPdfRaw' $!";
 
@@ -1667,16 +1658,16 @@ sub findObstaclesNearAirport {
         $sth->execute();
 
         my $all  = $sth->fetchall_arrayref();
-        my $rows = $sth->rows();
-        say "Found $rows objects of height $heightmsl" if $debug;
+        my $_rows = $sth->rows();
+        say "Found $_rows objects of height $heightmsl" if $debug;
 
         #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
         #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
         my $bestDistanceToAirport = 9999;
 
         if ($shouldUseMultipleObstacles) {
-            foreach my $row (@$all) {
-                my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+            foreach my $_row (@$all) {
+                my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
                 my $distanceToAirport =
                   sqrt( ( $lat - $main::airportLatitudeDec )**2 +
                       ( $lon - $main::airportLongitudeDec )**2 );
@@ -1694,12 +1685,12 @@ sub findObstaclesNearAirport {
         }
         else {
             #Don't show results of searches that have more than one result, ie not unique
-            next if ( $rows != 1 );
+            next if ( $_rows != 1 );
 
-            foreach my $row (@$all) {
+            foreach my $_row (@$all) {
 
                 #Populate variables from our database lookup
-                my ( $lat, $lon, $heightmsl, $heightagl ) = @$row;
+                my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
                 foreach my $pdf_obstacle_height (@main::obstacle_heights) {
                     if ( $pdf_obstacle_height == $heightmsl ) {
                         $main::unique_obstacles_from_db{$heightmsl}{"Lat"} =
@@ -2505,13 +2496,7 @@ sub findInsetCircles {
             $main::insetCircles{ $i . $random }{"Y"}      = $y;
             $main::insetCircles{ $i . $random }{"Radius"} = $width / 2;
 
-            # $insetBoxes{ $i . $random }{"X2"} = $x + $width;
-
-            # $insetBoxes{ $i . $random }{"Y2"} = $y + $height;
-
-            # $insetBoxes{ $i . $random }{"Width"} = $width;
-
-            # $insetBoxes{ $i . $random }{"Height"} = $height;
+           
         }
 
     }
@@ -2664,10 +2649,7 @@ sub findObstacleIcons {
             $i = $i + $dataPointsPerObstacleIcon
           )
         {
-
-            #Note: this code does not accumulate the objects across streams but rather overwrites existing ones
-            #This works fine as long as the stream with all of the obstacles in the main section of the drawing comes after the streams
-            #with obstacles for the airport diagram (which is a separate scale)
+            
             #A hack to allow icon accumulation across streams
             #Comment this out to only find obstacles in the last scanned stream
             #
@@ -3034,18 +3016,10 @@ sub findNavaidTextboxes {
     #For whatever dumb reason they're in raster coordinates (0,0 is top left, Y increases downwards)
     #We'll convert them to PDF coordinates
     my $frequencyRegex = qr/\d\d\d(?:\.[\d]{1,3})?/m;
-
-    #my $frequencyRegex = qr/116.3/m;
-
-    # my $vorTextBoxRegex =
-    # qr/^\s+<word xMin="($numberRegex)" yMin="($numberRegex)" xMax="$numberRegex" yMax="$numberRegex">($frequencyRegex)<\/word>$
-    # ^\s+<word xMin="$numberRegex" yMin="$numberRegex" xMax="($numberRegex)" yMax="($numberRegex)">([A-Z]{3})<\/word>$/m;
-
+    
     my $vorTextBoxRegex =
       qr/^\s+<word xMin="($main::numberRegex)" yMin="($main::numberRegex)" xMax="($main::numberRegex)" yMax="($main::numberRegex)">([A-Z]{3})<\/word>$/m;
 
-    #We can get away with not allowing "see" because it's a VOT
-    #my $invalidVorNamesRegex = qr/app|dep|arr|see|ils/i;
 
     my $scal = join( "", @main::pdfToTextBbox );
 
@@ -3101,7 +3075,6 @@ sub findNavaidTextboxes {
         }
     }
     if ($debug) {
-
         #qprint Dumper ( \%vorTextboxes );
         say "Found " .
           keys(%main::vorTextboxes) . " Potential NAVAID text boxes";
@@ -3112,12 +3085,12 @@ sub findNavaidTextboxes {
 
 sub matchIconToDatabase {
     my ( $iconHashRef, $textboxHashRef, $databaseHashRef ) = @_;
+    
     say ":matchIconToDatabase" if $debug;
 
     #Find an icon with text that matches an item in a database lookup
     #Add the center coordinates of its closest text box to the database hash
     #
-    #The key for %unique_obstacles_from_db is the height of each obstacle
     foreach my $key ( keys %$databaseHashRef ) {
 
         foreach my $key2 ( keys %$iconHashRef ) {
@@ -3125,7 +3098,7 @@ sub matchIconToDatabase {
             #Next icon if this one doesn't have a matching textbox
             next unless ( $iconHashRef->{$key2}{"MatchedTo"} );
 
-            my $keyOfMatchedTextbox    = $iconHashRef->{$key2}{"MatchedTo"};
+            my $keyOfMatchedTextbox   = $iconHashRef->{$key2}{"MatchedTo"};
             my $thisIconsGeoreferenceX = $iconHashRef->{$key2}{"GeoreferenceX"};
             my $thisIconsGeoreferenceY = $iconHashRef->{$key2}{"GeoreferenceY"};
             my $textOfMatchedTextbox =
@@ -3234,8 +3207,8 @@ sub calculateRoughRealWorldExtentsOfRaster {
                       ( $main::gcps{$key}{"Mismatches"} ) + 1;
                     $main::gcps{$key2}{"Mismatches"} =
                       ( $main::gcps{$key2}{"Mismatches"} ) + 1;
+                      
                     if ($debug) {
-
                         say
                           "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key->$key2 pair"
                           if $debug;
@@ -3401,13 +3374,13 @@ sub georeferenceTheRaster {
     #----------------------------------------------------------------------------------------------------------------------------------------------------
     #Try to georeference based on Upper Left and Lower Right extents of longitude and latitude
 
-    #Uncomment these to use the average values for each
+    #Uncomment these lines to use the average values 
     # my $upperLeftLon  = $ulXAvrg;
     # my $upperLeftLat  = $ulYAvrg;
     # my $lowerRightLon = $lrXAvrg;
     # my $lowerRightLat = $lrYAvrg;
 
-    #Uncomment these to use the median values for each
+    #Uncomment these lines to use the median values
     my $upperLeftLon  = $main::ulXmedian;
     my $upperLeftLat  = $main::ulYmedian;
     my $lowerRightLon = $main::lrXmedian;
@@ -3415,6 +3388,7 @@ sub georeferenceTheRaster {
 
     my $medianLonDiff = $upperLeftLon - $lowerRightLon;
     my $medianLatDiff = $upperLeftLat - $lowerRightLat;
+    
     $main::lonLatRatio = abs( $medianLonDiff / $medianLatDiff );
 
     #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
@@ -3435,8 +3409,7 @@ sub georeferenceTheRaster {
           . abs( $main::lonLatRatio - $targetLonLatRatio );
 
         if ($shouldSaveBadRatio) {
-            $main::targetvrt =
-              $main::dir . "badRatio-" . $main::filename . ".vrt";
+            $main::targetvrt = $main::targetVrtBadRatio;
 
         }
         else {
@@ -3446,41 +3419,11 @@ sub georeferenceTheRaster {
     }
 
     if ($debug) {
-        say "Target Longitude/Latitude ratio: " . $main::targetLonLatRatio;
+        say "Target Longitude/Latitude ratio: " . $targetLonLatRatio;
         say "Output Longitude/Latitude Ratio: " . $main::lonLatRatio;
         say "Input PDF ratio: " . $main::pdfXYRatio;
         say "";
     }
-
-    # #Check that our determined scales and x/y ratios seem to make sense.  A
-    # #if (abs($pdfXYRatio - $lonLatRatio) > .25) {
-    # if ( abs($lonLatRatio) < .65 || abs($lonLatRatio) > 1.45 ) {
-    # say
-    # "Longitude/Latitude output ratio is  out of whack ($lonLatRatio), we probably picked bad ground control points";
-    # }
-
-    # if ( abs($xMedian) < .0002 || abs($xMedian) > .0008 ) {
-
-    # #These test values are based on 300 dpi
-    # say
-    # "X scale is out of whack ($xMedian), we probably picked bad ground control points";
-    # }
-
-    # if ( abs($yMedian) < .0003 || abs($yMedian) > .0006 ) {
-    # # ($latitudeToPixelRatio < .00037 || $latitudeToPixelRatio > .00039) && ($latitudeToPixelRatio < .00056 || $latitudeToPixelRatio > .00059)
-    # #These test values are based on 300 dpi
-    # say
-    # "Y scale is out of whack ($yMedian), we probably picked bad ground control points";
-    # }
-
-    # my $xYMedianScaleRatio = $xMedian / $yMedian;
-
-    # if ( abs($xYMedianScaleRatio) < 1.15 || abs($xYMedianScaleRatio) > 1.6 ) {
-
-    # #These test values are based on 300 dpi
-    # say
-    # "pixel to real-world XY scale is out of whack ($xYMedianScaleRatio), we probably picked bad ground control points";
-    # }
 
     my $gdal_translateCommand =
       "gdal_translate -q -of VRT -strict -a_srs \"+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs\" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat '$main::targetpng'  '$main::targetvrt' ";
@@ -3497,9 +3440,10 @@ sub georeferenceTheRaster {
     # $gdal_translateoutput =
     # qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
     my $retval = $? >> 8;
-    croak
-      "Error executing gdal_translate.  Is it installed? Return code was $retval"
-      if ( $retval != 0 );
+
+      if ( $retval != 0 ) {
+    croak      "Error executing gdal_translate.  Is it installed? Return code was $retval";
+    }
     say $gdal_translateoutput if $debug;
 
     # my $gdalwarpoutput;
@@ -3570,22 +3514,88 @@ sub calculateSmoothedRealWorldExtentsOfRaster {
 }
 
 sub writeStatistics {
+ #Update the georef table
+    my $update_dtpp_geo_record =
+        "UPDATE dtppGeo " 
+        . "SET "
+          . "airportLatitude = ?, "
+          . "horizontalAndVerticalLinesCount = ?, "
+          . "gcpCount = ?, "
+          . "yMedian = ?, "
+          . "gpsCount = ?, "
+          . "targetPdf = ?, "
+          . "yScaleAvgSize = ?, "
+          . "airportLongitude = ?, "
+          . "notToScaleIndicatorCount = ?, "
+          . "unique_obstacles_from_dbCount = ?, "
+          . "xScaleAvgSize = ?, "
+          . "navaidCount = ?, "
+          . "xMedian = ?, "
+          . "insetCircleCount = ?, "
+          . "obstacleCount = ?, "
+          . "insetBoxCount = ?, "
+          . "fixCount = ?, "
+          . "yAvg = ?, "
+          . "xAvg = ?, "
+          . "pdftotext = ?, "
+          . "lonLatRatio = ?, "
+          . "upperLeftLon = ?, "
+          . "upperLeftLat = ?, "
+          . "lowerRightLon = ?, "
+          . "lowerRightLat = ?, "
+          . "targetLonLatRatio = ?, "
+          . "runwayIconsCount = ? " 
+      . "WHERE "
+        . "PDF_NAME = ?";
 
-    open my $file, '>>', $main::targetStatistics
-      or croak "can't open '$main::targetStatistics' for writing : $!";
+    $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
+    
+    $dtppSth->bind_param( 1,  $statistics{'$airportLatitude'} );
+    $dtppSth->bind_param( 2,  $statistics{'$horizontalAndVerticalLinesCount'} );
+    $dtppSth->bind_param( 3,  $statistics{'$gcpCount'} );
+    $dtppSth->bind_param( 4,  $statistics{'$yMedian'} );
+    $dtppSth->bind_param( 5,  $statistics{'$gpsCount'} );
+    $dtppSth->bind_param( 6,  $statistics{'$targetPdf'} );
+    $dtppSth->bind_param( 7,  $statistics{'$yScaleAvgSize'} );
+    $dtppSth->bind_param( 8,  $statistics{'$airportLongitude'} );
+    $dtppSth->bind_param( 9,  $statistics{'$notToScaleIndicatorCount'} );
+    $dtppSth->bind_param( 10, $statistics{'$unique_obstacles_from_dbCount'} );
+    $dtppSth->bind_param( 11, $statistics{'$xScaleAvgSize'} );
+    $dtppSth->bind_param( 12, $statistics{'$navaidCount'} );
+    $dtppSth->bind_param( 13, $statistics{'$xMedian'} );
+    $dtppSth->bind_param( 14, $statistics{'$insetCircleCount'} );
+    $dtppSth->bind_param( 15, $statistics{'$obstacleCount'} );
+    $dtppSth->bind_param( 16, $statistics{'$insetBoxCount'} );
+    $dtppSth->bind_param( 17, $statistics{'$fixCount'} );
+    $dtppSth->bind_param( 18, $statistics{'$yAvg'} );
+    $dtppSth->bind_param( 19, $statistics{'$xAvg'} );
+    $dtppSth->bind_param( 20, $statistics{'$pdftotext'} );
+    $dtppSth->bind_param( 21, $statistics{'$lonLatRatio'} );
+    $dtppSth->bind_param( 22, $statistics{'$upperLeftLon'} );
+    $dtppSth->bind_param( 23, $statistics{'$upperLeftLat'} );
+    $dtppSth->bind_param( 24, $statistics{'$lowerRightLon'} );
+    $dtppSth->bind_param( 25, $statistics{'$lowerRightLat'} );
+    $dtppSth->bind_param( 26, $statistics{'$targetLonLatRatio'} );
+    $dtppSth->bind_param( 27, $statistics{'$runwayIconsCount'} );
+    $dtppSth->bind_param( 28, $PDF_NAME );
 
-    my $_header = join ",", sort keys %statistics;
+    $dtppSth->execute();
+    
+    # open my $file, '>>', $main::targetStatistics
+      # or croak "can't open '$main::targetStatistics' for writing : $!";
 
-    # my $_data   = join ",", sort values %statistics;
-    #A basic routine for outputting CSV for our statistics hash
-    my $_data =
-      join( ",", map { "$main::statistics{$_}" } sort keys %statistics );
-    say {$file} "$_header"
-      or croak "Cannot write to $main::targetStatistics: ";
-    say {$file} "$_data"
-      or croak "Cannot write to $main::targetStatistics: ";
+    # my $_header = join ",", sort keys %statistics;
 
-    close $file;
+    # # my $_data   = join ",", sort values %statistics;
+    # #A basic routine for outputting CSV for our statistics hash
+    # my $_data =
+      # join( ",", map { "$main::statistics{$_}" } sort keys %statistics );
+    # say {$file} "$_header"
+      # or croak "Cannot write to $main::targetStatistics: ";
+    # say {$file} "$_data"
+      # or croak "Cannot write to $main::targetStatistics: ";
+
+    # close $file;
     return;
 }
 
@@ -3646,8 +3656,8 @@ sub findFixesNearAirport {
 
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
-    foreach my $row (@$allSqlQueryResults) {
-        my ( $fixname, $lat, $lon, $fixtype ) = @$row;
+    foreach my $_row (@$allSqlQueryResults) {
+        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
         $main::fixes_from_db{$fixname}{"Name"} = $fixname;
         $main::fixes_from_db{$fixname}{"Lat"}  = $lat;
         $main::fixes_from_db{$fixname}{"Lon"}  = $lon;
@@ -3659,14 +3669,14 @@ sub findFixesNearAirport {
     # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
 
     if ($debug) {
-        my $rows   = $sth->rows();
+        my $_rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows FIXES within $radiusNm nm of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
+          "Found $_rows FIXES within $radiusNm nm of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
 
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
-        say "We have selected $rows row(s)";
+        say "We have selected $_rows row(s)";
 
         #print Dumper ( \%fixes_from_db );
         say "";
@@ -3695,8 +3705,8 @@ sub findFeatureInDatabaseNearAirport {
 
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
-    foreach my $row (@$allSqlQueryResults) {
-        my ( $fixname, $lat, $lon, $fixtype ) = @$row;
+    foreach my $_row (@$allSqlQueryResults) {
+        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
         $main::fixes_from_db{$fixname}{"Name"} = $fixname;
         $main::fixes_from_db{$fixname}{"Lat"}  = $lat;
         $main::fixes_from_db{$fixname}{"Lon"}  = $lon;
@@ -3709,14 +3719,14 @@ sub findFeatureInDatabaseNearAirport {
         my $nmLongitude =
           $nmLatitude * cos( deg2rad($main::airportLatitudeDec) );
 
-        my $rows   = $sth->rows();
+        my $_rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows FIXES within $radius degrees of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) ($nmLongitude x $nmLatitude nm)  from database";
+          "Found $_rows FIXES within $radius degrees of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) ($nmLongitude x $nmLatitude nm)  from database";
 
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
-        say "We have selected $rows row(s)";
+        say "We have selected $_rows row(s)";
 
         #print Dumper ( \%fixes_from_db );
         say "";
@@ -3773,8 +3783,8 @@ sub findGpsWaypointsNearAirport {
     $sth->execute();
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
-    foreach my $row (@$allSqlQueryResults) {
-        my ( $fixname, $lat, $lon, $fixtype ) = @$row;
+    foreach my $_row (@$allSqlQueryResults) {
+        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
         $main::gpswaypoints_from_db{$fixname}{"Name"} = $fixname;
         $main::gpswaypoints_from_db{$fixname}{"Lat"}  = $lat;
         $main::gpswaypoints_from_db{$fixname}{"Lon"}  = $lon;
@@ -3783,13 +3793,13 @@ sub findGpsWaypointsNearAirport {
     }
 
     if ($debug) {
-        my $rows   = $sth->rows();
+        my $_rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows GPS waypoints within $radiusNm NM of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
+          "Found $_rows GPS waypoints within $radiusNm NM of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
-        say "We have selected $rows row(s)";
+        say "We have selected $_rows row(s)";
 
         #print Dumper ( \%gpswaypoints_from_db );
         say "";
@@ -3827,8 +3837,8 @@ sub findNavaidsNearAirport {
     $sth->execute();
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
-    foreach my $row (@$allSqlQueryResults) {
-        my ( $navaidName, $lat, $lon, $navaidType ) = @$row;
+    foreach my $_row (@$allSqlQueryResults) {
+        my ( $navaidName, $lat, $lon, $navaidType ) = @$_row;
         $main::navaids_from_db{$navaidName}{"Name"} = $navaidName;
         $main::navaids_from_db{$navaidName}{"Lat"}  = $lat;
         $main::navaids_from_db{$navaidName}{"Lon"}  = $lon;
@@ -3837,14 +3847,14 @@ sub findNavaidsNearAirport {
     }
 
     if ($debug) {
-        my $rows   = $sth->rows();
+        my $_rows   = $sth->rows();
         my $fields = $sth->{NUM_OF_FIELDS};
         say
-          "Found $rows Navaids within $radiusNm nm of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database"
+          "Found $_rows Navaids within $radiusNm nm of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database"
           if $debug;
         say "All $type fixes from database";
         say "We have selected $fields field(s)";
-        say "We have selected $rows row(s)";
+        say "We have selected $_rows row(s)";
 
         # print Dumper ( \%navaids_from_db );
         say "";
@@ -4636,24 +4646,24 @@ sub findRunwaysInDatabase {
     my $all = $sth->fetchall_arrayref();
 
     #How many rows did this search return
-    my $rows = $sth->rows();
-    say "Found $rows runways for $main::airportId" if $debug;
+    my $_rows = $sth->rows();
+    say "Found $_rows runways for $main::airportId" if $debug;
 
-    foreach my $row (@$all) {
+    foreach my $_row (@$all) {
         my (
             $FaaID,      $Length,      $Width,       $LEName,
             $LELatitude, $LELongitude, $LEElevation, $LEHeading,
             $HEName,     $HELatitude,  $HELongitude, $HEElevation,
             $HEHeading
-        ) = @$row;
+        ) = @$_row;
 
-        # foreach my $row2 (@$all) {
+        # foreach my $_row2 (@$all) {
         # my (
         # $FaaID2,      $Length2,      $Width2,       $LEName2,
         # $LELatitude2, $LELongitude2, $LEElevation2, $LEHeading2,
         # $HEName2,     $HELatitude2,  $HELongitude2, $HEElevation2,
         # $HEHeading2
-        # ) = @$row2;
+        # ) = @$_row2;
         # #Don't testg
         # next if ($LEName eq $LEName2);
 
