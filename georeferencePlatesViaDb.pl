@@ -213,6 +213,7 @@ $dtppSth->execute();
 my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 my $_rows               = $dtppSth->rows;
 say "Processing $_rows charts";
+my $completedCount = 0;
 
 foreach my $_row (@$_allSqlQueryResults) {
 
@@ -227,6 +228,8 @@ foreach my $_row (@$_allSqlQueryResults) {
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
     doAPlate();
+    ++$completedCount;
+    say "$completedCount" . "/" . "$_rows";
 }
 
 #Close the charts database
@@ -242,7 +245,36 @@ exit;
 #----------------------------------------------------------------------------------------------------------------
 
 sub doAPlate {
-
+    #Zero out the stats hash
+ %statistics = (
+    '$airportLatitude'                 => "0",
+    '$horizontalAndVerticalLinesCount' => "0",
+    '$gcpCount'                        => "0",
+    '$yMedian'                         => "0",
+    '$gpsCount'                        => "0",
+    '$targetPdf'                       => "0",
+    '$yScaleAvgSize'                   => "0",
+    '$airportLongitude'                => "0",
+    '$notToScaleIndicatorCount'        => "0",
+    '$unique_obstacles_from_dbCount'   => "0",
+    '$xScaleAvgSize'                   => "0",
+    '$navaidCount'                     => "0",
+    '$xMedian'                         => "0",
+    '$insetCircleCount'                => "0",
+    '$obstacleCount'                   => "0",
+    '$insetBoxCount'                   => "0",
+    '$fixCount'                        => "0",
+    '$yAvg'                            => "0",
+    '$xAvg'                            => "0",
+    '$pdftotext'                       => "0",
+    '$lonLatRatio'                     => "0",
+    '$upperLeftLon'                    => "0",
+    '$upperLeftLat'                    => "0",
+    '$lowerRightLon'                   => "0",
+    '$lowerRightLat'                   => "0",
+    '$targetLonLatRatio'               => "0",
+    '$runwayIconsCount'                => "0"
+);
     #
     our $targetPdf = $dtppDirectory . $PDF_NAME;
 
@@ -791,43 +823,12 @@ sub doAPlate {
         $pdf->saveas($outputPdf);
     }
 
-    #Can't do anything if we didn't find any valid ground control points
-    if ( $gcpCount < 2 ) {
-        say "Didn't find 2 or more ground control points in $targetPdf";
-        say "Touching $touchFile";
-        open( my $fh, ">", "$touchFile" )
-          or die "cannot open > $touchFile: $!";
-        close($fh);
 
-        #touch($touchFile);
-        writeStatistics() if $shouldOutputStatistics;
-        return (1);
-    }
 
     #----------------------------------------------------------------------------------------------------------------------------------------------------
     #Now some math
     our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
-
-    #Print a header so you could paste the following output into a spreadsheet to analyze
-    say
-      '$object1,$object2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio,$longitudeToLatitudeRatio2'
-      if $debug;
-
-    #Calculate the rough X and Y scale values
-    if ( $gcpCount == 1 ) {
-        say "Didn't find 2 or more ground control points in $targetPdf";
-        say "Touching $touchFile";
-        open( my $fh, ">", "$touchFile" )
-          or die "cannot open > $touchFile: $!";
-        close($fh);
-
-        #Is it better to guess or do nothing?  I think we should do nothing
-        #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
-    }
-    else {
-        calculateRoughRealWorldExtentsOfRaster();
-    }
-
+    
     our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
     our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
     our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
@@ -835,6 +836,43 @@ sub doAPlate {
     our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
     our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
     our ($lonLatRatio) = 0;
+    
+    #Can't do anything if we didn't find any valid ground control points
+    if ( $gcpCount < 2 ) {
+        say "Only found $gcpCount ground control points in $targetPdf, can't georeference";
+        say "Touching $touchFile";
+        open( my $fh, ">", "$touchFile" )
+          or die "cannot open > $touchFile: $!";
+        close($fh);
+say "xScaleAvgSize: $statistics{'$xScaleAvgSize'}, yScaleAvgSize: $statistics{'$yScaleAvgSize'}";
+        #touch($touchFile);
+        writeStatistics() if $shouldOutputStatistics;
+        return (1);
+    }
+    
+
+
+    #Calculate the rough X and Y scale values
+    if ( $gcpCount == 1 ) {
+        say "Found 1 ground control points in $targetPdf";
+        say "Touching $touchFile";
+        open( my $fh, ">", "$touchFile" )
+          or die "cannot open > $touchFile: $!";
+        close($fh);
+
+        #Is it better to guess or do nothing?  I think we should do nothing
+        #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
+        writeStatistics() if $shouldOutputStatistics;
+        return (1);
+    }
+    else {
+        calculateRoughRealWorldExtentsOfRaster();
+    }
+
+    #Print a header so you could paste the following output into a spreadsheet to analyze
+    say
+      '$object1,$object2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio,$longitudeToLatitudeRatio2'
+      if $debug;
 
     # if ($debug) {
     # say "";
@@ -845,7 +883,7 @@ sub doAPlate {
 
     
     if ( @xScaleAvg && @yScaleAvg ) {
-
+        
         #Smooth out the X and Y scales we previously calculated
         calculateSmoothedRealWorldExtentsOfRaster();
 
@@ -853,11 +891,12 @@ sub doAPlate {
         georeferenceTheRaster();
 
         #Count of entries in this array
-        my $xScaleAvgSize = @xScaleAvg;
+        my $xScaleAvgSize = 0 + @xScaleAvg;
 
         #Count of entries in this array
-        my $yScaleAvgSize = @yScaleAvg;
-
+        my $yScaleAvgSize = 0 + @yScaleAvg;
+        
+        say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize";
         #Save statistics
         $statistics{'$xAvg'}                  = $xAvg;
         $statistics{'$xMedian'}          = $xMedian;
@@ -868,7 +907,7 @@ sub doAPlate {
         $statistics{'$lonLatRatio'}   = $lonLatRatio;
     }
     else {
-        say "No points actually added to the scale arrays for $targetPdf";
+        say "No points actually added to the scale arrays for $targetPdf, can't georeference";
 
         say "Touching $touchFile";
 
@@ -3374,13 +3413,13 @@ sub georeferenceTheRaster {
     #----------------------------------------------------------------------------------------------------------------------------------------------------
     #Try to georeference based on Upper Left and Lower Right extents of longitude and latitude
 
-    #Uncomment these lines to use the average values 
+    #Uncomment these lines to use the average values  instead of median
     # my $upperLeftLon  = $ulXAvrg;
     # my $upperLeftLat  = $ulYAvrg;
     # my $lowerRightLon = $lrXAvrg;
     # my $lowerRightLat = $lrYAvrg;
 
-    #Uncomment these lines to use the median values
+    #Uncomment these lines to use the median values instead of average
     my $upperLeftLon  = $main::ulXmedian;
     my $upperLeftLat  = $main::ulYmedian;
     my $lowerRightLon = $main::lrXmedian;

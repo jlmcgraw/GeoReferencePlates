@@ -64,8 +64,59 @@ our (
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
-#Query the dtpp database for  count of IAP charts
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Airport diagrams 
 my $dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE                   
+                D.CHART_CODE = 'APD' 
+                AND
+                D.PDF_NAME NOT LIKE '%DELETED%'
+                "
+);
+$dtppSth->execute();
+my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+my $iapCount = $dtppSth->rows;
+say "$iapCount Total Airport Diagrams";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Airport diagrams 
+$dtppSth = $dtppDbh->prepare(
+    "SELECT D.FAA_CODE,D.PDF_NAME
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE               
+                D.CHART_CODE = 'APD' 
+                AND
+                D.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                CAST (DG.gcpCount AS FLOAT) > 1
+                AND
+                CAST (DG.yScaleAvgSize AS FLOAT) > 0
+                AND
+                CAST (DG.xScaleAvgSize as FLOAT) > 0
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                AND
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  BETWEEN -.09 AND .09 )
+                ORDER BY 
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT) ) ASC
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t$iapCount with good ratio";
+    foreach my $_row (@$_allSqlQueryResults) {
+        my ( $_FAA_CODE, $_PDF_NAME ) = @$_row;
+        say "\t\t$_FAA_CODE,$_PDF_NAME";
+    }
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of IAP charts
+ $dtppSth = $dtppDbh->prepare(
     "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
              FROM dtpp  
              WHERE                  
@@ -75,10 +126,11 @@ my $dtppSth = $dtppDbh->prepare(
                 "
 );
 $dtppSth->execute();
-my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-my $iapCount = $dtppSth->rows;
-say "$iapCount IAP charts";
+ $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+ $iapCount = $dtppSth->rows;
+say "$iapCount Total IAP charts";
 
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts
 $dtppSth = $dtppDbh->prepare(
     "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
@@ -94,7 +146,7 @@ $dtppSth = $dtppDbh->prepare(
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount = $dtppSth->rows;
-say "$iapCount Civilian IAP charts";
+say "\t$iapCount Civilian IAP charts";
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with good ratio
 $dtppSth = $dtppDbh->prepare(
@@ -102,25 +154,221 @@ $dtppSth = $dtppDbh->prepare(
       FROM dtpp as D 
       JOIN dtppGeo as DG 
       ON D.PDF_NAME=DG.PDF_NAME
-             WHERE
+             WHERE  
                  D.CHART_CODE = 'IAP'
-                AND  
+                AND
                 DG.PDF_NAME NOT LIKE '%DELETED%'
-                AND            
+                AND
+                CAST (DG.gcpCount AS FLOAT) > 1
+                AND
                 CAST (DG.yScaleAvgSize AS FLOAT) > 0
                 AND
                 CAST (DG.xScaleAvgSize as FLOAT) > 0
                 AND
                 D.MILITARY_USE NOT LIKE 'M'
                 AND
-                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  BETWEEN -.09 AND .09 )     
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  BETWEEN -.09 AND .09 )
+                ORDER BY 
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT) ) ASC
                 "
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount = $dtppSth->rows;
-say "$iapCount Civilian IAP charts with good ratio";
+say "\t\t$iapCount with good ratio";
 
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with bad ratio
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                CAST (DG.gcpCount AS FLOAT) > 1
+                AND
+                CAST (DG.yScaleAvgSize AS FLOAT) > 0
+                AND
+                CAST (DG.xScaleAvgSize as FLOAT) > 0
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                AND
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  < -.09 
+                OR
+                CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  >  .09 )
+                ORDER BY 
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT) ) ASC
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t$iapCount with bad ratio";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with no inital ground control points
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                    (CAST (DG.gcpCount AS FLOAT) < 2)
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t$iapCount with not enough initial Ground Control Points";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with no inital ground control points
+#VISUAL
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                    (CAST (DG.gcpCount AS FLOAT) < 2)
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                AND
+                D.CHART_NAME LIKE '%VISUAL%'
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t\t$iapCount Visual";
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with no inital ground control points
+#HI-
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                    (CAST (DG.gcpCount AS FLOAT) < 2)
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                AND
+                    (D.CHART_NAME LIKE '%HI-%'
+                    OR
+                    D.CHART_NAME LIKE '%TACAN%')
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t\t$iapCount HI- or TACAN";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with no final ground control points
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                   AND
+                    (CAST (DG.gcpCount AS FLOAT) > 1)
+                AND
+                    (
+                    CAST (DG.yScaleAvgSize AS INTEGER) < 1
+                    OR
+                    CAST (DG.xScaleAvgSize as INTEGER) < 1
+                    )
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t$iapCount with not enough final Ground Control Points";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with no final ground control points
+#VISUAL
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                      AND
+                    (CAST (DG.gcpCount AS FLOAT) > 1)
+                AND
+                    (
+                    CAST (DG.yScaleAvgSize AS INTEGER) < 1
+                    OR
+                    CAST (DG.xScaleAvgSize as INTEGER) < 1
+                    )
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                AND
+                D.CHART_NAME LIKE '%VISUAL%'
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t\t$iapCount Visual";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of Civilian IAP charts with no final ground control points
+#HI- or TACAN
+$dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE  
+                 D.CHART_CODE = 'IAP'
+                AND
+                DG.PDF_NAME NOT LIKE '%DELETED%'
+                      AND
+                    (CAST (DG.gcpCount AS FLOAT) > 1)
+                AND
+                    (
+                    CAST (DG.yScaleAvgSize AS INTEGER) < 1
+                    OR
+                    CAST (DG.xScaleAvgSize as INTEGER) < 1
+                    )
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                 AND
+                    (D.CHART_NAME LIKE '%HI-%'
+                    OR
+                    D.CHART_NAME LIKE '%TACAN%')
+                "
+);
+$dtppSth->execute();
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount = $dtppSth->rows;
+say "\t\t\t$iapCount HI- or TACAN";
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Miltary IAP charts
 $dtppSth = $dtppDbh->prepare(
@@ -137,7 +385,7 @@ $dtppSth = $dtppDbh->prepare(
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount = $dtppSth->rows;
-say "$iapCount Miltary IAP charts";
+say "\t$iapCount Miltary IAP charts";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Miltary IAP charts with good ratio
@@ -151,19 +399,23 @@ $dtppSth = $dtppDbh->prepare(
                 AND
                 DG.PDF_NAME NOT LIKE '%DELETED%'
                 AND
-                CAST (DG.yScaleAvgSize AS FLOAT) > 0
+                CAST (DG.gcpCount AS FLOAT) > 1
                 AND
-                CAST (DG.xScaleAvgSize as FLOAT) > 0
+                CAST (DG.yScaleAvgSize AS FLOAT) > 1
+                AND
+                CAST (DG.xScaleAvgSize as FLOAT) > 1
                 AND
                 D.MILITARY_USE LIKE 'M'
                 AND
                 (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  BETWEEN -.09 AND .09 )
+                ORDER BY 
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT) ) ASC
                 "
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount = $dtppSth->rows;
-say "$iapCount Miltary IAP charts with good ratio";
+say "\t\t$iapCount with good ratio";
 # foreach my $row (@$_allSqlQueryResults) {
 
     # (
