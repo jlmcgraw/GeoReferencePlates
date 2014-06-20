@@ -32,7 +32,7 @@ no if $] >= 5.018, warnings => "experimental";
 $VERSION = 1.00;
 @ISA     = qw(Exporter);
 @EXPORT =
-  qw( rtrim ltrim coordinatetodecimal is_vhf onlyuniq uniq average stdev median same_sign is_between
+  qw( rtrim ltrim coordinatetodecimal coordinatetodecimal2 is_vhf onlyuniq uniq average stdev median same_sign is_between
    targetLonLatRatio usage hashHasUnmatchedIcons trueHeading WGS84toGoogleBing slopeAngle NESW removeIconsAndTextboxesInMaskedAreas
    processMaskingFile drawFeaturesOnPdf);
 
@@ -99,6 +99,44 @@ sub coordinatetodecimal {
     return ($signeddegrees);
 }
 
+sub coordinatetodecimal2 {
+    
+    my ( $deg, $min, $sec,  $declination ) = @_;
+    
+    my $signeddegrees;
+    
+
+    return "" if !( $declination =~ /[NSEW]/ );
+    
+    $deg = $deg / 1;
+    $min = $min / 60;
+    $sec = $sec / 3600;
+
+    $signeddegrees = ( $deg + $min + $sec );
+
+    if ( ( $declination eq "S" ) || ( $declination eq "W" ) ) {
+        $signeddegrees = -($signeddegrees);
+    }
+
+    given ($declination) {
+        when (/N|S/) {
+
+            #Latitude is invalid if less than -90  or greater than 90
+            $signeddegrees = "" if ( abs($signeddegrees) > 90 );
+        }
+        when (/E|W/) {
+
+            #Longitude is invalid if less than -180 or greater than 180
+            $signeddegrees = "" if ( abs($signeddegrees) > 180 );
+        }
+        default {
+        }
+
+    }
+    # say "Coordinate: $coordinate to $signeddegrees"        if $debug;
+    say "Deg: $deg, Min:$min, Sec:$sec, Decl:$declination" if $debug;
+    return ($signeddegrees);
+}
 sub uniq {
 
     #Remove duplicates from a hash, leaving only one entry (eg 1 2 3 2 2 -> 1 2 3)
