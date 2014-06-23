@@ -82,6 +82,44 @@ my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 my $iapCount = $dtppSth->rows;
 say "$iapCount Total Airport Diagrams";
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of  miltary Airport diagrams 
+ $dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE                   
+                D.CHART_CODE = 'APD' 
+                AND
+                D.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                D.MILITARY_USE LIKE 'M'
+                "
+);
+$dtppSth->execute();
+ $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+ $iapCount = $dtppSth->rows;
+say "\t$iapCount Military";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#Query the dtpp database for  count of  civilian Airport diagrams 
+ $dtppSth = $dtppDbh->prepare(
+    "SELECT *
+      FROM dtpp as D 
+      JOIN dtppGeo as DG 
+      ON D.PDF_NAME=DG.PDF_NAME
+             WHERE                   
+                D.CHART_CODE = 'APD' 
+                AND
+                D.PDF_NAME NOT LIKE '%DELETED%'
+                AND
+                D.MILITARY_USE NOT LIKE 'M'
+                "
+);
+$dtppSth->execute();
+ $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+ $iapCount = $dtppSth->rows;
+say "\t$iapCount Civilian";
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Airport diagrams 
 $dtppSth = $dtppDbh->prepare(
     "SELECT D.FAA_CODE,D.PDF_NAME
@@ -110,10 +148,10 @@ $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount = $dtppSth->rows;
 say "\t$iapCount with good ratio";
-    foreach my $_row (@$_allSqlQueryResults) {
-        my ( $_FAA_CODE, $_PDF_NAME ) = @$_row;
-        say "\t\t$_FAA_CODE,$_PDF_NAME";
-    }
+    # foreach my $_row (@$_allSqlQueryResults) {
+        # my ( $_FAA_CODE, $_PDF_NAME ) = @$_row;
+        # say "\t\t$_FAA_CODE,$_PDF_NAME";
+    # }
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of IAP charts
  $dtppSth = $dtppDbh->prepare(
