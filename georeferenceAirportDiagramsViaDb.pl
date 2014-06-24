@@ -215,7 +215,7 @@ foreach my $_row (@$_allSqlQueryResults) {
 
     ++$completedCount;
     say
-      "Success: $successCount, Fail: $failCount, No Text: $noTextCount, No  Points: $noPointsCount, Chart: $completedCount"
+      "Success: $successCount, Fail: $failCount, No Text: $noTextCount, No Points: $noPointsCount, Chart: $completedCount"
       . "/"
       . "$_rows";
 }
@@ -294,9 +294,9 @@ sub doAPlate {
     # convert spaces, ., and slashes to dash
     $targetVrtFile =~ s/[ |\/|\\|\.]/-/g;
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
-    our $noPointsFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
+    our $noPointsFile      = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $failFile          = $dir . "fail-" . $targetVrtFile . ".vrt";
-    our $noTextFile        = $dir . "noText-" . $targetVrtFile . ".vrt";
+    our $noTextFile        = $dir . $MILITARY_USE . "noText-" . $targetVrtFile . ".vrt";
     our $targetvrt         = $dir . $targetVrtFile . ".vrt";
     our $targetvrt2        = $dir . $targetVrtFile2 . ".vrt";
     our $targetStatistics  = "./statistics.csv";
@@ -343,7 +343,7 @@ sub doAPlate {
 
         say "Not enough pdftotext output for $targetPdf";
         writeStatistics() if $shouldOutputStatistics;
-         say "Touching $main::noTextFile";
+        say "Touching $main::noTextFile";
         open( my $fh, ">", "$main::noTextFile" )
           or die "cannot open > $main::noTextFile $!";
         close($fh);
@@ -445,44 +445,15 @@ sub doAPlate {
 
     # #Get number of objects/streams in the targetpdf
     our $objectstreams = getNumberOfStreams();
-
-    #Loop through each of the streams in the PDF and find all of the icons we're interested in
-    findAllIcons();
-
-    # my $rawPdf = returnRawPdf();
-    # # findIlsIcons( \%icons, $_output );
-    # findObstacleIcons($$rawPdf);
-    # findFixIcons($$rawPdf);
-
-    # # findGpsWaypointIcons($_output);
-    # findGpsWaypointIcons($$rawPdf);
-    # findNavaidIcons($$rawPdf);
-
-    # #findFinalApproachFixIcons($_output);
-    # #findVisualDescentPointIcons($_output);
-    # findHorizontalAndVerticalLines($$rawPdf);
-    # findInsetBoxes($$rawPdf);
-    # findLargeBoxes($$rawPdf);
-    # findInsetCircles($$rawPdf);
-    # findNotToScaleIndicator($$rawPdf);
-
-    #Find navaids near the airport
-    # our %navaids_from_db = ();
-
-    # findNavaidsNearAirport();
-
-    # our @validNavaidNames = keys %navaids_from_db;
-    # our $validNavaidNames = join( " ", @validNavaidNames );
-
-    #Find all of the text boxes in the PDF
     our @pdfToTextBbox = ();
 
-    # our %fixTextboxes      = ();
+    
     our %latitudeTextBoxes  = ();
     our %longitudeTextBoxes = ();
 
-    # our %vorTextboxes      = ();
-
+    #Loop through each of the streams in the PDF and find all of the icons we're interested in
+    findAllIcons(); 
+#Loop through each of the streams in the PDF and find all of the textboxes we're interested in
     findAllTextboxes();
 
     #----------------------------------------------------------------------------------------------------------
@@ -945,6 +916,7 @@ sub findAllIcons {
         #findFinalApproachFixIcons($_output);
         #findVisualDescentPointIcons($_output);
         findLatitudeAndLongitudeLines($_output);
+        findLatitudeAndLongitudeTextBoxes($_output);
 
         # findHorizontalAndVerticalLines($_output);
         # findInsetBoxes($_output);
@@ -1216,6 +1188,7 @@ sub findLatitudeAndLongitudeLines {
               sqrt( $distanceHorizontal**2 + $distanceVertical**2 );
 
             # say "$distanceHorizontal,$distanceVertical,$hypotenuse";
+            #Was 3, change back if trouble TODO BUG
             next if ( abs( $hypotenuse < 3 ) );
 
             my $_X  = $tempLine[$i];
@@ -1330,7 +1303,7 @@ sub findLatitudeAndLongitudeLines {
 
     }
 
- my $lineRegex4 = qr/^$main::transformCaptureXYRegex$
+    my $lineRegex4 = qr/^$main::transformCaptureXYRegex$
 ^$main::originRegex$
 ^($main::numberRegex)\s+($main::numberRegex)\s+l$
 ^($main::numberRegex)\s+($main::numberRegex)\s+l$
@@ -1377,6 +1350,7 @@ sub findLatitudeAndLongitudeLines {
         }
 
     }
+
     # print Dumper ( \%main::latitudeAndLongitudeLines ) if $debug;
 
     my $latitudeAndLongitudeLinesCount =
@@ -1414,6 +1388,7 @@ sub convertPdfToPng {
 }
 
 sub findLatitudeTextBoxes2 {
+    # return;
     my ($_output) = @_;
     say ":findLatitudeTextBoxes2" if $debug;
 
@@ -1539,8 +1514,7 @@ sub findLatitudeTextBoxes2 {
             #Does the declination match?
             next unless ( $main::airportLatitudeDeclination eq $declination );
 
-
-          if ( abs( $yMax - $yMax2 ) < .03 ) {
+            if ( abs( $yMax - $yMax2 ) < .03 ) {
                 $main::isPortraitOrientation = 1;
                 say "Orientation is Portrait" if $debug;
             }
@@ -1641,8 +1615,7 @@ sub findLatitudeTextBoxes2 {
             #Does the declination match?
             next unless ( $main::airportLatitudeDeclination eq $declination );
 
-
-           if ( abs( $yMax - $yMax3 ) < .03 ) {
+            if ( abs( $yMax - $yMax3 ) < .03 ) {
                 $main::isPortraitOrientation = 1;
                 say "Orientation is Portrait" if $debug;
             }
@@ -1825,6 +1798,7 @@ sub findLatitudeTextBoxes2 {
 # }
 
 sub findLongitudeTextBoxes2 {
+    # return;
     my ($_output) = @_;
     say ":findLongitudeTextBoxes2" if $debug;
 
@@ -1953,8 +1927,7 @@ sub findLongitudeTextBoxes2 {
             #Does the declination match?
             next unless ( $main::airportLongitudeDeclination eq $declination );
 
-
-          if ( abs( $yMax - $yMax2 ) < .03 ) {
+            if ( abs( $yMax - $yMax2 ) < .03 ) {
                 $main::isPortraitOrientation = 1;
                 say "Orientation is Portrait" if $debug;
             }
@@ -2056,7 +2029,7 @@ sub findLongitudeTextBoxes2 {
             #Does the declination match?
             next unless ( $main::airportLongitudeDeclination eq $declination );
 
-          if ( abs( $yMax - $yMax3 ) < .03 ) {
+            if ( abs( $yMax - $yMax3 ) < .03 ) {
                 $main::isPortraitOrientation = 1;
                 say "Orientation is Portrait" if $debug;
             }
@@ -2242,7 +2215,7 @@ sub georeferenceTheRaster {
         carp
           "Error executing gdalwarp.  Is it installed? Return code was $retval";
         ++$main::failCount;
-         say "Touching $main::failFile";
+        say "Touching $main::failFile";
         open( my $fh, ">", "$main::failFile" )
           or die "cannot open > $main::failFile $!";
         close($fh);
@@ -2639,3 +2612,154 @@ sub drawLineFromEachIconToMatchedTextBox {
     return;
 }
 
+sub findLatitudeAndLongitudeTextBoxes {
+  
+
+    my ($_output) = @_;
+    # say $_output;
+      say ":findLatitudeAndLongitudeTextBoxes" if $debug;
+    my $retval  = $? >> 8;
+
+    #Capture all text between BT and ET tags
+    my $textGroupRegex           = qr/^BT$(.*?)^ET$/sm;
+    my $textGroupRegexDataPoints = 1;
+
+    my @tempLine = $_output =~ /$textGroupRegex/ig;
+
+    my $tempLineLength = 0 + @tempLine;
+    my $tempLineCount  = $tempLineLength / $textGroupRegexDataPoints;
+
+    if ( $tempLineLength >= $textGroupRegexDataPoints ) {
+        my $random = rand();
+        for (
+            my $i = 0 ;
+            $i < $tempLineLength ;
+            $i = $i + $textGroupRegexDataPoints
+          )
+        {
+            #Capture all text between BT and ET tags
+            my $_text = $tempLine[$i];
+
+            # say $_text;
+            # say "**************";
+
+            # my ( $xMin, $xMax, $yMin, $yMax ) = 999999999999;
+            my  $xMin  = 99999;
+            my  $yMin  = 99999;
+            my  $xMax  = 0;
+            my  $yMax  = 0;
+            our $numberRegex = qr/[-\.\d]+/x;
+
+            #Capture the transformation matrix
+            my $textGroupRegex3 =
+              qr/^$numberRegex\s+$numberRegex\s+$numberRegex\s+$numberRegex\s+($numberRegex)\s+($numberRegex)\s+Tm$/m;
+            my $textGroupRegexDataPoints3 = 2;
+
+            my @tempLine3 = $_text =~ /$textGroupRegex3/ig;
+
+            my $tempLineLength3 = 0 + @tempLine3;
+            my $tempLineCount3  = $tempLineLength3 / $textGroupRegexDataPoints3;
+
+            if ( $tempLineLength3 >= $textGroupRegexDataPoints3 ) {
+                
+                for (
+                    my $i = 0 ;
+                    $i < $tempLineLength3 ;
+                    $i = $i + $textGroupRegexDataPoints3
+                  )
+                {
+                   # say "$xMin, $yMin, $xMax, $yMax";
+                 
+                    $xMin = $tempLine3[$i] < $xMin ? $tempLine3[$i] : $xMin;
+                    # $xMin = $tempLine3[$i];
+                    $xMax = $tempLine3[$i] > $xMax ? $tempLine3[$i] : $xMax;
+                    # $xMax = $xMin + 1;
+                    # $yMin = $tempLine3[ $i + 1 ];
+                    # $yMax = $yMin + 1;
+                    $yMin =  $tempLine3[$i+1] < $yMin  ? $tempLine3[$i+1] : $yMin;
+                    $yMax = $tempLine3[$i+1] > $yMax ? $tempLine3[$i+1] : $yMax;
+                    
+
+                }
+
+            }
+
+            #Match any time text is drawn
+            my $textGroupRegex2           = qr/^\((.*)\)\s*Tj$/m;
+            my $textGroupRegexDataPoints2 = 1;
+
+            my @tempLine2 = $_text =~ /$textGroupRegex2/ig;
+            my $_textAccumulator;
+            my $tempLineLength2 = 0 + @tempLine2;
+            my $tempLineCount2  = $tempLineLength2 / $textGroupRegexDataPoints2;
+
+            if ( $tempLineLength2 >= $textGroupRegexDataPoints2 ) {
+                my $random = rand();
+                for (
+                    my $i = 0 ;
+                    $i < $tempLineLength2 ;
+                    $i = $i + $textGroupRegexDataPoints2
+                  )
+                {
+                    #Accumulate each drawn piece of text
+                    $_textAccumulator = $_textAccumulator . $tempLine2[$i];
+                }
+
+                #Replace the degree symbol glyph
+                $_textAccumulator =~ s/\\260/-/g;
+
+                $_textAccumulator =~ s/\s+//g;
+
+                # say $_textAccumulator;
+                if ( $_textAccumulator =~
+                    m/(\d{1,3})-([-\.\d]+)[\s']*(N|E|W|S)/ )
+                {
+
+                    my $height      = $yMax - $yMin;
+                    my $width       = $xMax - $xMin;
+                    #Abort if we got a text block that's too big
+                    if ($height > 30 || $width > 30) {
+                        say "This box is too big" if $debug;}
+                    my $degrees     = $1;
+                    my $minutes     = $2;
+                    my $seconds     = 0;
+                    my $declination = $3;
+                    # say "Found lat/lon text $_textAccumulator at $xMin, $yMin";
+                    # say                      "Degrees: $degrees, Minutes: $minutes, Declination: $declination";
+                    my $rand = rand();
+                    my $decimal =
+                      coordinatetodecimal2( $degrees, $minutes, $seconds,
+                        $declination );
+                     
+                    #If the slope of the line of this text is vertical than the orientation is landscape  
+                   $main::isPortraitOrientation = slopeAngle($xMin,$yMin,$xMax,$yMax) > 15 ? 0  : 1;
+                   
+                     if ($declination =~ m/E|W/)  {
+                    $main::longitudeTextBoxes{$rand}{"Width"}  = $width;
+                    $main::longitudeTextBoxes{$rand}{"Height"} = $height;
+                    $main::longitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
+                    $main::longitudeTextBoxes{$rand}{"Decimal"} = $decimal;
+                    $main::longitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::longitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
+                  }
+                  elsif ($declination =~ m/N|S/)  {
+                    $main::latitudeTextBoxes{$rand}{"Width"}  = $width;
+                    $main::latitudeTextBoxes{$rand}{"Height"} = $height;
+                    $main::latitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
+                    $main::latitudeTextBoxes{$rand}{"Decimal"} = $decimal;
+                    $main::latitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::latitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
+                  }
+                  else {
+                      say "Bad Declination";}
+
+                }
+
+            }
+
+        }
+
+    }
+    # print Dumper ( \%main::longitudeTextBoxes );
+    return;
+}
