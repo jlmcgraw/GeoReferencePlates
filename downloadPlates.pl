@@ -171,6 +171,7 @@ else {
       $webServer . $htmlcycle . $MySlash . $xmlDataDir . $MySlash . $xmlFile;
     my $outputFile = $xmlFile;
     say "Getting $sourceFile ->  $outputFile";
+
     #Get d-TPP file
     getstore( $sourceFile, $outputFile );
 
@@ -220,7 +221,7 @@ foreach my $tpp ( $tppSet->get_nodelist ) {
 
         $xmlcycle = $htmlcycle;
 
-          print "xmlcycle now is $xmlcycle\n";
+        print "xmlcycle now is $xmlcycle\n";
 
         exit();
     }
@@ -396,8 +397,8 @@ foreach my $tpp ( $tppSet->get_nodelist ) {
 
                             # getstore( $sourceFile, $outputFile );
                             # die
-                              # "Can't download plate $sourceFile to $outputFile"
-                              # unless -f $outputFile;
+                            # "Can't download plate $sourceFile to $outputFile"
+                            # unless -f $outputFile;
                             say "$sourceFile->$outputFile";
                             $iDownloaded++;
                             $filesize = ( $filesize + ( -s "$outputFile" ) );

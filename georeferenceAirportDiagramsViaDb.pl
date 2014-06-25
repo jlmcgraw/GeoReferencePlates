@@ -296,10 +296,11 @@ sub doAPlate {
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
     our $noPointsFile      = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $failFile          = $dir . "fail-" . $targetVrtFile . ".vrt";
-    our $noTextFile        = $dir . $MILITARY_USE . "noText-" . $targetVrtFile . ".vrt";
-    our $targetvrt         = $dir . $targetVrtFile . ".vrt";
-    our $targetvrt2        = $dir . $targetVrtFile2 . ".vrt";
-    our $targetStatistics  = "./statistics.csv";
+    our $noTextFile =
+      $dir . $MILITARY_USE . "noText-" . $targetVrtFile . ".vrt";
+    our $targetvrt        = $dir . $targetVrtFile . ".vrt";
+    our $targetvrt2       = $dir . $targetVrtFile2 . ".vrt";
+    our $targetStatistics = "./statistics.csv";
 
     if ($debug) {
         say "Directory: " . $dir;
@@ -343,11 +344,12 @@ sub doAPlate {
 
         say "Not enough pdftotext output for $targetPdf";
         writeStatistics() if $shouldOutputStatistics;
-        say "Touching $main::noTextFile";
-        open( my $fh, ">", "$main::noTextFile" )
-          or die "cannot open > $main::noTextFile $!";
-        close($fh);
-        return;
+        touchFile($main::noTextFile);
+        # say "Touching $main::noTextFile";
+        # open( my $fh, ">", "$main::noTextFile" )
+          # or die "cannot open > $main::noTextFile $!";
+        # close($fh);
+        # return;
         return (1);
     }
 
@@ -447,13 +449,13 @@ sub doAPlate {
     our $objectstreams = getNumberOfStreams();
     our @pdfToTextBbox = ();
 
-    
     our %latitudeTextBoxes  = ();
     our %longitudeTextBoxes = ();
 
     #Loop through each of the streams in the PDF and find all of the icons we're interested in
-    findAllIcons(); 
-#Loop through each of the streams in the PDF and find all of the textboxes we're interested in
+    findAllIcons();
+
+    #Loop through each of the streams in the PDF and find all of the textboxes we're interested in
     findAllTextboxes();
 
     #----------------------------------------------------------------------------------------------------------
@@ -560,24 +562,25 @@ sub doAPlate {
 
     #----------------------------------------------------------------------------------------------------------------------------------------------------
     #Now some math
-    our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
+    # our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
 
-    our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
-    our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
-    our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
-    our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
-    our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
-    our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
-    our ($lonLatRatio) = 0;
+    # our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
+    # our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
+    # our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
+    # our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
+    # our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
+    # our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
+    # our ($lonLatRatio) = 0;
 
     #Can't do anything if we didn't find any valid ground control points
     if ( $gcpCount < 2 ) {
         say
-          "Only found $gcpCount ground control points in $targetPdf, can't georeference";
-        say "Touching $noPointsFile";
-        open( my $fh, ">", "$noPointsFile" )
-          or die "cannot open > $noPointsFile: $!";
-        close($fh);
+          "Only found $gcpCount ground c5ontrol points in $targetPdf, can't georeference";
+             touchFile($noPointsFile);
+        # say "Touching $noPointsFile";
+        # open( my $fh, ">", "$noPointsFile" )
+          # or die "cannot open > $noPointsFile: $!";
+        # close($fh);
 
         # say          "xScaleAvgSize: $statistics{'$xScaleAvgSize'}, yScaleAvgSize: $statistics{'$yScaleAvgSize'}";
 
@@ -590,22 +593,22 @@ sub doAPlate {
     #Actually produce the georeferencing data via GDAL
     georeferenceTheRaster();
 
-    #Count of entries in this array
-    my $xScaleAvgSize = 0 + @xScaleAvg;
+    # #Count of entries in this array
+    # my $xScaleAvgSize = 0 + @xScaleAvg;
 
-    #Count of entries in this array
-    my $yScaleAvgSize = 0 + @yScaleAvg;
+    # #Count of entries in this array
+    # my $yScaleAvgSize = 0 + @yScaleAvg;
 
     # say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize";
 
     #Save statistics
-    $statistics{'$xAvg'}          = $xAvg;
-    $statistics{'$xMedian'}       = $xMedian;
-    $statistics{'$xScaleAvgSize'} = $xScaleAvgSize;
-    $statistics{'$yAvg'}          = $yAvg;
-    $statistics{'$yMedian'}       = $yMedian;
-    $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
-    $statistics{'$lonLatRatio'}   = $lonLatRatio;
+    # $statistics{'$xAvg'}          = $xAvg;
+    # $statistics{'$xMedian'}       = $xMedian;
+    # $statistics{'$xScaleAvgSize'} = $xScaleAvgSize;
+    # $statistics{'$yAvg'}          = $yAvg;
+    # $statistics{'$yMedian'}       = $yMedian;
+    # $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
+    # $statistics{'$lonLatRatio'}   = $lonLatRatio;
 
     # }
     # else {
@@ -905,147 +908,18 @@ sub findAllIcons {
 
         print "Stream $i: " if $debug;
 
-        # findIlsIcons( \%icons, $_output );
-        # findObstacleIcons($_output);
-        # findFixIcons($_output);
-
-        # findGpsWaypointIcons($_output);
-        # findGpsWaypointIcons($_output);
-        # findNavaidIcons($_output);
-
-        #findFinalApproachFixIcons($_output);
-        #findVisualDescentPointIcons($_output);
+       
         findLatitudeAndLongitudeLines($_output);
         findLatitudeAndLongitudeTextBoxes($_output);
 
-        # findHorizontalAndVerticalLines($_output);
-        # findInsetBoxes($_output);
-        # findLargeBoxes($_output);
-        # findInsetCircles($_output);
-        # findNotToScaleIndicator($_output);
-        # findRunwayIcons($_output);
         say "" if $debug;
     }
 
-    # if ($debug) {
-    # say "";
-    # say "obstacleIcons:";
-    # print Dumper ( \%obstacleIcons );
-    # say "fixIcons";
-    # print Dumper ( \%fixIcons );
-    # say "%gpsWaypointIcons:";
-    # print Dumper ( \%gpsWaypointIcons );
-    # say "navaidIcons:";
-    # print Dumper ( \%navaidIcons );
-    # say "notToScaleIndicators:";
-    # print Dumper ( \%notToScaleIndicators );
-    # say "runwayIcons";
-    # print Dumper ( \%runwayIcons );
-    # return;
-    # }
+    
     return;
 }
 
-# sub returnRawPdf {
 
-# #Returns the raw commands of a PDF
-# say ":returnRawPdf" if $debug;
-# my ($_output);
-
-# if ( -e $main::outputPdfRaw ) {
-
-# #If the raw output already exists just read it and return
-# $_output = read_file($main::outputPdfRaw);
-# }
-# else {
-# #create, save for future use, and return raw PDF output
-# open( my $fh, '>', $main::outputPdfRaw )
-# or die "Could not open file '$main::outputPdfRaw' $!";
-
-# #Get number of objects/streams in the targetpdf
-# my $_objectstreams = getNumberOfStreams();
-
-# #Loop through each "stream" in the pdf and get the raw commands
-# for ( my $i = 0 ; $i < ( $_objectstreams - 1 ) ; $i++ ) {
-# $_output = $_output . qx(mutool show $main::targetPdf $i x);
-# my $retval = $? >> 8;
-# die
-# "No output from mutool show.  Is it installed? Return code was $retval"
-# if ( $_output eq "" || $retval != 0 );
-# }
-
-# #Write it out for future use
-# print $fh $_output;
-# close $fh;
-
-# }
-
-# #Return a reference to the output
-# return \$_output;
-# }
-
-# sub findClosestBToA {
-
-# #Find the closest B icon to each A
-
-# my ( $hashRefA, $hashRefB ) = @_;
-
-# #Maximum distance in points between centers
-# my $maxDistance = 115;
-
-# # say "findClosest $hashRefB to each $hashRefA" if $debug;
-
-# foreach my $key ( sort keys %$hashRefA ) {
-
-# #Start with a very high number so initially is closer than it
-# my $distanceToClosest = 999999999999;
-
-# # #Ignore entries that already have a bidir match
-# # next if  $hashRefA->{$key}{"BidirectionalMatch"}= "True";
-
-# foreach my $key2 ( sort keys %$hashRefB ) {
-
-# # #Ignore entries that already have a bidir match
-# # next if $hashRefB->{$key2}{"BidirectionalMatch"}= "True";
-
-# my $distanceToBX =
-# $hashRefB->{$key2}{"CenterX"} - $hashRefA->{$key}{"CenterX"};
-# my $distanceToBY =
-# $hashRefB->{$key2}{"CenterY"} - $hashRefA->{$key}{"CenterY"};
-
-# my $hypotenuse = sqrt( $distanceToBX**2 + $distanceToBY**2 );
-
-# #Ignore this textbox if it's further away than our max distance variables
-# next
-# if (
-# (
-# $hypotenuse > $maxDistance
-# || $hypotenuse > $distanceToClosest
-# )
-# );
-
-# #Update the distance to the closest obstacleTextBox center
-# $distanceToClosest = $hypotenuse;
-
-# #Set the "name" of this obstacleIcon to the text from obstacleTextBox
-# #This is where we kind of guess (and can go wrong) since the closest height text is often not what should be associated with the icon
-# # $hashRefA->{$key}{"Name"}     = $hashRefB->{$key2}{"Text"};
-# #$hashRefA->{$key}{"TextBoxX"} = $hashRefB->{$key2}{"CenterX"};
-# #$hashRefA->{$key}{"TextBoxY"} = $hashRefB->{$key2}{"CenterY"};
-# $hashRefA->{$key}{"MatchedTo"} = $key2;
-# }
-
-# }
-# if ($debug) {
-# say "$hashRefA";
-# print Dumper ($hashRefA);
-# say "";
-# say "$hashRefB";
-# print Dumper ($hashRefB);
-# }
-
-# return;
-# }
 
 sub findClosestLineToTextBox {
 
@@ -1388,6 +1262,7 @@ sub convertPdfToPng {
 }
 
 sub findLatitudeTextBoxes2 {
+
     # return;
     my ($_output) = @_;
     say ":findLatitudeTextBoxes2" if $debug;
@@ -1446,12 +1321,16 @@ sub findLatitudeTextBoxes2 {
             # $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
             # $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
             # $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-                    $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::latitudeTextBoxes{$decimal}{"Text"} =                     $degrees . "-" . $minutes . $declination;
-                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+            $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+            $main::latitudeTextBoxes{$decimal}{"Text"} =
+              $degrees . "-" . $minutes . $declination;
+            $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+            $main::latitudeTextBoxes{$decimal}{"CenterX"} =
+              $xMin + ( $width / 2 );
+            $main::latitudeTextBoxes{$decimal}{"CenterY"} =
+              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+
             # $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
         }
     }
@@ -1547,12 +1426,15 @@ sub findLatitudeTextBoxes2 {
             # $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
             # $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
             # # $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
-                  $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::latitudeTextBoxes{$decimal}{"Text"} =                      $degrees . "-" . $minutes . $declination;
-                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+            $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+            $main::latitudeTextBoxes{$decimal}{"Text"} =
+              $degrees . "-" . $minutes . $declination;
+            $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+            $main::latitudeTextBoxes{$decimal}{"CenterX"} =
+              $xMin + ( $width / 2 );
+            $main::latitudeTextBoxes{$decimal}{"CenterY"} =
+              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
 
     }
@@ -1651,13 +1533,16 @@ sub findLatitudeTextBoxes2 {
             # $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
             # $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
             # # $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
-            
-             $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::latitudeTextBoxes{$decimal}{"Text"} =                      $degrees . "-" . $minutes . $declination;
-                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+
+            $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+            $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+            $main::latitudeTextBoxes{$decimal}{"Text"} =
+              $degrees . "-" . $minutes . $declination;
+            $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+            $main::latitudeTextBoxes{$decimal}{"CenterX"} =
+              $xMin + ( $width / 2 );
+            $main::latitudeTextBoxes{$decimal}{"CenterY"} =
+              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
 
     }
@@ -1672,142 +1557,10 @@ sub findLatitudeTextBoxes2 {
     return;
 }
 
-# sub findLatitudeTextBoxes {
-# say ":findLatitudeTextBoxes" if $debug;
 
-# #-----------------------------------------------------------------------------------------------------------
-# #Get list of potential latitude textboxes
-# #For whatever dumb reason they're in raster axes (0,0 is top left, Y increases downwards)
-# #   but in points coordinates
-# my $latitudeTextBoxRegex =
-# qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">($main::latitudeRegex)</;
-
-# foreach my $line (@main::pdfToTextBbox) {
-# if ( $line =~ m/$latitudeTextBoxRegex/ ) {
-# my $xMin = $1;
-
-# #I don't know why but these values need to be adjusted a bit to enclose the text properly
-# my $yMin = $2 - 2;
-# my $xMax = $3 - 1;
-# my $yMax = $4;
-# my $text = $5;
-
-# my $height = $yMax - $yMin;
-# my $width  = $xMax - $xMin;
-
-# my $rand = rand();
-
-# my @tempText    = $text =~ m/(\d{2,})(\d\d\.?\d?).+(\w)$/ig;
-# my $degrees     = $tempText[0];
-# my $minutes     = $tempText[1];
-# my $declination = $tempText[2];
-# say "Degrees: $degrees, Minutes $minutes, declination:$declination"
-# if $debug;
-# my $decimal =
-# coordinatetodecimal2( $degrees, $minutes, 0, $declination );
-
-# # say $decimal;
-
-# # say $seconds;
-# # my $decimal = coordinatetodecimal($text);
-# # $latitudeTextBoxes{ $1 . $2 }{"RasterX"} = $1 * $scaleFactorX;
-# # $latitudeTextBoxes{ $1 . $2 }{"RasterY"} = $2 * $scaleFactorY;
-# $main::latitudeTextBoxes{$rand}{"Width"}  = $width;
-# $main::latitudeTextBoxes{$rand}{"Height"} = $height;
-# $main::latitudeTextBoxes{$rand}{"Text"}   = $text;
-
-# $main::latitudeTextBoxes{$rand}{"Decimal"} = $decimal;
-
-# # $latitudeTextBoxes{ $rand }{"PdfX"}    = $xMin;
-# # $latitudeTextBoxes{ $rand }{"PdfY"}    = $pdfYSize - $2;
-# $main::latitudeTextBoxes{$rand}{"CenterX"} = $xMin + ( $width / 2 );
-
-# # $latitudeTextBoxes{ $rand }{"CenterY"} = $pdfYSize - $2;
-# $main::latitudeTextBoxes{$rand}{"CenterY"} =
-# ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-# $main::latitudeTextBoxes{$rand}{"IconsThatPointToMe"} = 0;
-# }
-
-# }
-
-# print Dumper ( \%main::latitudeTextBoxes ) if $debug;
-
-# if ($debug) {
-# say "Found " .
-# keys(%main::latitudeTextBoxes) . " Potential latitude text boxes";
-# say "";
-# }
-# return;
-# }
-
-# sub findLongitudeTextBoxes {
-# say ":findLongitudeTextBoxes" if $debug;
-
-# #-----------------------------------------------------------------------------------------------------------
-# #Get list of potential longitude textboxes
-# #For whatever dumb reason they're in raster axes (0,0 is top left, Y increases downwards)
-# #   but in points coordinates
-# my $longitudeTextBoxRegex =
-# qr/xMin="([\d\.]+)" yMin="([\d\.]+)" xMax="([\d\.]+)" yMax="([\d\.]+)">($main::longitudeRegex)</;
-
-# foreach my $line (@main::pdfToTextBbox) {
-# if ( $line =~ m/$longitudeTextBoxRegex/ ) {
-# my $xMin = $1;
-
-# #I don't know why but these values need to be adjusted a bit to enclose the text properly
-# my $yMin = $2 - 2;
-# my $xMax = $3 - 1;
-# my $yMax = $4;
-# my $text = $5;
-
-# my $height = $yMax - $yMin;
-# my $width  = $xMax - $xMin;
-
-# my $rand = rand();
-
-# my @tempText    = $text =~ m/(\d{2,})(\d\d\.?\d?).+(\w)$/ig;
-# my $degrees     = $tempText[0];
-# my $minutes     = $tempText[1];
-# my $declination = $tempText[2];
-
-# # say "Degrees: $degrees, Minutes $minutes, declination:$declination";
-# my $decimal =
-# coordinatetodecimal2( $degrees, $minutes, 0, $declination );
-
-# # say $decimal;
-
-# # $longitudeTextBoxes{ $rand }{"RasterX"} = $1 * $scaleFactorX;
-# # $longitudeTextBoxes{ $rand }{"RasterY"} = $2 * $scaleFactorY;
-# $main::longitudeTextBoxes{$rand}{"Width"}  = $width;
-# $main::longitudeTextBoxes{$rand}{"Height"} = $height;
-# $main::longitudeTextBoxes{$rand}{"Text"}   = $text;
-
-# $main::longitudeTextBoxes{$rand}{"Decimal"} = $decimal;
-
-# # $longitudeTextBoxes{ $rand }{"PdfX"}    = $xMin;
-# # $longitudeTextBoxes{ $rand }{"PdfY"}    = $pdfYSize - $2;
-# $main::longitudeTextBoxes{$rand}{"CenterX"} =
-# $xMin + ( $width / 2 );
-
-# # $longitudeTextBoxes{ $rand }{"CenterY"} = $pdfYSize - $2;
-# $main::longitudeTextBoxes{$rand}{"CenterY"} =
-# ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-# $main::longitudeTextBoxes{$rand}{"IconsThatPointToMe"} = 0;
-# }
-
-# }
-
-# print Dumper ( \%main::longitudeTextBoxes ) if $debug;
-
-# if ($debug) {
-# say "Found " .
-# keys(%main::longitudeTextBoxes) . " Potential longitude text boxes";
-# say "";
-# }
-# return;
-# }
 
 sub findLongitudeTextBoxes2 {
+
     # return;
     my ($_output) = @_;
     say ":findLongitudeTextBoxes2" if $debug;
@@ -1871,12 +1624,15 @@ sub findLongitudeTextBoxes2 {
             # $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
             # $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
             # # $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
-             $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::longitudeTextBoxes{$decimal}{"Text"} =                       $degrees . "-" . $minutes . $declination;
-                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+            $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+            $main::longitudeTextBoxes{$decimal}{"Text"} =
+              $degrees . "-" . $minutes . $declination;
+            $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+            $main::longitudeTextBoxes{$decimal}{"CenterX"} =
+              $xMin + ( $width / 2 );
+            $main::longitudeTextBoxes{$decimal}{"CenterY"} =
+              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
     }
 
@@ -1971,12 +1727,15 @@ sub findLongitudeTextBoxes2 {
             # $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
             # $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
             # # $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
-          $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::longitudeTextBoxes{$decimal}{"Text"} =                     $degrees . "-" . $minutes . $declination;
-                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );  
+            $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+            $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+            $main::longitudeTextBoxes{$decimal}{"Text"} =
+              $degrees . "-" . $minutes . $declination;
+            $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+            $main::longitudeTextBoxes{$decimal}{"CenterX"} =
+              $xMin + ( $width / 2 );
+            $main::longitudeTextBoxes{$decimal}{"CenterY"} =
+              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
 
     }
@@ -2073,12 +1832,15 @@ sub findLongitudeTextBoxes2 {
             # $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
             # $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
             # # $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
-             $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::longitudeTextBoxes{$decimal}{"Text"} =                     $degrees . "-" . $minutes . $declination;
-                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );  
+            $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+            $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+            $main::longitudeTextBoxes{$decimal}{"Text"} =
+              $degrees . "-" . $minutes . $declination;
+            $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+            $main::longitudeTextBoxes{$decimal}{"CenterX"} =
+              $xMin + ( $width / 2 );
+            $main::longitudeTextBoxes{$decimal}{"CenterY"} =
+              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
 
     }
@@ -2208,11 +1970,12 @@ sub georeferenceTheRaster {
         carp
           "Error executing gdal_translate.  Is it installed? Return code was $retval";
         ++$main::failCount;
-        say "Touching $main::failFile";
-        open( my $fh, ">", "$main::failFile" )
-          or die "cannot open > $main::failFile $!";
-        close($fh);
-        return;
+           touchFile($main::failFile);
+        # say "Touching $main::failFile";
+        # open( my $fh, ">", "$main::failFile" )
+          # or die "cannot open > $main::failFile $!";
+        # close($fh);
+        return(1);
     }
     say $gdal_translateoutput if $debug;
 
@@ -2235,11 +1998,12 @@ sub georeferenceTheRaster {
         carp
           "Error executing gdalwarp.  Is it installed? Return code was $retval";
         ++$main::failCount;
-        say "Touching $main::failFile";
-        open( my $fh, ">", "$main::failFile" )
-          or die "cannot open > $main::failFile $!";
-        close($fh);
-        return;
+           touchFile($main::failFile);
+        # say "Touching $main::failFile";
+        # open( my $fh, ">", "$main::failFile" )
+          # or die "cannot open > $main::failFile $!";
+        # close($fh);
+        return (1);
     }
 
     if ( $retval == 0 ) {
@@ -2265,49 +2029,76 @@ sub georeferenceTheRaster {
     if ( $retval != 0 ) {
         carp
           "Error executing gdalinfo.  Is it installed? Return code was $retval";
+        return;
     }
     say $gdalinfoCommandOutput if $debug;
 
-    # #A line
-    # my $lineRegex = qr/^$main::transformCaptureXYRegex$
-    # ^$main::originRegex$
-    # ^($main::numberRegex)\s+($main::numberRegex)\s+l$
-    # ^S$
-    # ^Q$/m;
-
-    # my @tempLine = $_output =~ /$lineRegex/ig;
-    # Driver: VRT/Virtual Raster
-
-    # Files: ./apdTest/warpedSC-CAE-00089AD.PDF-AIRPORT DIAGRAM.vrt
-    # /home/jlmcgraw/Documents/myPrograms/GeoReferencePlates/./apdTest/SC-CAE-00089AD-PDF-AIRPORT-DIAGRAM.vrt
-    # Size is 1818, 2328
-    # Coordinate System is:
-    # GEOGCS["WGS 84",
-    # DATUM["WGS_1984",
-    # SPHEROID["WGS 84",6378137,298.257223563,
-    # AUTHORITY["EPSG","7030"]],
-    # AUTHORITY["EPSG","6326"]],
-    # PRIMEM["Greenwich",0,
-    # AUTHORITY["EPSG","8901"]],
-    # UNIT["degree",0.0174532925199433,
-    # AUTHORITY["EPSG","9122"]],
-    # AUTHORITY["EPSG","4326"]]
-    # Origin = (-81.142523952679298,33.967226302777370)
-    # Pixel Size = (0.000024392260817,-0.000024392260817)
-    # Corner Coordinates:
-    # Upper Left  ( -81.1425240,  33.9672263) ( 81d 8'33.09"W, 33d58' 2.01"N)
-    # Lower Left  ( -81.1425240,  33.9104411) ( 81d 8'33.09"W, 33d54'37.59"N)
-    # Upper Right ( -81.0981788,  33.9672263) ( 81d 5'53.44"W, 33d58' 2.01"N)
-    # Lower Right ( -81.0981788,  33.9104411) ( 81d 5'53.44"W, 33d54'37.59"N)
-    # Center      ( -81.1203514,  33.9388337) ( 81d 7'13.26"W, 33d56'19.80"N)
-    # Band 1 Block=512x128 Type=Byte, ColorInterp=Red
-    # Band 2 Block=512x128 Type=Byte, ColorInterp=Green
-    # Band 3 Block=512x128 Type=Byte, ColorInterp=Blue
+    my (
+        $pixelSizeX,   $pixelSizeY,    $upperLeftLon,
+        $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio
+    ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
+    
+    $statistics{'$yMedian'} = $pixelSizeY;
+    $statistics{'$xMedian'} = $pixelSizeX;
+    $statistics{'$lonLatRatio'} = $lonLatRatio;
+    $statistics{'$upperLeftLon'}  = $upperLeftLon;
+    $statistics{'$upperLeftLat'}  = $upperLeftLat;
+    $statistics{'$lowerRightLon'} = $lowerRightLon;
+    $statistics{'$lowerRightLat'} = $lowerRightLat;
+    #BUG TODO Temporaily overloading notToScaleIndicatorCount to show landscape/portait orientation
+     $statistics{'$notToScaleIndicatorCount'} = $main::isPortraitOrientation;
+    # print Dumper ( \%statistics );
 
     return;
 }
 
-#
+sub extractGeoreferenceInfo {
+
+    #Pull relevant information out of gdalinfo command
+    my ($_output) = @_;
+    my (
+        $pixelSizeX,   $pixelSizeY,    $upperLeftLon,
+        $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio
+    );
+
+    my $pixelSizeRegex =
+      qr/^Pixel\s+Size\s+=\s+\(\s*($main::numberRegex)\s*,\s*($main::numberRegex)\s*\)$/m;
+    my $upperLeftRegex =
+      qr/^Upper\s+Left\s+\(\s*($main::numberRegex)\s*,\s*($main::numberRegex)\s*\)/m;
+    my $lowerRightRegex =
+      qr/^Lower\s+Right\s+\(\s*($main::numberRegex)\s*,\s*($main::numberRegex)\s*\)/m;
+
+    my $pixelSizeRegexDataPoints = 2;
+
+    my @tempLine  = $_output =~ /$pixelSizeRegex/ig;
+    my @tempLine2 = $_output =~ /$upperLeftRegex/ig;
+    my @tempLine3 = $_output =~ /$lowerRightRegex/ig;
+
+    if (@tempLine) {
+        $pixelSizeX = $tempLine[0];
+        $pixelSizeY = $tempLine[1];
+    }
+
+    if (@tempLine2) {
+        $upperLeftLon = $tempLine2[0];
+        $upperLeftLat = $tempLine2[1];
+    }
+
+    if (@tempLine3) {
+        $lowerRightLon = $tempLine3[0];
+        $lowerRightLat = $tempLine3[1];
+    }
+    $lonLatRatio = abs(
+        ( $upperLeftLon - $lowerRightLon ) / ( $upperLeftLat - $lowerRightLat )
+    );
+    say
+      "$pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio"
+      ;
+    return (
+        $pixelSizeX,   $pixelSizeY,    $upperLeftLon,
+        $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio
+    );
+}
 
 sub writeStatistics {
 
@@ -2395,59 +2186,7 @@ sub writeStatistics {
     return;
 }
 
-# sub addCombinedHashToGroundControlPoints {
 
-# #Make a hash of all the GCPs to use, filtering them by using our mask bitmap
-# my ( $type, $combinedHashRef ) = @_;
-
-# #Add obstacles to Ground Control Points hash
-# foreach my $key ( sort keys %$combinedHashRef ) {
-
-# my $_pdfX = $combinedHashRef->{$key}{"GeoreferenceX"};
-# my $_pdfY = $combinedHashRef->{$key}{"GeoreferenceY"};
-# my $lon   = $combinedHashRef->{$key}{"Lon"};
-# my $lat   = $combinedHashRef->{$key}{"Lat"};
-# my $text  = $combinedHashRef->{$key}{"Text"};
-# next unless ( $_pdfX && $_pdfY && $lon && $lat );
-# my @pixels;
-# my $_rasterX = $_pdfX * $main::scaleFactorX;
-# my $_rasterY = $main::pngYSize - ( $_pdfY * $main::scaleFactorY );
-# my $rand     = rand();
-
-# #Make sure all our info is defined
-# if ( $_rasterX && $_rasterY && $lon && $lat ) {
-
-# #Get the color value of the pixel at the x,y of the GCP
-# # my $pixelTextOutput;
-# # qx(convert $outputPdfOutlines.png -format '%[pixel:p{$_rasterX,$_rasterY}]' info:-);
-# #TODO Delete this since it's being done earlier already
-# @pixels = $main::image->GetPixel( x => $_rasterX, y => $_rasterY );
-# say "perlMagick $pixels[0]" if $debug;
-
-# # say $pixelTextOutput if $debug;
-# #srgb\(149,149,0\)|yellow
-# # if ( $pixelTextOutput =~ /black|gray\(0,0,0\)/i  ) {
-# if ( $pixels[0] eq 0 ) {
-
-# #If it's any of the above strings then it's valid
-# say "$_rasterX $_rasterY $lon $lat" if $debug;
-# $main::gcps{ "$type" . $text . '-' . $rand }{"pngx"} =
-# $_rasterX;
-# $main::gcps{ "$type" . $text . '-' . $rand }{"pngy"} =
-# $_rasterY;
-# $main::gcps{ "$type" . $text . '-' . $rand }{"pdfx"} = $_pdfX;
-# $main::gcps{ "$type" . $text . '-' . $rand }{"pdfy"} = $_pdfY;
-# $main::gcps{ "$type" . $text . '-' . $rand }{"lon"}  = $lon;
-# $main::gcps{ "$type" . $text . '-' . $rand }{"lat"}  = $lat;
-# }
-# else {
-# say "$type $text is being ignored" if $debug;
-# }
-
-# }
-# }
-# return;
-# }
 
 sub createGcpString {
     my $_gcpstring = "";
@@ -2503,12 +2242,7 @@ sub findAllTextboxes {
 
     say $_output if $debug;
 
-    # #Get all of the text and respective bounding boxes in the PDF
-    # @main::pdfToTextBbox = qx(pdftotext $main::targetPdf -layout -bbox - );
-    # $main::retval        = $? >> 8;
-    # die
-    # "No output from pdftotext -bbox.  Is it installed? Return code was $main::retval"
-    # if ( @main::pdfToTextBbox eq "" || $main::retval != 0 );
+   
 
     #Find potential latitude textboxes
     # findLatitudeTextBoxes($_output);
@@ -2520,91 +2254,7 @@ sub findAllTextboxes {
     return;
 }
 
-# sub joinIconTextboxAndDatabaseHashes {
 
-# #Pass in references to hashes of icons, their textboxes, and their associated database info
-# my ( $iconHashRef, $textboxHashRef, $databaseHashRef ) = @_;
-
-# #A new hash of JOIN'd information
-# my %hashOfMatchedPairs = ();
-# my $key3               = 1;
-
-# foreach my $key ( sort keys %$iconHashRef ) {
-
-# #The key of the textboxHashRef this icon is matched to
-# my $keyOfMatchedTextbox = $iconHashRef->{$key}{"MatchedTo"};
-
-# #Don't do anything if it doesn't exist
-# next unless $keyOfMatchedTextbox;
-
-# #Check that the "MatchedTo" textboxHashRef points back to this icon
-# #Clear the match  for the iconHashRef if it doesn't (ie isn't a two-way match)
-
-# if ( ( $textboxHashRef->{$keyOfMatchedTextbox}{"MatchedTo"} ne $key ) )
-# {
-# #Clear the icon's matching since it isn't reciprocated
-# say
-# "Non-reciprocal match of textbox $keyOfMatchedTextbox to icon $key.  Clearing"
-# if $debug;
-# $iconHashRef->{$key}{"MatchedTo"} = "";
-# }
-# else {
-# $iconHashRef->{$key}{"BidirectionalMatch"} = "True";
-# $textboxHashRef->{$keyOfMatchedTextbox}{"BidirectionalMatch"} =
-# "True";
-
-# my $textOfMatchedTextbox =
-# $textboxHashRef->{$keyOfMatchedTextbox}{"Text"};
-# my $georeferenceX = $iconHashRef->{$key}{"GeoreferenceX"};
-# my $georeferenceY = $iconHashRef->{$key}{"GeoreferenceY"};
-# my $lat = $databaseHashRef->{$textOfMatchedTextbox}{"Lat"};
-# my $lon = $databaseHashRef->{$textOfMatchedTextbox}{"Lon"};
-
-# next
-# unless ( $textOfMatchedTextbox
-# && $georeferenceX
-# && $georeferenceY
-# && $lat
-# && $lon );
-
-# #This little section is to keep from using a navaid icon matched to a textbox containing the name
-# #of a different type of navaid as a GCP
-# my $iconType = $iconHashRef->{$key}{"Type"};
-# my $databaseType =
-# $databaseHashRef->{$textOfMatchedTextbox}{"Type"};
-
-# if ( $iconType && $iconType =~ m/VOR/ ) {
-
-# # say
-# # "We've found a *VOR*, let's see if type of icon matches type of database entry";
-# # say "$iconType";
-# # say $keyOfMatchedTextbox;
-# # say "$databaseType";
-# next unless ( $iconType eq $databaseType );
-
-# #TODO Check for nearby notToScaleIndicator icon (<30pt radius)
-# }
-
-# #Populate the values of our new combined hash
-# $hashOfMatchedPairs{$key3}{"GeoreferenceX"} = $georeferenceX;
-# $hashOfMatchedPairs{$key3}{"GeoreferenceY"} = $georeferenceY;
-# $hashOfMatchedPairs{$key3}{"Lat"}           = $lat;
-# $hashOfMatchedPairs{$key3}{"Lon"}           = $lon;
-# $hashOfMatchedPairs{$key3}{"Text"}          = $textOfMatchedTextbox;
-# $key3++;
-
-# }
-
-# }
-
-# # if ($debug) {
-# # say "";
-# # say "hashOfMatchedPairs";
-# # print Dumper (\%hashOfMatchedPairs);
-# # }
-
-# return ( \%hashOfMatchedPairs );
-# }
 
 sub drawLineFromEachIconToMatchedTextBox {
 
@@ -2633,12 +2283,12 @@ sub drawLineFromEachIconToMatchedTextBox {
 }
 
 sub findLatitudeAndLongitudeTextBoxes {
-  
 
     my ($_output) = @_;
+
     # say $_output;
-      say ":findLatitudeAndLongitudeTextBoxes" if $debug;
-    my $retval  = $? >> 8;
+    say ":findLatitudeAndLongitudeTextBoxes" if $debug;
+    my $retval = $? >> 8;
 
     #Capture all text between BT and ET tags
     my $textGroupRegex           = qr/^BT$(.*?)^ET$/sm;
@@ -2664,10 +2314,10 @@ sub findLatitudeAndLongitudeTextBoxes {
             # say "**************";
 
             # my ( $xMin, $xMax, $yMin, $yMax ) = 999999999999;
-            my  $xMin  = 99999;
-            my  $yMin  = 99999;
-            my  $xMax  = 0;
-            my  $yMax  = 0;
+            my $xMin = 99999;
+            my $yMin = 99999;
+            my $xMax = 0;
+            my $yMax = 0;
             our $numberRegex = qr/[-\.\d]+/x;
 
             #Capture the transformation matrix
@@ -2681,24 +2331,31 @@ sub findLatitudeAndLongitudeTextBoxes {
             my $tempLineCount3  = $tempLineLength3 / $textGroupRegexDataPoints3;
 
             if ( $tempLineLength3 >= $textGroupRegexDataPoints3 ) {
-                
+
                 for (
                     my $i = 0 ;
                     $i < $tempLineLength3 ;
                     $i = $i + $textGroupRegexDataPoints3
                   )
                 {
-                   # say "$xMin, $yMin, $xMax, $yMax";
-                 
+                    # say "$xMin, $yMin, $xMax, $yMax";
+
                     $xMin = $tempLine3[$i] < $xMin ? $tempLine3[$i] : $xMin;
+
                     # $xMin = $tempLine3[$i];
                     $xMax = $tempLine3[$i] > $xMax ? $tempLine3[$i] : $xMax;
+
                     # $xMax = $xMin + 1;
                     # $yMin = $tempLine3[ $i + 1 ];
                     # $yMax = $yMin + 1;
-                    $yMin =  $tempLine3[$i+1] < $yMin  ? $tempLine3[$i+1] : $yMin;
-                    $yMax = $tempLine3[$i+1] > $yMax ? $tempLine3[$i+1] : $yMax;
-                    
+                    $yMin =
+                        $tempLine3[ $i + 1 ] < $yMin
+                      ? $tempLine3[ $i + 1 ]
+                      : $yMin;
+                    $yMax =
+                        $tempLine3[ $i + 1 ] > $yMax
+                      ? $tempLine3[ $i + 1 ]
+                      : $yMax;
 
                 }
 
@@ -2735,59 +2392,72 @@ sub findLatitudeAndLongitudeTextBoxes {
                     m/(\d{1,3})-([-\.\d]+)[\s']*(N|E|W|S)/ )
                 {
 
-                    my $height      = $yMax - $yMin;
-                    my $width       = $xMax - $xMin;
+                    my $height = $yMax - $yMin;
+                    my $width  = $xMax - $xMin;
+
                     #Abort if we got a text block that's too big
-                    if ($height > 30 || $width > 30) {
-                        say "This box is too big" if $debug;}
+                    if ( $height > 30 || $width > 30 ) {
+                        say "This box is too big" if $debug;
+                    }
                     my $degrees     = $1;
                     my $minutes     = $2;
                     my $seconds     = 0;
                     my $declination = $3;
+
                     # say "Found lat/lon text $_textAccumulator at $xMin, $yMin";
                     # say                      "Degrees: $degrees, Minutes: $minutes, Declination: $declination";
                     my $rand = rand();
                     my $decimal =
                       coordinatetodecimal2( $degrees, $minutes, $seconds,
                         $declination );
-                     
-                    #If the slope of the line of this text is vertical than the orientation is landscape  
-                   $main::isPortraitOrientation = slopeAngle($xMin,$yMin,$xMax,$yMax) > 15 ? 0  : 1;
-                   
-                     # if ($declination =~ m/E|W/)  {
+
+                    #If the slope of the line of this text is vertical than the orientation is landscape
+                    $main::isPortraitOrientation =
+                      slopeAngle( $xMin, $yMin, $xMax, $yMax ) > 15 ? 0 : 1;
+
+                    # if ($declination =~ m/E|W/)  {
                     # $main::longitudeTextBoxes{$rand}{"Width"}  = $width;
                     # $main::longitudeTextBoxes{$rand}{"Height"} = $height;
                     # $main::longitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
                     # $main::longitudeTextBoxes{$rand}{"Decimal"} = $decimal;
                     # $main::longitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
                     # $main::longitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
-                  # }
-                  # elsif ($declination =~ m/N|S/)  {
+                    # }
+                    # elsif ($declination =~ m/N|S/)  {
                     # $main::latitudeTextBoxes{$rand}{"Width"}  = $width;
                     # $main::latitudeTextBoxes{$rand}{"Height"} = $height;
                     # $main::latitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
                     # $main::latitudeTextBoxes{$rand}{"Decimal"} = $decimal;
                     # $main::latitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
                     # $main::latitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
-                  # }
-                  if ($declination =~ m/E|W/)  {
-                    $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::longitudeTextBoxes{$decimal}{"Text"} =                      $_textAccumulator;
-                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                      $yMin + ( $height / 2 );
-                  }
-                  elsif ($declination =~ m/N|S/)  {
-                    $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
-                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
-                    $main::latitudeTextBoxes{$decimal}{"Text"} =                      $_textAccumulator;
-                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
-                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                      $yMin + ( $height / 2 );
-                  }
-                  else {
-                      say "Bad Declination";}
+                    # }
+                    if ( $declination =~ m/E|W/ ) {
+                        $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+                        $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+                        $main::longitudeTextBoxes{$decimal}{"Text"} =
+                          $_textAccumulator;
+                        $main::longitudeTextBoxes{$decimal}{"Decimal"} =
+                          $decimal;
+                        $main::longitudeTextBoxes{$decimal}{"CenterX"} =
+                          $xMin + ( $width / 2 );
+                        $main::longitudeTextBoxes{$decimal}{"CenterY"} =
+                          $yMin + ( $height / 2 );
+                    }
+                    elsif ( $declination =~ m/N|S/ ) {
+                        $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+                        $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+                        $main::latitudeTextBoxes{$decimal}{"Text"} =
+                          $_textAccumulator;
+                        $main::latitudeTextBoxes{$decimal}{"Decimal"} =
+                          $decimal;
+                        $main::latitudeTextBoxes{$decimal}{"CenterX"} =
+                          $xMin + ( $width / 2 );
+                        $main::latitudeTextBoxes{$decimal}{"CenterY"} =
+                          $yMin + ( $height / 2 );
+                    }
+                    else {
+                        say "Bad Declination";
+                    }
 
                 }
 
@@ -2796,6 +2466,14 @@ sub findLatitudeAndLongitudeTextBoxes {
         }
 
     }
+
     # print Dumper ( \%main::longitudeTextBoxes );
     return;
+}
+sub touchFile {
+    my $fileName = shift @_;
+            say "Touching $fileName";
+        open( my $fh, ">", "$fileName" )
+          or die  "cannot open > $fileName $!";
+        close($fh);
 }

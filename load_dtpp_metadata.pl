@@ -42,10 +42,11 @@ if ( $arg_num < 2 ) {
 my $BASE_DIR          = shift @ARGV;
 my $cycle             = shift @ARGV;
 my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile.xml";
-my $dtppDownloadDir = "$BASE_DIR/dtpptest/";
-my $dtpp_url =  "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
+my $dtppDownloadDir   = "$BASE_DIR/dtpptest/";
+my $dtpp_url =
+  "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
 my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
-my ($count,$downloadedCount,$deletedCount,$changedCount)       = 0;
+my ( $count, $downloadedCount, $deletedCount, $changedCount ) = 0;
 
 # print "Downloading the d-TPP metafile: ".$dtpp_url."...";
 # my $ret = 200;
@@ -336,25 +337,39 @@ sub record {
     $sth_dtppGeo->execute;
 
     #If the pdf doesn't exist locally fetch it
-    if ( !-e ("$dtppDownloadDir"."$pdf_name") ) {
+    if ( !-e ( "$dtppDownloadDir" . "$pdf_name" ) ) {
 
-        say "Download $chart_url_base" . "$pdf_name" . " -> " . "$dtppDownloadDir" . "$pdf_name";
+        say "Download $chart_url_base"
+          . "$pdf_name" . " -> "
+          . "$dtppDownloadDir"
+          . "$pdf_name";
+
         #Save the link in an array for downloading in parallel
-        push @links, [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
+        push @links,
+          [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
 
-        getstore( "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" );
+        getstore(
+            "$chart_url_base" . "$pdf_name",
+            "$dtppDownloadDir" . "$pdf_name"
+        );
         ++$downloadedCount;
     }
 
     if ( $user_action =~ /D/i ) {
         say "Deleting " . "$dtppDownloadDir" . "$pdf_name";
-        unlink( "$dtppDownloadDir"."$pdf_name" );
+        unlink( "$dtppDownloadDir" . "$pdf_name" );
         ++$deletedCount;
     }
 
     if ( $user_action =~ /C/i ) {
-        say "Download changed chart $chart_url_base" . "$pdf_name" . " -> " . "$dtppDownloadDir" . "$pdf_name";
-        getstore( "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" );
+        say "Download changed chart $chart_url_base"
+          . "$pdf_name" . " -> "
+          . "$dtppDownloadDir"
+          . "$pdf_name";
+        getstore(
+            "$chart_url_base" . "$pdf_name",
+            "$dtppDownloadDir" . "$pdf_name"
+        );
         ++$changedCount;
     }
 

@@ -25,7 +25,6 @@ use warnings;
 
 #use diagnostics;
 
-
 use DBI;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
@@ -33,11 +32,8 @@ use File::Basename;
 use Getopt::Std;
 use Carp;
 
-
 #Some subroutines
 use GeoReferencePlatesSubroutines;
-
-
 
 #database of metadta for dtpp
 my $dbfile = "./dtpp.db";
@@ -65,7 +61,7 @@ $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Airport diagrams 
+#Query the dtpp database for  count of Airport diagrams
 my $dtppSth = $dtppDbh->prepare(
     "SELECT *
       FROM dtpp as D 
@@ -79,11 +75,12 @@ my $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-my $iapCount = $dtppSth->rows;
+my $iapCount            = $dtppSth->rows;
 say "$iapCount Total Airport Diagrams";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of  miltary Airport diagrams 
- $dtppSth = $dtppDbh->prepare(
+#Query the dtpp database for  count of  miltary Airport diagrams
+$dtppSth = $dtppDbh->prepare(
     "SELECT *
       FROM dtpp as D 
       JOIN dtppGeo as DG 
@@ -97,12 +94,13 @@ say "$iapCount Total Airport Diagrams";
                 "
 );
 $dtppSth->execute();
- $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
- $iapCount = $dtppSth->rows;
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount            = $dtppSth->rows;
 say "\t$iapCount Military";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of  civilian Airport diagrams 
- $dtppSth = $dtppDbh->prepare(
+#Query the dtpp database for  count of  civilian Airport diagrams
+$dtppSth = $dtppDbh->prepare(
     "SELECT *
       FROM dtpp as D 
       JOIN dtppGeo as DG 
@@ -116,11 +114,12 @@ say "\t$iapCount Military";
                 "
 );
 $dtppSth->execute();
- $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
- $iapCount = $dtppSth->rows;
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount            = $dtppSth->rows;
 say "\t$iapCount Civilian";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Airport diagrams 
+#Query the dtpp database for  count of Airport diagrams
 $dtppSth = $dtppDbh->prepare(
     "SELECT D.FAA_CODE,D.PDF_NAME
       FROM dtpp as D 
@@ -146,15 +145,16 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t$iapCount with good ratio";
-    # foreach my $_row (@$_allSqlQueryResults) {
-        # my ( $_FAA_CODE, $_PDF_NAME ) = @$_row;
-        # say "\t\t$_FAA_CODE,$_PDF_NAME";
-    # }
+
+# foreach my $_row (@$_allSqlQueryResults) {
+# my ( $_FAA_CODE, $_PDF_NAME ) = @$_row;
+# say "\t\t$_FAA_CODE,$_PDF_NAME";
+# }
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of IAP charts
- $dtppSth = $dtppDbh->prepare(
+$dtppSth = $dtppDbh->prepare(
     "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
              FROM dtpp  
              WHERE                  
@@ -164,8 +164,8 @@ say "\t$iapCount with good ratio";
                 "
 );
 $dtppSth->execute();
- $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
- $iapCount = $dtppSth->rows;
+$_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+$iapCount            = $dtppSth->rows;
 say "$iapCount Total IAP charts";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -183,8 +183,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t$iapCount Civilian IAP charts";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with good ratio
 $dtppSth = $dtppDbh->prepare(
@@ -212,7 +213,7 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t$iapCount with good ratio";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -244,8 +245,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t$iapCount with bad ratio";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with no inital ground control points
 $dtppSth = $dtppDbh->prepare(
@@ -265,8 +267,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t$iapCount with not enough initial Ground Control Points";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with no inital ground control points
 #VISUAL
@@ -289,7 +292,7 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t\t$iapCount Visual";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -316,8 +319,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t\t$iapCount HI- or TACAN";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with no final ground control points
 $dtppSth = $dtppDbh->prepare(
@@ -343,8 +347,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t$iapCount with not enough final Ground Control Points";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with no final ground control points
 #VISUAL
@@ -373,8 +378,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t\t$iapCount Visual";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with no final ground control points
 #HI- or TACAN
@@ -405,8 +411,9 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t\t$iapCount HI- or TACAN";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Miltary IAP charts
 $dtppSth = $dtppDbh->prepare(
@@ -422,7 +429,7 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t$iapCount Miltary IAP charts";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -452,18 +459,19 @@ $dtppSth = $dtppDbh->prepare(
 );
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-$iapCount = $dtppSth->rows;
+$iapCount            = $dtppSth->rows;
 say "\t\t$iapCount with good ratio";
+
 # foreach my $row (@$_allSqlQueryResults) {
 
-    # (
-        # $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
-        # $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
-        # $MILITARY_USE, $COPTER_USE,  $STATE_ID
-    # ) = @$row;
+# (
+# $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
+# $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
+# $MILITARY_USE, $COPTER_USE,  $STATE_ID
+# ) = @$row;
 
-    # # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
-    # # say      "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
+# # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
+# # say      "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
 # }
 
