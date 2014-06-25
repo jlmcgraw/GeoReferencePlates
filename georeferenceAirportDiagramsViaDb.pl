@@ -1440,15 +1440,18 @@ sub findLatitudeTextBoxes2 {
 
             next unless $decimal;
 
-            $main::latitudeTextBoxes{ $i . $rand }{"Width"}   = $width;
-            $main::latitudeTextBoxes{ $i . $rand }{"Height"}  = $height;
-            $main::latitudeTextBoxes{ $i . $rand }{"Text"}    = $text;
-            $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
-            $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =
-              $xMin + ( $width / 2 );
-            $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =
-              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-
+            # $main::latitudeTextBoxes{ $i . $rand }{"Width"}   = $width;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Height"}  = $height;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Text"}    = $text;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
+            # $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
+            # $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+                    $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::latitudeTextBoxes{$decimal}{"Text"} =                     $degrees . "-" . $minutes . $declination;
+                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
             # $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
         }
     }
@@ -1537,16 +1540,19 @@ sub findLatitudeTextBoxes2 {
             my $height = $yMax2 - $yMin;
             my $width  = $xMax2 - $xMin;
 
-            $main::latitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
-            $main::latitudeTextBoxes{ $i . $rand }{"Height"} = $height;
-            $main::latitudeTextBoxes{ $i . $rand }{"Text"} =
-              $degrees . "-" . $minutes . $declination;
-            $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
-            $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =
-              $xMin + ( $width / 2 );
-            $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =
-              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-            $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Height"} = $height;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Text"} =              $degrees . "-" . $minutes . $declination;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
+            # $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
+            # $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            # # $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+                  $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::latitudeTextBoxes{$decimal}{"Text"} =                      $degrees . "-" . $minutes . $declination;
+                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
 
     }
@@ -1638,16 +1644,20 @@ sub findLatitudeTextBoxes2 {
             my $height = $yMax3 - $yMin;
             my $width  = $xMax3 - $xMin;
 
-            $main::latitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
-            $main::latitudeTextBoxes{ $i . $rand }{"Height"} = $height;
-            $main::latitudeTextBoxes{ $i . $rand }{"Text"} =
-              $degrees . "-" . $minutes . $declination;
-            $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
-            $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =
-              $xMin + ( $width / 2 );
-            $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =
-              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-            $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Height"} = $height;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Text"} =              $degrees . "-" . $minutes . $declination;
+            # $main::latitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
+            # $main::latitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
+            # $main::latitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            # # $main::latitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+            
+             $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::latitudeTextBoxes{$decimal}{"Text"} =                      $degrees . "-" . $minutes . $declination;
+                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
 
     }
@@ -1854,15 +1864,19 @@ sub findLongitudeTextBoxes2 {
 
             next unless $decimal;
 
-            $main::longitudeTextBoxes{ $i . $rand }{"Width"}   = $width;
-            $main::longitudeTextBoxes{ $i . $rand }{"Height"}  = $height;
-            $main::longitudeTextBoxes{ $i . $rand }{"Text"}    = $text;
-            $main::longitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
-            $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =
-              $xMin + ( $width / 2 );
-            $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =
-              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-            $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Width"}   = $width;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Height"}  = $height;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Text"}    = $text;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
+            # $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
+            # $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            # # $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+             $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::longitudeTextBoxes{$decimal}{"Text"} =                       $degrees . "-" . $minutes . $declination;
+                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );
         }
     }
 
@@ -1950,16 +1964,19 @@ sub findLongitudeTextBoxes2 {
             my $height = $yMax2 - $yMin;
             my $width  = $xMax2 - $xMin;
 
-            $main::longitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
-            $main::longitudeTextBoxes{ $i . $rand }{"Height"} = $height;
-            $main::longitudeTextBoxes{ $i . $rand }{"Text"} =
-              $degrees . "-" . $minutes . $declination;
-            $main::longitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
-            $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =
-              $xMin + ( $width / 2 );
-            $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =
-              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-            $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Height"} = $height;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Text"} =              $degrees . "-" . $minutes . $declination;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
+            # $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
+            # $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            # # $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+          $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::longitudeTextBoxes{$decimal}{"Text"} =                     $degrees . "-" . $minutes . $declination;
+                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );  
         }
 
     }
@@ -2049,16 +2066,19 @@ sub findLongitudeTextBoxes2 {
             my $height = $yMax3 - $yMin;
             my $width  = $xMax3 - $xMin;
 
-            $main::longitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
-            $main::longitudeTextBoxes{ $i . $rand }{"Height"} = $height;
-            $main::longitudeTextBoxes{ $i . $rand }{"Text"} =
-              $degrees . "-" . $minutes . $declination;
-            $main::longitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
-            $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =
-              $xMin + ( $width / 2 );
-            $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =
-              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
-            $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Width"}  = $width;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Height"} = $height;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Text"} =              $degrees . "-" . $minutes . $declination;
+            # $main::longitudeTextBoxes{ $i . $rand }{"Decimal"} = $decimal;
+            # $main::longitudeTextBoxes{ $i . $rand }{"CenterX"} =              $xMin + ( $width / 2 );
+            # $main::longitudeTextBoxes{ $i . $rand }{"CenterY"} =              ( $main::pdfYSize - $yMin ) - ( $height / 2 );
+            # # $main::longitudeTextBoxes{ $i . $rand }{"IconsThatPointToMe"} = 0;
+             $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::longitudeTextBoxes{$decimal}{"Text"} =                     $degrees . "-" . $minutes . $declination;
+                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                       ( $main::pdfYSize - $yMin ) - ( $height / 2 );  
         }
 
     }
@@ -2734,21 +2754,37 @@ sub findLatitudeAndLongitudeTextBoxes {
                     #If the slope of the line of this text is vertical than the orientation is landscape  
                    $main::isPortraitOrientation = slopeAngle($xMin,$yMin,$xMax,$yMax) > 15 ? 0  : 1;
                    
-                     if ($declination =~ m/E|W/)  {
-                    $main::longitudeTextBoxes{$rand}{"Width"}  = $width;
-                    $main::longitudeTextBoxes{$rand}{"Height"} = $height;
-                    $main::longitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
-                    $main::longitudeTextBoxes{$rand}{"Decimal"} = $decimal;
-                    $main::longitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::longitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
+                     # if ($declination =~ m/E|W/)  {
+                    # $main::longitudeTextBoxes{$rand}{"Width"}  = $width;
+                    # $main::longitudeTextBoxes{$rand}{"Height"} = $height;
+                    # $main::longitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
+                    # $main::longitudeTextBoxes{$rand}{"Decimal"} = $decimal;
+                    # $main::longitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    # $main::longitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
+                  # }
+                  # elsif ($declination =~ m/N|S/)  {
+                    # $main::latitudeTextBoxes{$rand}{"Width"}  = $width;
+                    # $main::latitudeTextBoxes{$rand}{"Height"} = $height;
+                    # $main::latitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
+                    # $main::latitudeTextBoxes{$rand}{"Decimal"} = $decimal;
+                    # $main::latitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    # $main::latitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
+                  # }
+                  if ($declination =~ m/E|W/)  {
+                    $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::longitudeTextBoxes{$decimal}{"Text"} =                      $_textAccumulator;
+                    $main::longitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::longitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::longitudeTextBoxes{$decimal}{"CenterY"} =                      $yMin + ( $height / 2 );
                   }
                   elsif ($declination =~ m/N|S/)  {
-                    $main::latitudeTextBoxes{$rand}{"Width"}  = $width;
-                    $main::latitudeTextBoxes{$rand}{"Height"} = $height;
-                    $main::latitudeTextBoxes{$rand}{"Text"} =                      $_textAccumulator;
-                    $main::latitudeTextBoxes{$rand}{"Decimal"} = $decimal;
-                    $main::latitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
-                    $main::latitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
+                    $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
+                    $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
+                    $main::latitudeTextBoxes{$decimal}{"Text"} =                      $_textAccumulator;
+                    $main::latitudeTextBoxes{$decimal}{"Decimal"} = $decimal;
+                    $main::latitudeTextBoxes{$decimal}{"CenterX"} =                      $xMin + ( $width / 2 );
+                    $main::latitudeTextBoxes{$decimal}{"CenterY"} =                      $yMin + ( $height / 2 );
                   }
                   else {
                       say "Bad Declination";}
