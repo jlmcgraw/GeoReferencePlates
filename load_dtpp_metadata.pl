@@ -148,6 +148,7 @@ my $create_dtpp_geo_table =
   . "runwayIconsCount TEXT, "
   . "PDF_NAME TEXT" . ")";
 
+#Just trying another way of doing this
 my $create_dtpp_geo_table_sql = <<'END_SQL';
   CREATE TABLE dtppGeo (
      _id                                                                INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -194,8 +195,8 @@ $dbh->do("DROP TABLE IF EXISTS cycle");
 $dbh->do($create_cycle_table);
 my $sth_cycle = $dbh->prepare($insert_cycle_record);
 
-# $dbh->do("DROP TABLE IF EXISTS dtppGeo");
-# $dbh->do($create_dtpp_geo_table);
+$dbh->do("DROP TABLE IF EXISTS dtppGeo");
+$dbh->do($create_dtpp_geo_table);
 my $sth_dtppGeo = $dbh->prepare($insert_dtppGeo_record);
 
 my $twig = new XML::Twig(

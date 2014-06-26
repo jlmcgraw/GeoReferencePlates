@@ -104,7 +104,7 @@ our %statistics = (
 use vars qw/ %opt /;
 
 #Define the valid command line options
-my $opt_string = 'cspvobma:i:';
+my $opt_string = 'cspva:i:';
 my $arg_num    = scalar @ARGV;
 
 #We need at least one argument (the name of the PDF to process)
@@ -146,13 +146,10 @@ if ( $opt{i} ) {
     say "Supplied state ID: $stateId";
 }
 
-our $shouldNotOverwriteVrt      = $opt{c};
-our $shouldOutputStatistics     = $opt{s};
-our $shouldSaveMarkedPdf        = $opt{p};
-our $debug                      = $opt{v};
-our $shouldRecreateOutlineFiles = $opt{o};
-our $shouldSaveBadRatio         = $opt{b};
-our $shouldUseMultipleObstacles = $opt{m};
+our $shouldNotOverwriteVrt  = $opt{c};
+our $shouldOutputStatistics = $opt{s};
+our $shouldSaveMarkedPdf    = $opt{p};
+our $debug                  = $opt{v};
 
 #database of metadata for dtpp
 my $dtppDbh =
@@ -421,31 +418,7 @@ sub doAPlate {
     #q     Save graphics state
     #Q     Restore graphics state
 
-    #Global variables filled in by the "findAllIcons" subroutine.
-    #TODO BUG: At some point I'll convert the subroutines to work with local variables and return values instead
-    # our %icons                      = ();
-    # our %obstacleIcons              = ();
-    # our %fixIcons                   = ();
-    # our %gpsWaypointIcons           = ();
-    # our %navaidIcons                = ();
-    # our %horizontalAndVerticalLines = ();
     our %latitudeAndLongitudeLines = ();
-
-    # our %insetBoxes                 = ();
-    # our %largeBoxes                 = ();
-    # our %insetCircles               = ();
-    # our %notToScaleIndicator        = ();
-    # our %runwayIcons                = ();
-    # our %runwaysFromDatabase        = ();
-    # our %runwaysToDraw              = ();
-    # our @validRunwaySlopes          = ();
-
-    #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
-    # findRunwaysInDatabase();
-
-    # say "runwaysFromDatabase";
-    # print Dumper ( \%runwaysFromDatabase );
-    # say "";
 
     # #Get number of objects/streams in the targetpdf
     our $objectstreams = getNumberOfStreams();
@@ -472,15 +445,6 @@ sub doAPlate {
         #Set up the various types of boxes to draw on the output PDF
         $page = $pdf->openpage(1);
 
-    }
-
-    our ( $pdfOutlines,  $pageOutlines );
-    our ( $lowerYCutoff, $upperYCutoff );
-
-    #Don't recreate the outlines PDF if it already exists unless the user specifically wants to
-    if ( !-e $outputPdfOutlines || $shouldRecreateOutlineFiles ) {
-
-        # createOutlinesPdf();
     }
 
     #---------------------------------------------------
@@ -515,7 +479,7 @@ sub doAPlate {
         print Dumper ( \%latitudeTextBoxes );
     }
 
-    #Draw a line from obstacle icon to closest text boxes
+    #Draw a line between the two
     if ($shouldSaveMarkedPdf) {
         drawLineFromEachIconToMatchedTextBox( \%latitudeTextBoxes,
             \%latitudeAndLongitudeLines );
@@ -536,12 +500,13 @@ sub doAPlate {
         print Dumper ( \%longitudeTextBoxes );
     }
 
-    #Draw a line from obstacle icon to closest text boxes
+    #Draw a line between the two
     if ($shouldSaveMarkedPdf) {
         drawLineFromEachIconToMatchedTextBox( \%longitudeTextBoxes,
             \%latitudeAndLongitudeLines );
     }
 
+    #Find the points where all of our lines intersect, use those as GCPs
     findIntersectionOfLatLonLines( \%latitudeTextBoxes, \%longitudeTextBoxes,
         \%latitudeAndLongitudeLines );
 
@@ -562,32 +527,12 @@ sub doAPlate {
         $pdf->saveas($outputPdf);
     }
 
-    #----------------------------------------------------------------------------------------------------------------------------------------------------
-    #Now some math
-    # our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
-
-    # our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
-    # our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
-    # our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
-    # our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
-    # our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
-    # our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
-    # our ($lonLatRatio) = 0;
-
     #Can't do anything if we didn't find any valid ground control points
     if ( $gcpCount < 2 ) {
         say
           "Only found $gcpCount ground c5ontrol points in $targetPdf, can't georeference";
         touchFile($noPointsFile);
 
-        # say "Touching $noPointsFile";
-        # open( my $fh, ">", "$noPointsFile" )
-        # or die "cannot open > $noPointsFile: $!";
-        # close($fh);
-
-        # say          "xScaleAvgSize: $statistics{'$xScaleAvgSize'}, yScaleAvgSize: $statistics{'$yScaleAvgSize'}";
-
-        #touch($noPointsFile);
         ++$main::noPointsCount;
         writeStatistics() if $shouldOutputStatistics;
         return (1);
@@ -596,46 +541,12 @@ sub doAPlate {
     #Actually produce the georeferencing data via GDAL
     georeferenceTheRaster();
 
-    # #Count of entries in this array
-    # my $xScaleAvgSize = 0 + @xScaleAvg;
-
-    # #Count of entries in this array
-    # my $yScaleAvgSize = 0 + @yScaleAvg;
-
-    # say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize";
-
-    #Save statistics
-    # $statistics{'$xAvg'}          = $xAvg;
-    # $statistics{'$xMedian'}       = $xMedian;
-    # $statistics{'$xScaleAvgSize'} = $xScaleAvgSize;
-    # $statistics{'$yAvg'}          = $yAvg;
-    # $statistics{'$yMedian'}       = $yMedian;
-    # $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
-    # $statistics{'$lonLatRatio'}   = $lonLatRatio;
-
-    # }
-    # else {
-    # say
-    # "No points actually added to the scale arrays for $targetPdf, can't georeference";
-
-    # say "Touching $noPointsFile";
-
-    # open( my $fh, ">", "$noPointsFile" )
-    # or die "cannot open > $noPointsFile: $!";
-    # close($fh);
-    # }
-
     #Write out the statistics of this file if requested
     writeStatistics() if $shouldOutputStatistics;
 
     #Since we've calculated our extents, try drawing some features on the outputPdf to see if they align
     #With our work
     # drawFeaturesOnPdf() if $shouldSaveMarkedPdf;
-
-    # say "TargetLonLatRatio: "
-    # . $statistics{'$targetLonLatRatio'}
-    # . ",  LonLatRatio: $lonLatRatio , Difference: "
-    # . ( $statistics{'$targetLonLatRatio'} - $lonLatRatio );
 
     return;
 }
@@ -650,45 +561,6 @@ sub findAirportLatitudeAndLongitude {
 
     my $_airportLatitudeDec  = "";
     my $_airportLongitudeDec = "";
-
-    # foreach my $line (@pdftotext) {
-
-    # #Remove all the whitespace and non-word characters
-    # $line =~ s/\s|\W//g;
-
-    # # if ( $line =~ m/(\d+)'([NS])\s?-\s?(\d+)'([EW])/ ) {
-    # #   if ( $line =~ m/([\d ]+)'([NS])\s?-\s?([\d ]+)'([EW])/ ) {
-    # if ( $line =~ m/([\d]{3,4})([NS])([\d]{3,5})([EW])/ ) {
-    # my (
-    # $aptlat,    $aptlon,    $aptlatd,   $aptlond,
-    # $aptlatdeg, $aptlatmin, $aptlondeg, $aptlonmin
-    # );
-    # $aptlat  = $1;
-    # $aptlatd = $2;
-    # $aptlon  = $3;
-    # $aptlond = $4;
-
-    # $aptlatdeg = substr( $aptlat, 0,  -2 );
-    # $aptlatmin = substr( $aptlat, -2, 2 );
-
-    # $aptlondeg = substr( $aptlon, 0,  -2 );
-    # $aptlonmin = substr( $aptlon, -2, 2 );
-
-    # $_airportLatitudeDec =
-    # &coordinatetodecimal(
-    # $aptlatdeg . "-" . $aptlatmin . "-00" . $aptlatd );
-
-    # $_airportLongitudeDec =
-    # &coordinatetodecimal(
-    # $aptlondeg . "-" . $aptlonmin . "-00" . $aptlond );
-
-    # say
-    # "Airport LAT/LON from plate: $aptlatdeg-$aptlatmin-$aptlatd, $aptlondeg-$aptlonmin-$aptlond->$_airportLatitudeDec $_airportLongitudeDec"
-    # if $debug;
-
-    # }
-
-    # }
 
     if ( $_airportLongitudeDec eq "" or $_airportLatitudeDec eq "" ) {
 
@@ -895,8 +767,8 @@ sub outlineEverythingWeFound {
 }
 
 sub findAllIcons {
-    say ":findAllIcons" if $debug;
     my ($_output);
+    say ":findAllIcons" if $debug;
 
     #Loop through each "stream" in the pdf looking for our various icon regexes
     for ( my $i = 0 ; $i < ( $main::objectstreams - 1 ) ; $i++ ) {
@@ -1024,17 +896,11 @@ sub findClosestLineToTextBox {
 }
 
 sub findLatitudeAndLongitudeLines {
+
+    #Finds lines
     my ($_output) = @_;
     say ":findLatitudeAndLongitudeLines" if $debug;
 
-    #KRIC does this
-    # q 1 0 0 1 74.5 416.44 cm
-    # 0 0 m
-    # -0.03 -181.62 l
-    # -0.05 -362.98 l
-    # S
-    # Q
-    #
     #REGEX building blocks
 
     #A line
@@ -1060,10 +926,10 @@ sub findLatitudeAndLongitudeLines {
             my $hypotenuse =
               sqrt( $distanceHorizontal**2 + $distanceVertical**2 );
 
-            # say "$distanceHorizontal,$distanceVertical,$hypotenuse";
-            #Was 3, change back if trouble TODO BUG
+            #Is line too short to consider?
             next if ( abs( $hypotenuse < 3 ) );
 
+            #Get endpoints from array
             my $_X  = $tempLine[$i];
             my $_Y  = $tempLine[ $i + 1 ];
             my $_X2 = $_X + $tempLine[ $i + 2 ];
@@ -1106,9 +972,10 @@ sub findLatitudeAndLongitudeLines {
             my $hypotenuse =
               sqrt( $distanceHorizontal**2 + $distanceVertical**2 );
 
-            # say "$distanceHorizontal,$distanceVertical,$hypotenuse";
+            #Is line too short to consider?
             next if ( abs( $hypotenuse < 35 ) );
 
+            #Get endpoints from array
             my $_X  = $tempLine[$i];
             my $_Y  = $tempLine[ $i + 1 ];
             my $_X2 = $_X + $distanceHorizontal;
@@ -1262,7 +1129,7 @@ sub convertPdfToPng {
 
 sub findLatitudeTextBoxes2 {
 
-    # return;
+    #Finds text that looks like latitude information
     my ($_output) = @_;
     say ":findLatitudeTextBoxes2" if $debug;
 
@@ -1566,7 +1433,7 @@ sub findLatitudeTextBoxes2 {
 
 sub findLongitudeTextBoxes2 {
 
-    # return;
+    #Finds text that looks like longitude information
     my ($_output) = @_;
     say ":findLongitudeTextBoxes2" if $debug;
 
@@ -1869,13 +1736,13 @@ sub findLongitudeTextBoxes2 {
 }
 
 sub findIntersectionOfLatLonLines {
+
+    #Determine where lines intersect and use that point as a GCP using lat/lon info from
+    #matched textboxes
     my ( $textBoxHashRefA, $textBoxHashRefB, $linesHashRef ) = @_;
 
     say "findIntersectionOfLatLonLines" if $debug;
 
-    #Find an icon with text that matches an item in a database lookup
-    #Add the center coordinates of its closest text box to the database hash
-    #
     foreach my $key ( keys %$textBoxHashRefA ) {
 
         foreach my $keyB ( keys %$textBoxHashRefB ) {
@@ -1901,11 +1768,7 @@ sub findIntersectionOfLatLonLines {
             my $textB             = $textBoxHashRefB->{$keyB}{"Text"};
             my $decimalB          = $textBoxHashRefB->{$keyB}{"Decimal"};
 
-            # my $thisIconsGeoreferenceX = $textBoxHashRefA->{$keyB}{"GeoreferenceX"};
-            # my $thisIconsGeoreferenceY = $textBoxHashRefA->{$keyB}{"GeoreferenceY"};
-            # my $textOfMatchedTextbox =
-            # $textBoxHashRefB->{$keyOfMatchedTextbox}{"Text"};
-
+            #Where do these lines intersect (in PDF coordinates)
             my ( $px, $py ) = intersectLines(
                 $lineA_X1, $lineA_Y1, $lineA_X2, $lineA_Y2,
                 $lineB_X1, $lineB_Y1, $lineB_X2, $lineB_Y2
@@ -1914,6 +1777,7 @@ sub findIntersectionOfLatLonLines {
             say "$textA  ($decimalA) intersects $textB ($decimalB) at $px,$py"
               if $debug;
 
+            #Is the intersection point within or PDF
             if (   $px < 0
                 || $px > $main::pdfXSize
                 || $py < 0
@@ -1931,7 +1795,7 @@ sub findIntersectionOfLatLonLines {
                 && $px
                 && $py )
             {
-
+                #Save the GCP and convert to PNG coordinates
                 $main::gcps{ $key . $keyB }{"pngx"} = $px * $main::scaleFactorX;
                 $main::gcps{ $key . $keyB }{"pngy"} =
                   $main::pngYSize - ( $py * $main::scaleFactorY );
@@ -1962,7 +1826,6 @@ sub intersectLines {
 
 sub georeferenceTheRaster {
 
-    # #----------------------------------------------------------------------------------------------------------------------------------------------------
     # #Try to georeference
 
     my $gdal_translateCommand =
@@ -1992,7 +1855,7 @@ sub georeferenceTheRaster {
     }
     say $gdal_translateoutput if $debug;
 
-    #Warp it
+    #Run gdalwarp
 
     my $gdalwarpCommand =
       "gdalwarp -q -of VRT -t_srs EPSG:4326 -order 1 -overwrite ''$main::targetvrt''  '$main::targetvrt2'";
@@ -2000,8 +1863,6 @@ sub georeferenceTheRaster {
         say $gdalwarpCommand;
         say "";
     }
-
-    #Run gdalwarp
 
     my $gdalwarpCommandOutput = qx($gdalwarpCommand);
 
@@ -2012,25 +1873,18 @@ sub georeferenceTheRaster {
           "Error executing gdalwarp.  Is it installed? Return code was $retval";
         ++$main::failCount;
         touchFile($main::failFile);
-
-        # say "Touching $main::failFile";
-        # open( my $fh, ">", "$main::failFile" )
-        # or die "cannot open > $main::failFile $!";
-        # close($fh);
         return (1);
     }
 
     say $gdalwarpCommandOutput if $debug;
 
-    #Get info
+    #Run gdalinfo
 
     my $gdalinfoCommand = "gdalinfo '$main::targetvrt2'";
     if ($debug) {
         say $gdalinfoCommand;
         say "";
     }
-
-    #Run gdalinfo
 
     my $gdalinfoCommandOutput = qx($gdalinfoCommand);
 
@@ -2043,11 +1897,13 @@ sub georeferenceTheRaster {
     }
     say $gdalinfoCommandOutput if $debug;
 
+    #Extract georeference info from gdalinfo output
     my (
         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
         $lowerRightLon, $lowerRightLat, $lonLatRatio
     ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
 
+    #Save the info for writing out
     $statistics{'$yMedian'}       = $pixelSizeY;
     $statistics{'$xMedian'}       = $pixelSizeX;
     $statistics{'$lonLatRatio'}   = $lonLatRatio;
@@ -2115,13 +1971,15 @@ sub georeferenceTheRaster {
 
 sub georeferenceFailed {
 
-    # rename $old_name, $new_name;
+    #The georeference failed for some reason, remove the .VRT we created already
     ++$main::failCount;
     unlink $main::targetvrt2;
     touchFile($main::failFile);
 }
 
 sub targetLonLatRatioPortrait {
+
+    #Calculate the expected lonLatRatio for airport latitude in portrait layout
     my $_airportLatitudeDec = shift @_;
 
     # say $_airportLatitudeDec;
@@ -2131,37 +1989,19 @@ sub targetLonLatRatioPortrait {
       0.000085600681 * ( $_airportLatitudeDec**2 ) +
       0.000722467637 * ($_airportLatitudeDec) + 0.657580020775;
 
-    # y = 0.000000051883x4 - 0.000001722090x3 + 0.000085600681x2 + 0.000722467637x + 0.657580020775
-
-    # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-    # my $_targetLonLatRatio =
-    # 0.000000000065 * ( $_airportLatitudeDec**6 ) -
-    # 0.000000010206 * ( $_airportLatitudeDec**5 ) +
-    # 0.000000614793 * ( $_airportLatitudeDec**4 ) -
-    # 0.000014000833 * ( $_airportLatitudeDec**3 ) +
-    # 0.000124430097 * ( $_airportLatitudeDec**2 ) +
-    # 0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
-
     return $_targetLonLatRatio;
 
 }
 
 sub targetLonLatRatioLandscape {
+
+    #Calculate the expected lonLatRatio for airport latitude in landscape layout
     my $_airportLatitudeDec = shift @_;
 
     # say $_airportLatitudeDec;
     my $_targetLonLatRatio =
       0.000911470377 * ( $_airportLatitudeDec**2 ) -
       0.036596412556 * ($_airportLatitudeDec) + 2.032481875410;
-
-    # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-    # my $_targetLonLatRatio =
-    # 0.000000000065 * ( $_airportLatitudeDec**6 ) -
-    # 0.000000010206 * ( $_airportLatitudeDec**5 ) +
-    # 0.000000614793 * ( $_airportLatitudeDec**4 ) -
-    # 0.000014000833 * ( $_airportLatitudeDec**3 ) +
-    # 0.000124430097 * ( $_airportLatitudeDec**2 ) +
-    # 0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
 
     return $_targetLonLatRatio;
 
@@ -2281,6 +2121,7 @@ sub writeStatistics {
 
     $dtppSth->execute();
 
+    #Uncomment here to write to .CSV file
     # open my $file, '>>', $main::targetStatistics
     # or croak "can't open '$main::targetStatistics' for writing : $!";
 
@@ -2365,7 +2206,7 @@ sub findAllTextboxes {
 
 sub drawLineFromEachIconToMatchedTextBox {
 
-    #Draw a line from icon to matched text box
+    #Draw a line from icon to its matched text box
     my ( $hashRefA, $hashRefB ) = @_;
 
     my $_line = $main::page->gfx;
@@ -2391,6 +2232,8 @@ sub drawLineFromEachIconToMatchedTextBox {
 
 sub findLatitudeAndLongitudeTextBoxes {
 
+    #Another routine to find text that looks like latitude or longitude information
+    #It was thrown together, I'll clean up at some point
     my ($_output) = @_;
 
     # say $_output;
@@ -2539,6 +2382,7 @@ sub findLatitudeAndLongitudeTextBoxes {
                     # $main::latitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
                     # }
 
+                    #Is this a longitude box?
                     if ( $declination =~ m/E|W/ ) {
                         next
                           unless (
@@ -2560,6 +2404,8 @@ sub findLatitudeAndLongitudeTextBoxes {
                         $main::longitudeTextBoxes{$decimal}{"CenterY"} =
                           $yMin + ( $height / 2 );
                     }
+
+                    #Is this a latitude box?
                     elsif ( $declination =~ m/N|S/ ) {
                         next
                           unless (
@@ -2603,4 +2449,16 @@ sub touchFile {
     open( my $fh, ">", "$fileName" )
       or die "cannot open > $fileName $!";
     close($fh);
+}
+
+sub usage {
+    say "Usage: $0 <options> <directory_with_PDFs>";
+    say "-v debug";
+    say "-a<FAA airport ID>  To specify an airport ID";
+    say "-i<2 Letter state ID>  To specify a specific state";
+    say "-p Output a marked up version of PDF";
+    say "-s Output statistics  to dtpp.db about the PDF";
+    say "-c Don't overwrite existing .vrt";
+
+    return;
 }

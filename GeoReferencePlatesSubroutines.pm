@@ -33,7 +33,7 @@ $VERSION = 1.00;
 @ISA     = qw(Exporter);
 @EXPORT =
   qw( rtrim ltrim coordinatetodecimal coordinatetodecimal2 is_vhf onlyuniq uniq average stdev median same_sign is_between
-   targetLonLatRatio usage hashHasUnmatchedIcons trueHeading WGS84toGoogleBing slopeAngle NESW removeIconsAndTextboxesInMaskedAreas
+   targetLonLatRatio hashHasUnmatchedIcons trueHeading WGS84toGoogleBing slopeAngle NESW removeIconsAndTextboxesInMaskedAreas
    processMaskingFile drawFeaturesOnPdf);
 
 #@EXPORT_OK   = qw(  coordinatetodecimal );
@@ -277,19 +277,7 @@ sub hashHasUnmatchedIcons {
     }
     return 0;
 }
-sub usage {
-    say "Usage: $0 <options> <pdf_file>";
-    say "-v debug";
-    say "-a<FAA airport ID>  To specify an airport ID";
-    say "-i<2 Letter state ID>  To specify a specific state";
-    say "-p Output a marked up version of PDF";
-    say "-s Output statistics about the PDF";
-    say "-c Don't overwrite existing .vrt";
-    say "-o Re-create outlines/mask files";
-    say "-b Allow creation of vrt with known bad lon/lat ratio";
-    say "-m Allow use of non-unique obstacles";
 
-}
 sub trueHeading {
     my ( $_x1, $_y1, $_x2, $_y2 ) = @_;
 

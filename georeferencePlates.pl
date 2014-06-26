@@ -4662,3 +4662,16 @@ sub createOutlinesPdf {
     return;
 }
 
+sub usage {
+    say "Usage: $0 <options> <pdf_file>";
+    say "-v debug";
+    say "-a<FAA airport ID>  To specify an airport ID";
+    say "-i<2 Letter state ID>  To specify a specific state";
+    say "-p Output a marked up version of PDF";
+    say "-s Output statistics about the PDF";
+    say "-c Don't overwrite existing .vrt";
+    say "-o Re-create outlines/mask files";
+    say "-b Allow creation of vrt with known bad lon/lat ratio";
+    say "-m Allow use of non-unique obstacles";
+    return;
+}
