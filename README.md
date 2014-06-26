@@ -1,9 +1,6 @@
-GeoReferencePlates
-==================
+Create Georeferencing information for Instrument Approach Procedures and Airport Diagrams
 
-A utility for automatically georeferencing FAA / AeroNav Instrument Approach Plates
-
-These instructions are based on using Ubuntu, no testing has been done on other operating systems
+These instructions are based on using Ubuntu
 
 How to get this utility up and running:
 
@@ -16,39 +13,57 @@ How to get this utility up and running:
 		git clone https://github.com/jlmcgraw/GeoReferencePlates
 
 	Install the following external programs
-		
-		gdal 		 (sudo apt-get install gdal-bin)
-		mupdf-tools 	 (sudo apt-get install mupdf-tools)
-		sqlite3 	 (sudo apt-get install sqlite3)
+		gdal 		(sudo apt-get install gdal-bin)
+		mupdf-tools 	(sudo apt-get install mupdf-tools)
+		sqlite3 	(sudo apt-get install sqlite3)
 
 	Install the following CPAN modules
-		
-		PDF::API2   	 (sudo apt-get install libpdf-api2-perl)
-		DBI 		 (sudo apt-get install libdbi-perl)
-		DBD::SQLite3	 (sudo apt-get install libdbd-sqlite3-perl) 
-		Image::Magick	 (sudo apt-get install libimage-magick-perl)
-		File::Slurp	 (sudo apt-get install libfile-slurp-perl)
-		XML::Xpath 	 (sudo apt-get install libxml-xpath-perl)
+		PDF::API2   	(sudo apt-get install libpdf-api2-perl)
+		DBI 		(sudo apt-get install libdbi-perl)
+		DBD::SQLite3	(sudo apt-get install libdbd-sqlite3-perl) 
+		Image::Magick	(sudo apt-get install libimage-magick-perl)
+		File::Slurp	(sudo apt-get install libfile-slurp-perl)
+		XML::Xpath 	(sudo apt-get install libxml-xpath-perl)
 
 	Download some Instrument Approach Procedure plates
-		- Download these with the "downloadPlates.pl" file
+		- Download these with the "load_dtpp_metadata.pl" file
+			This will also re-initialize the dtpp.db file, be careful
+
 		- A download of all plates takes several hours
-		- They must be named like state-airport-procedure.pdf
-			eg "AK-ANC-ILS-RWY-15.pdf"
-			downloadPlates.pl does this for you
-	
+			
 		downloadPlates.pl requires the following CPAN modules:
 			XML::Xpath (sudo apt-get install libxml-xpath-perl)
 
 	Requires a database containing lat/lon info 
 		(currently included in the git repository)
 
+	Requires a database containing charting cycle information
+		(currently included in the git repository as dtpp.db.zip, unzip to use)
+
 	Requires perl version > 5.010
 
-How to use this utility
+How to use these utilities
+	Usage: ./georeferencePlatesViaDb.pl <options> <directory_with_PDFs>
+		-v debug
+		-a<FAA airport ID>  To specify an airport ID
+		-i<2 Letter state ID>  To specify a specific state
+		-p Output a marked up version of PDF
+		-s Output statistics about the PDF
+		-c Don't overwrite existing .vrt
+		-o Re-create outlines/mask files
+		-b Allow creation of vrt with known bad lon/lat ratio
+		-m Allow use of non-unique obstacles
 
-	./georeferencePlates.pl <options> <pdf_file>
+	Usage: ./georeferenceAirportDiagramsViaDb.pl <options> <directory_with_PDFs>
+		-v debug
+		-a<FAA airport ID>  To specify an airport ID
+		-i<2 Letter state ID>  To specify a specific state
+		-p Output a marked up version of PDF
+		-s Output statistics  to dtpp.db about the PDF
+		-c Don't overwrite existing .vrt
 
+	(This utility is not receiving updates, use the database version above)
+	Usage: ./georeferencePlates.pl <options> <pdf_file>
 		-v debug
 		-a<FAA airport ID>  To specify an airport ID
 		-p Output a marked up version of PDF
@@ -68,11 +83,11 @@ How to use this utility
 
 	A first run for all plates may take a day or two, subsequent runs will be much shorter
 
-	multithread.sh
+	multithread.sh (being deprecated)
 		This will attempt to use all available CPUs to speed up the process
 
-	countAndDiff.sh
-		Produce a count of the possible vs. georeferenced plates with a difference between the two lists
+	./chartCounts.pl
+		Produce a count of the plates from the dtpp.db database
 
 This software and the data it produces come with no guarantees about accuracy or usefulness whatsoever!  Don't use it when your life may be on the line!
 
