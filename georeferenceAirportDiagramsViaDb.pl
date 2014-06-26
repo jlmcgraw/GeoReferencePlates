@@ -210,7 +210,8 @@ foreach my $_row (@$_allSqlQueryResults) {
     # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
     say
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
-    say "$FAA_CODE";
+
+    # say "$FAA_CODE";
     doAPlate();
 
     ++$completedCount;
@@ -345,9 +346,10 @@ sub doAPlate {
         say "Not enough pdftotext output for $targetPdf";
         writeStatistics() if $shouldOutputStatistics;
         touchFile($main::noTextFile);
+
         # say "Touching $main::noTextFile";
         # open( my $fh, ">", "$main::noTextFile" )
-          # or die "cannot open > $main::noTextFile $!";
+        # or die "cannot open > $main::noTextFile $!";
         # close($fh);
         # return;
         return (1);
@@ -576,10 +578,11 @@ sub doAPlate {
     if ( $gcpCount < 2 ) {
         say
           "Only found $gcpCount ground c5ontrol points in $targetPdf, can't georeference";
-             touchFile($noPointsFile);
+        touchFile($noPointsFile);
+
         # say "Touching $noPointsFile";
         # open( my $fh, ">", "$noPointsFile" )
-          # or die "cannot open > $noPointsFile: $!";
+        # or die "cannot open > $noPointsFile: $!";
         # close($fh);
 
         # say          "xScaleAvgSize: $statistics{'$xScaleAvgSize'}, yScaleAvgSize: $statistics{'$yScaleAvgSize'}";
@@ -908,18 +911,14 @@ sub findAllIcons {
 
         print "Stream $i: " if $debug;
 
-       
         findLatitudeAndLongitudeLines($_output);
         findLatitudeAndLongitudeTextBoxes($_output);
 
         say "" if $debug;
     }
 
-    
     return;
 }
-
-
 
 sub findClosestLineToTextBox {
 
@@ -1303,6 +1302,7 @@ sub findLatitudeTextBoxes2 {
 
             my $decimal;
             next unless ( $degrees && $minutes && $declination );
+
             say
               "LatRegex1: Degrees: $degrees, minutes: $minutes, declination: $declination && $main::airportLongitudeDegrees, airportLongitudeDeclination, $main::airportLongitudeDeclination"
               if $debug;
@@ -1314,6 +1314,13 @@ sub findLatitudeTextBoxes2 {
               if $debug;
 
             next unless $decimal;
+
+            next
+              unless (
+                abs($main::airportLatitudeDegrees) - abs($degrees) <= 1 );
+
+            #Does the declination match?
+            next unless ( $main::airportLatitudeDeclination eq $declination );
 
             # $main::latitudeTextBoxes{ $i . $rand }{"Width"}   = $width;
             # $main::latitudeTextBoxes{ $i . $rand }{"Height"}  = $height;
@@ -1405,7 +1412,7 @@ sub findLatitudeTextBoxes2 {
                 say "Orientation is Landscape" if $debug;
             }
             else {
-              next:
+                next;
             }
             $decimal =
               coordinatetodecimal2( $degrees, $minutes, $seconds,
@@ -1512,7 +1519,7 @@ sub findLatitudeTextBoxes2 {
                 say "Orientation is Landscape" if $debug;
             }
             else {
-              next:
+                next;
             }
             $decimal =
               coordinatetodecimal2( $degrees, $minutes, $seconds,
@@ -1556,8 +1563,6 @@ sub findLatitudeTextBoxes2 {
     }
     return;
 }
-
-
 
 sub findLongitudeTextBoxes2 {
 
@@ -1616,6 +1621,13 @@ sub findLongitudeTextBoxes2 {
               if $debug;
 
             next unless $decimal;
+
+            next
+              unless (
+                abs($main::airportLongitudeDegrees) - abs($degrees) <= 1 );
+
+            #Does the declination match?
+            next unless ( $main::airportLongitudeDeclination eq $declination );
 
             # $main::longitudeTextBoxes{ $i . $rand }{"Width"}   = $width;
             # $main::longitudeTextBoxes{ $i . $rand }{"Height"}  = $height;
@@ -1706,7 +1718,7 @@ sub findLongitudeTextBoxes2 {
                 say "Orientation is Landscape" if $debug;
             }
             else {
-              next:
+                next;
             }
             $decimal =
               coordinatetodecimal2( $degrees, $minutes, $seconds,
@@ -1814,7 +1826,7 @@ sub findLongitudeTextBoxes2 {
                 say "Orientation is Landscape" if $debug;
             }
             else {
-              next:
+                next;
             }
             $decimal =
               coordinatetodecimal2( $degrees, $minutes, $seconds,
@@ -1970,12 +1982,13 @@ sub georeferenceTheRaster {
         carp
           "Error executing gdal_translate.  Is it installed? Return code was $retval";
         ++$main::failCount;
-           touchFile($main::failFile);
+        touchFile($main::failFile);
+
         # say "Touching $main::failFile";
         # open( my $fh, ">", "$main::failFile" )
-          # or die "cannot open > $main::failFile $!";
+        # or die "cannot open > $main::failFile $!";
         # close($fh);
-        return(1);
+        return (1);
     }
     say $gdal_translateoutput if $debug;
 
@@ -1998,18 +2011,15 @@ sub georeferenceTheRaster {
         carp
           "Error executing gdalwarp.  Is it installed? Return code was $retval";
         ++$main::failCount;
-           touchFile($main::failFile);
+        touchFile($main::failFile);
+
         # say "Touching $main::failFile";
         # open( my $fh, ">", "$main::failFile" )
-          # or die "cannot open > $main::failFile $!";
+        # or die "cannot open > $main::failFile $!";
         # close($fh);
         return (1);
     }
 
-    if ( $retval == 0 ) {
-        say "Sucess!";
-        ++$main::successCount;
-    }
     say $gdalwarpCommandOutput if $debug;
 
     #Get info
@@ -2034,22 +2044,127 @@ sub georeferenceTheRaster {
     say $gdalinfoCommandOutput if $debug;
 
     my (
-        $pixelSizeX,   $pixelSizeY,    $upperLeftLon,
-        $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio
+        $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
+        $lowerRightLon, $lowerRightLat, $lonLatRatio
     ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
-    
-    $statistics{'$yMedian'} = $pixelSizeY;
-    $statistics{'$xMedian'} = $pixelSizeX;
-    $statistics{'$lonLatRatio'} = $lonLatRatio;
+
+    $statistics{'$yMedian'}       = $pixelSizeY;
+    $statistics{'$xMedian'}       = $pixelSizeX;
+    $statistics{'$lonLatRatio'}   = $lonLatRatio;
     $statistics{'$upperLeftLon'}  = $upperLeftLon;
     $statistics{'$upperLeftLat'}  = $upperLeftLat;
     $statistics{'$lowerRightLon'} = $lowerRightLon;
     $statistics{'$lowerRightLat'} = $lowerRightLat;
-    #BUG TODO Temporaily overloading notToScaleIndicatorCount to show landscape/portait orientation
-     $statistics{'$notToScaleIndicatorCount'} = $main::isPortraitOrientation;
-    # print Dumper ( \%statistics );
 
-    return;
+    my $lonDiff = $upperLeftLon - $lowerRightLon;
+    my $latDiff = $upperLeftLat - $lowerRightLat;
+
+    #Check that the lat and lon range of the image seem valid
+    if (   $lonDiff > .2
+        || $latDiff > .12 )
+    {
+        say "Bad lat or lon diff, georeference failed";
+        georeferenceFailed();
+        return 1;
+    }
+
+    # lonDiff < .2
+    # latDiff < .12
+
+    # landscape
+    # y = 0.00000005x4 - 0.00000172x3 + 0.00008560x2 + 0.00072247x + 0.65758002
+
+    # portrait
+    # y = 0.00091147x2 - 0.03659641x + 2.03248188
+
+    #BUG TODO Temporaily overloading notToScaleIndicatorCount to show landscape/portait orientation
+    $statistics{'$notToScaleIndicatorCount'} = $main::isPortraitOrientation;
+
+    #Check that the latLon ratio fo the image seems valid
+    if ($main::isPortraitOrientation) {
+        my $targetLonLatRatioPortrait =
+          targetLonLatRatioPortrait($main::airportLatitudeDec);
+
+        unless ( abs( $lonLatRatio - $targetLonLatRatioPortrait ) < .1 ) {
+            say
+              "Bad portrait lonLatRatio, georeference failed: $lonLatRatio vs. $targetLonLatRatioPortrait";
+            georeferenceFailed();
+            return 1;
+        }
+    }
+    else {
+        #valid landscape ratios are different}
+        my $targetLonLatRatioLandscape =
+          targetLonLatRatioLandscape($main::airportLatitudeDec);
+
+        unless ( abs( $lonLatRatio - $targetLonLatRatioLandscape ) < .12 ) {
+            say
+              "Bad landscape lonLatRatio, georeference failed: $lonLatRatio vs. $targetLonLatRatioLandscape";
+            georeferenceFailed();
+            return 1;
+        }
+
+        # print Dumper ( \%statistics );
+    }
+
+    say "Sucess!";
+    ++$main::successCount;
+
+    return 0;
+}
+
+sub georeferenceFailed {
+
+    # rename $old_name, $new_name;
+    ++$main::failCount;
+    unlink $main::targetvrt2;
+    touchFile($main::failFile);
+}
+
+sub targetLonLatRatioPortrait {
+    my $_airportLatitudeDec = shift @_;
+
+    # say $_airportLatitudeDec;
+    my $_targetLonLatRatio =
+      0.000000051883 * ( $_airportLatitudeDec**4 ) -
+      0.000001722090 * ( $_airportLatitudeDec**3 ) +
+      0.000085600681 * ( $_airportLatitudeDec**2 ) +
+      0.000722467637 * ($_airportLatitudeDec) + 0.657580020775;
+
+    # y = 0.000000051883x4 - 0.000001722090x3 + 0.000085600681x2 + 0.000722467637x + 0.657580020775
+
+    # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
+    # my $_targetLonLatRatio =
+    # 0.000000000065 * ( $_airportLatitudeDec**6 ) -
+    # 0.000000010206 * ( $_airportLatitudeDec**5 ) +
+    # 0.000000614793 * ( $_airportLatitudeDec**4 ) -
+    # 0.000014000833 * ( $_airportLatitudeDec**3 ) +
+    # 0.000124430097 * ( $_airportLatitudeDec**2 ) +
+    # 0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
+
+    return $_targetLonLatRatio;
+
+}
+
+sub targetLonLatRatioLandscape {
+    my $_airportLatitudeDec = shift @_;
+
+    # say $_airportLatitudeDec;
+    my $_targetLonLatRatio =
+      0.000911470377 * ( $_airportLatitudeDec**2 ) -
+      0.036596412556 * ($_airportLatitudeDec) + 2.032481875410;
+
+    # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
+    # my $_targetLonLatRatio =
+    # 0.000000000065 * ( $_airportLatitudeDec**6 ) -
+    # 0.000000010206 * ( $_airportLatitudeDec**5 ) +
+    # 0.000000614793 * ( $_airportLatitudeDec**4 ) -
+    # 0.000014000833 * ( $_airportLatitudeDec**3 ) +
+    # 0.000124430097 * ( $_airportLatitudeDec**2 ) +
+    # 0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
+
+    return $_targetLonLatRatio;
+
 }
 
 sub extractGeoreferenceInfo {
@@ -2057,8 +2172,8 @@ sub extractGeoreferenceInfo {
     #Pull relevant information out of gdalinfo command
     my ($_output) = @_;
     my (
-        $pixelSizeX,   $pixelSizeY,    $upperLeftLon,
-        $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio
+        $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
+        $lowerRightLon, $lowerRightLat, $lonLatRatio
     );
 
     my $pixelSizeRegex =
@@ -2088,15 +2203,13 @@ sub extractGeoreferenceInfo {
         $lowerRightLon = $tempLine3[0];
         $lowerRightLat = $tempLine3[1];
     }
-    $lonLatRatio = abs(
-        ( $upperLeftLon - $lowerRightLon ) / ( $upperLeftLat - $lowerRightLat )
-    );
-    say
-      "$pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio"
-      ;
+    $lonLatRatio = abs( ( $upperLeftLon - $lowerRightLon ) /
+          ( $upperLeftLat - $lowerRightLat ) );
+
+    # say      "$pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio";
     return (
-        $pixelSizeX,   $pixelSizeY,    $upperLeftLon,
-        $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio
+        $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
+        $lowerRightLon, $lowerRightLat, $lonLatRatio
     );
 }
 
@@ -2186,8 +2299,6 @@ sub writeStatistics {
     return;
 }
 
-
-
 sub createGcpString {
     my $_gcpstring = "";
     foreach my $key ( keys %main::gcps ) {
@@ -2242,8 +2353,6 @@ sub findAllTextboxes {
 
     say $_output if $debug;
 
-   
-
     #Find potential latitude textboxes
     # findLatitudeTextBoxes($_output);
     findLatitudeTextBoxes2($_output);
@@ -2253,8 +2362,6 @@ sub findAllTextboxes {
 
     return;
 }
-
-
 
 sub drawLineFromEachIconToMatchedTextBox {
 
@@ -2431,7 +2538,17 @@ sub findLatitudeAndLongitudeTextBoxes {
                     # $main::latitudeTextBoxes{$rand}{"CenterX"} =                      $xMin + ( $width / 2 );
                     # $main::latitudeTextBoxes{$rand}{"CenterY"} =                      $yMin + ( $height / 2 );
                     # }
+
                     if ( $declination =~ m/E|W/ ) {
+                        next
+                          unless (
+                            abs($main::airportLongitudeDegrees) -
+                            abs($degrees) <= 1 );
+
+                        #Does the declination match?
+                        next
+                          unless ( $main::airportLongitudeDeclination eq
+                            $declination );
                         $main::longitudeTextBoxes{$decimal}{"Width"}  = $width;
                         $main::longitudeTextBoxes{$decimal}{"Height"} = $height;
                         $main::longitudeTextBoxes{$decimal}{"Text"} =
@@ -2444,6 +2561,15 @@ sub findLatitudeAndLongitudeTextBoxes {
                           $yMin + ( $height / 2 );
                     }
                     elsif ( $declination =~ m/N|S/ ) {
+                        next
+                          unless (
+                            abs($main::airportLatitudeDegrees) -
+                            abs($degrees) <= 1 );
+
+                        #Does the declination match?
+                        next
+                          unless (
+                            $main::airportLatitudeDeclination eq $declination );
                         $main::latitudeTextBoxes{$decimal}{"Width"}  = $width;
                         $main::latitudeTextBoxes{$decimal}{"Height"} = $height;
                         $main::latitudeTextBoxes{$decimal}{"Text"} =
@@ -2470,10 +2596,11 @@ sub findLatitudeAndLongitudeTextBoxes {
     # print Dumper ( \%main::longitudeTextBoxes );
     return;
 }
+
 sub touchFile {
     my $fileName = shift @_;
-            say "Touching $fileName";
-        open( my $fh, ">", "$fileName" )
-          or die  "cannot open > $fileName $!";
-        close($fh);
+    say "Touching $fileName";
+    open( my $fh, ">", "$fileName" )
+      or die "cannot open > $fileName $!";
+    close($fh);
 }
