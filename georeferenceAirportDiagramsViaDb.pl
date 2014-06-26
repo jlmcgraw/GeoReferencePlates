@@ -210,6 +210,7 @@ foreach my $_row (@$_allSqlQueryResults) {
     # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
     say
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
+
     # say "$FAA_CODE";
     doAPlate();
 
@@ -2019,7 +2020,6 @@ sub georeferenceTheRaster {
         return (1);
     }
 
-
     say $gdalwarpCommandOutput if $debug;
 
     #Get info
@@ -2058,7 +2058,8 @@ sub georeferenceTheRaster {
 
     my $lonDiff = $upperLeftLon - $lowerRightLon;
     my $latDiff = $upperLeftLat - $lowerRightLat;
-#Check that the lat and lon range of the image seem valid
+
+    #Check that the lat and lon range of the image seem valid
     if (   $lonDiff > .2
         || $latDiff > .12 )
     {
@@ -2078,14 +2079,15 @@ sub georeferenceTheRaster {
 
     #BUG TODO Temporaily overloading notToScaleIndicatorCount to show landscape/portait orientation
     $statistics{'$notToScaleIndicatorCount'} = $main::isPortraitOrientation;
-    
+
     #Check that the latLon ratio fo the image seems valid
     if ($main::isPortraitOrientation) {
         my $targetLonLatRatioPortrait =
           targetLonLatRatioPortrait($main::airportLatitudeDec);
 
         unless ( abs( $lonLatRatio - $targetLonLatRatioPortrait ) < .1 ) {
-            say "Bad portrait lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioPortrait";
+            say
+              "Bad portrait lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioPortrait";
             georeferenceFailed();
             return 1;
         }
@@ -2096,39 +2098,40 @@ sub georeferenceTheRaster {
           targetLonLatRatioLandscape($main::airportLatitudeDec);
 
         unless ( abs( $lonLatRatio - $targetLonLatRatioLandscape ) < .12 ) {
-            say "Bad landscape lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioLandscape";
+            say
+              "Bad landscape lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioLandscape";
             georeferenceFailed();
             return 1;
         }
 
         # print Dumper ( \%statistics );
     }
- 
-        say "Sucess!";
-        ++$main::successCount;
- 
+
+    say "Sucess!";
+    ++$main::successCount;
+
     return 0;
 }
 
 sub georeferenceFailed {
-    
-# rename $old_name, $new_name;
-        ++$main::failCount;
-        unlink $main::targetvrt2;
-        touchFile($main::failFile);
+
+    # rename $old_name, $new_name;
+    ++$main::failCount;
+    unlink $main::targetvrt2;
+    touchFile($main::failFile);
 }
 
 sub targetLonLatRatioPortrait {
     my $_airportLatitudeDec = shift @_;
-    # say $_airportLatitudeDec;
-my $_targetLonLatRatio =
-     0.000000051883 * ( $_airportLatitudeDec**4 ) -
-      0.000001722090 * ( $_airportLatitudeDec**3 ) +
-     0.000085600681 * ( $_airportLatitudeDec**2 ) +
-      0.000722467637 * ($_airportLatitudeDec) + 0.657580020775;
-  
-# y = 0.000000051883x4 - 0.000001722090x3 + 0.000085600681x2 + 0.000722467637x + 0.657580020775
 
+    # say $_airportLatitudeDec;
+    my $_targetLonLatRatio =
+      0.000000051883 * ( $_airportLatitudeDec**4 ) -
+      0.000001722090 * ( $_airportLatitudeDec**3 ) +
+      0.000085600681 * ( $_airportLatitudeDec**2 ) +
+      0.000722467637 * ($_airportLatitudeDec) + 0.657580020775;
+
+    # y = 0.000000051883x4 - 0.000001722090x3 + 0.000085600681x2 + 0.000722467637x + 0.657580020775
 
     # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
     # my $_targetLonLatRatio =
@@ -2144,24 +2147,23 @@ my $_targetLonLatRatio =
 }
 
 sub targetLonLatRatioLandscape {
-    my $_airportLatitudeDec  = shift @_;
+    my $_airportLatitudeDec = shift @_;
+
     # say $_airportLatitudeDec;
-      my $_targetLonLatRatio =
+    my $_targetLonLatRatio =
       0.000911470377 * ( $_airportLatitudeDec**2 ) -
-      0.036596412556 * ($_airportLatitudeDec) +2.032481875410;
- 
+      0.036596412556 * ($_airportLatitudeDec) + 2.032481875410;
 
+    # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
+    # my $_targetLonLatRatio =
+    # 0.000000000065 * ( $_airportLatitudeDec**6 ) -
+    # 0.000000010206 * ( $_airportLatitudeDec**5 ) +
+    # 0.000000614793 * ( $_airportLatitudeDec**4 ) -
+    # 0.000014000833 * ( $_airportLatitudeDec**3 ) +
+    # 0.000124430097 * ( $_airportLatitudeDec**2 ) +
+    # 0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
 
-      # #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-      # my $_targetLonLatRatio =
-      # 0.000000000065 * ( $_airportLatitudeDec**6 ) -
-      # 0.000000010206 * ( $_airportLatitudeDec**5 ) +
-      # 0.000000614793 * ( $_airportLatitudeDec**4 ) -
-      # 0.000014000833 * ( $_airportLatitudeDec**3 ) +
-      # 0.000124430097 * ( $_airportLatitudeDec**2 ) +
-      # 0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
-
-      return $_targetLonLatRatio;
+    return $_targetLonLatRatio;
 
 }
 
@@ -2203,6 +2205,7 @@ sub extractGeoreferenceInfo {
     }
     $lonLatRatio = abs( ( $upperLeftLon - $lowerRightLon ) /
           ( $upperLeftLat - $lowerRightLat ) );
+
     # say      "$pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio";
     return (
         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
