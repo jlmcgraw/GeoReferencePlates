@@ -195,7 +195,7 @@ $dbh->do("DROP TABLE IF EXISTS cycle");
 $dbh->do($create_cycle_table);
 my $sth_cycle = $dbh->prepare($insert_cycle_record);
 
-$dbh->do("DROP TABLE IF EXISTS dtppGeo");
+# $dbh->do("DROP TABLE IF EXISTS dtppGeo");
 $dbh->do($create_dtpp_geo_table);
 my $sth_dtppGeo = $dbh->prepare($insert_dtppGeo_record);
 
