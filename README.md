@@ -1,8 +1,8 @@
 Create Georeferencing information for Instrument Approach Procedures and Airport Diagrams
 
-https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-AD.png
+![SFO Airport Diagram](https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-AD.png)
 
-https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-VOR-RWY-19L.png
+![SFO VOR RWY 19L](https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-VOR-RWY-19L.png)
 
 These instructions are based on using Ubuntu
 
