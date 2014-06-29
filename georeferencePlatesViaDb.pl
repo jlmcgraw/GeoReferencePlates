@@ -92,35 +92,7 @@ our $maxDistanceFromObstacleIconToTextBox = 20;
 our $pngDpi = 300;
 
 #A hash to collect statistics
-our %statistics = (
-    '$airportLatitude'                 => "0",
-    '$horizontalAndVerticalLinesCount' => "0",
-    '$gcpCount'                        => "0",
-    '$yMedian'                         => "0",
-    '$gpsCount'                        => "0",
-    '$targetPdf'                       => "0",
-    '$yScaleAvgSize'                   => "0",
-    '$airportLongitude'                => "0",
-    '$notToScaleIndicatorCount'        => "0",
-    '$unique_obstacles_from_dbCount'   => "0",
-    '$xScaleAvgSize'                   => "0",
-    '$navaidCount'                     => "0",
-    '$xMedian'                         => "0",
-    '$insetCircleCount'                => "0",
-    '$obstacleCount'                   => "0",
-    '$insetBoxCount'                   => "0",
-    '$fixCount'                        => "0",
-    '$yAvg'                            => "0",
-    '$xAvg'                            => "0",
-    '$pdftotext'                       => "0",
-    '$lonLatRatio'                     => "0",
-    '$upperLeftLon'                    => "0",
-    '$upperLeftLat'                    => "0",
-    '$lowerRightLon'                   => "0",
-    '$lowerRightLat'                   => "0",
-    '$targetLonLatRatio'               => "0",
-    '$runwayIconsCount'                => "0"
-);
+our %statistics = ();
 
 use vars qw/ %opt /;
 
@@ -276,7 +248,10 @@ sub doAPlate {
         '$lowerRightLon'                   => "0",
         '$lowerRightLat'                   => "0",
         '$targetLonLatRatio'               => "0",
-        '$runwayIconsCount'                => "0"
+        '$runwayIconsCount'                => "0",
+        'isPortait'                => "0",
+        '$xPixelSkew'                => "0",
+        '$yPixelSkew'                => "0"
     );
     #
     our $targetPdf = $dtppDirectory . $PDF_NAME;
@@ -3618,6 +3593,7 @@ sub writeStatistics {
     $dtppSth->bind_param( 26, $statistics{'$targetLonLatRatio'} );
     $dtppSth->bind_param( 27, $statistics{'$runwayIconsCount'} );
     $dtppSth->bind_param( 28, $PDF_NAME );
+    
 
     $dtppSth->execute();
 

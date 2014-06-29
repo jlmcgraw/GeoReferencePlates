@@ -42,9 +42,16 @@ if ( $arg_num < 2 ) {
 my $BASE_DIR          = shift @ARGV;
 my $cycle             = shift @ARGV;
 my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile.xml";
-my $dtppDownloadDir   = "$BASE_DIR/dtpptest/";
+
+#Where to download DTPPs to
+my $dtppDownloadDir = "$BASE_DIR/dtpp/";
+
+die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
+
 my $dtpp_url =
   "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
+
+#Where to download DTPPs from
 my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
 my ( $count, $downloadedCount, $deletedCount, $changedCount ) = 0;
 
@@ -116,37 +123,37 @@ my $insert_dtpp_record =
   . ") VALUES ("
   . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?" . ")";
 
-my $create_dtpp_geo_table =
-    "CREATE TABLE dtppGeo ("
-  . "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-  . "airportLatitude TEXT, "
-  . "horizontalAndVerticalLinesCount TEXT, "
-  . "gcpCount TEXT, "
-  . "yMedian TEXT, "
-  . "gpsCount TEXT, "
-  . "targetPdf TEXT, "
-  . "yScaleAvgSize TEXT, "
-  . "airportLongitude TEXT, "
-  . "notToScaleIndicatorCount TEXT, "
-  . "unique_obstacles_from_dbCount TEXT, "
-  . "xScaleAvgSize TEXT, "
-  . "navaidCount TEXT, "
-  . "xMedian TEXT, "
-  . "insetCircleCount TEXT, "
-  . "obstacleCount TEXT, "
-  . "insetBoxCount TEXT, "
-  . "fixCount TEXT, "
-  . "yAvg TEXT, "
-  . "xAvg TEXT, "
-  . "pdftotext TEXT, "
-  . "lonLatRatio TEXT, "
-  . "upperLeftLon TEXT, "
-  . "upperLeftLat TEXT, "
-  . "lowerRightLon TEXT, "
-  . "lowerRightLat TEXT, "
-  . "targetLonLatRatio TEXT, "
-  . "runwayIconsCount TEXT, "
-  . "PDF_NAME TEXT" . ")";
+# my $create_dtpp_geo_table =
+# "CREATE TABLE dtppGeo ("
+# . "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+# . "airportLatitude TEXT, "
+# . "horizontalAndVerticalLinesCount TEXT, "
+# . "gcpCount TEXT, "
+# . "yMedian TEXT, "
+# . "gpsCount TEXT, "
+# . "targetPdf TEXT, "
+# . "yScaleAvgSize TEXT, "
+# . "airportLongitude TEXT, "
+# . "notToScaleIndicatorCount TEXT, "
+# . "unique_obstacles_from_dbCount TEXT, "
+# . "xScaleAvgSize TEXT, "
+# . "navaidCount TEXT, "
+# . "xMedian TEXT, "
+# . "insetCircleCount TEXT, "
+# . "obstacleCount TEXT, "
+# . "insetBoxCount TEXT, "
+# . "fixCount TEXT, "
+# . "yAvg TEXT, "
+# . "xAvg TEXT, "
+# . "pdftotext TEXT, "
+# . "lonLatRatio TEXT, "
+# . "upperLeftLon TEXT, "
+# . "upperLeftLat TEXT, "
+# . "lowerRightLon TEXT, "
+# . "lowerRightLat TEXT, "
+# . "targetLonLatRatio TEXT, "
+# . "runwayIconsCount TEXT, "
+# . "PDF_NAME TEXT" . ")";
 
 #Just trying another way of doing this
 my $create_dtpp_geo_table_sql = <<'END_SQL';
@@ -157,29 +164,32 @@ my $create_dtpp_geo_table_sql = <<'END_SQL';
      gcpCount                                                  TEXT, 
      yMedian                                                    TEXT, 
      gpsCount                                                  TEXT, 
-     targetPdf                                                          TEXT, 
-     yScaleAvgSize                                               TEXT, 
-     airportLongitude                                           TEXT, 
+     targetPdf                                                   TEXT, 
+     yScaleAvgSize                                           TEXT, 
+     airportLongitude                                     TEXT, 
      notToScaleIndicatorCount                   TEXT, 
      unique_obstacles_from_dbCount      TEXT, 
-     xScaleAvgSize                                      TEXT, 
-     navaidCount                                        TEXT, 
-     xMedian                                                    TEXT, 
-     insetCircleCount                                   TEXT, 
-     obstacleCount                                      TEXT, 
-     insetBoxCount                                      TEXT, 
-     fixCount                                   TEXT, 
-     yAvg                                               TEXT, 
-     xAvg                                                       TEXT, 
-     pdftotext                                          TEXT, 
-     lonLatRatio                                        TEXT, 
-     upperLeftLon                               TEXT, 
-     upperLeftLat                               TEXT, 
-     lowerRightLon                                      TEXT, 
-     lowerRightLat                                              TEXT, 
-     targetLonLatRatio                          TEXT, 
-     runwayIconsCount                           TEXT, 
-     PDF_NAME                                           TEXT
+     xScaleAvgSize                                            TEXT, 
+     navaidCount                                             TEXT, 
+     xMedian                                                     TEXT, 
+     insetCircleCount                                      TEXT, 
+     obstacleCount                                         TEXT, 
+     insetBoxCount                                         TEXT, 
+     fixCount                                                     TEXT, 
+     yAvg                                                             TEXT, 
+     xAvg                                                             TEXT, 
+     pdftotext                                                   TEXT, 
+     lonLatRatio                                                TEXT, 
+     upperLeftLon                                          TEXT, 
+     upperLeftLat                                          TEXT, 
+     lowerRightLon                                        TEXT, 
+     lowerRightLat                                          TEXT, 
+     targetLonLatRatio                                TEXT, 
+     runwayIconsCount                              TEXT, 
+     PDF_NAME                                              TEXT,
+     isPortrait                                                  TEXT,
+     xPixelSkew                                              TEXT,
+     yPixelSkew                                              TEXT
  )
 END_SQL
 
@@ -195,8 +205,8 @@ $dbh->do("DROP TABLE IF EXISTS cycle");
 $dbh->do($create_cycle_table);
 my $sth_cycle = $dbh->prepare($insert_cycle_record);
 
-# $dbh->do("DROP TABLE IF EXISTS dtppGeo");
-$dbh->do($create_dtpp_geo_table);
+$dbh->do("DROP TABLE IF EXISTS dtppGeo");
+$dbh->do($create_dtpp_geo_table_sql);
 my $sth_dtppGeo = $dbh->prepare($insert_dtppGeo_record);
 
 my $twig = new XML::Twig(
@@ -358,7 +368,7 @@ sub record {
 
     if ( $user_action =~ /D/i ) {
         say "Deleting " . "$dtppDownloadDir" . "$pdf_name";
-        unlink( "$dtppDownloadDir" . "$pdf_name" );
+        deleteStaleFiles($pdf_name);
         ++$deletedCount;
     }
 
@@ -367,10 +377,12 @@ sub record {
           . "$pdf_name" . " -> "
           . "$dtppDownloadDir"
           . "$pdf_name";
+        deleteStaleFiles($pdf_name);
         getstore(
             "$chart_url_base" . "$pdf_name",
             "$dtppDownloadDir" . "$pdf_name"
         );
+
         ++$changedCount;
     }
 
@@ -378,4 +390,47 @@ sub record {
     ++$count;
 
     return 1;
+}
+
+sub deleteStaleFiles {
+    my $pdf_name       = shift @_;
+    my $pdf_name_lower = $pdf_name;
+    $pdf_name_lower =~ s/\.PDF/\.pdf/;
+
+    # say "Deleting "
+    # . $dtppDownloadDir
+    # . $pdf_name
+    # . " and "
+    # . $dtppDownloadDir
+    # . "outlines-"
+    # . $pdf_name_lower
+    # . " and $dtppDownloadDir"
+    # . "outlines-"
+    # . $pdf_name_lower
+    # . ".png";
+
+    #delete the old .pdf
+    if ( -e ( "$dtppDownloadDir" . "$pdf_name" ) ) {
+        say "Deleting " . $dtppDownloadDir . $pdf_name;
+        unlink( "$dtppDownloadDir" . "$pdf_name" );
+    }
+    if ( -e ( "$dtppDownloadDir" . "$pdf_name" . "png" ) ) {
+        say "Deleting " . $dtppDownloadDir . $pdf_name . "png";
+        unlink( "$dtppDownloadDir" . "$pdf_name" . "png" );
+    }
+
+    #delete the outlines .pdf
+    if ( -e ( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower ) ) {
+        say "Deleting " . $dtppDownloadDir . "outlines-" . $pdf_name_lower;
+        unlink( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower );
+    }
+    if ( -e ( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower . ".png" ) ) {
+        say "Deleting $dtppDownloadDir"
+          . "outlines-"
+          . $pdf_name_lower . ".png";
+
+        #delete the outlines .png
+        unlink( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower . ".png" );
+    }
+
 }
