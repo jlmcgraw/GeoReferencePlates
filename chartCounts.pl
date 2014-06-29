@@ -121,7 +121,7 @@ say "\t$iapCount Civilian";
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Airport diagrams
 $dtppSth = $dtppDbh->prepare(
-    "SELECT D.FAA_CODE,D.PDF_NAME
+    "SELECT D.FAA_CODE,D.PDF_NAME,DG.targetLonLatRatio,DG.lonLatRatio
       FROM dtpp as D 
       JOIN dtppGeo as DG 
       ON D.PDF_NAME=DG.PDF_NAME
@@ -132,13 +132,9 @@ $dtppSth = $dtppDbh->prepare(
                 AND
                 CAST (DG.gcpCount AS FLOAT) > 1
                 AND
-                CAST (DG.yScaleAvgSize AS FLOAT) > 0
-                AND
-                CAST (DG.xScaleAvgSize as FLOAT) > 0
-                AND
                 D.MILITARY_USE NOT LIKE 'M'
                 AND
-                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  BETWEEN -.09 AND .09 )
+                (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)  BETWEEN -.12 AND .12 )
                 ORDER BY 
                 (CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT) ) ASC
                 "

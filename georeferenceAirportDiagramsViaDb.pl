@@ -1915,7 +1915,7 @@ sub georeferenceTheRaster {
     if ($main::isPortraitOrientation) {
         my $targetLonLatRatioPortrait =
           targetLonLatRatioPortrait($main::airportLatitudeDec);
-
+         $statistics{'$targetLonLatRatio'} = $targetLonLatRatioPortrait;
         unless ( abs( $lonLatRatio - $targetLonLatRatioPortrait ) < .1 ) {
             say
               "Bad portrait lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioPortrait";
@@ -1927,7 +1927,8 @@ sub georeferenceTheRaster {
         #valid landscape ratios are different}
         my $targetLonLatRatioLandscape =
           targetLonLatRatioLandscape($main::airportLatitudeDec);
-
+    $statistics{'$targetLonLatRatio'} = $targetLonLatRatioLandscape;
+    
         unless ( abs( $lonLatRatio - $targetLonLatRatioLandscape ) < .12 ) {
             say
               "Bad landscape lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioLandscape";
