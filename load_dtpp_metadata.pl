@@ -36,6 +36,7 @@ my $arg_num = scalar @ARGV;
 #We need at least one argument (the name of the PDF to process)
 if ( $arg_num < 2 ) {
     say "Specify base dir and cycle";
+    say "eg: $0 . 1409";
     exit(1);
 }
 
@@ -48,22 +49,26 @@ my $dtppDownloadDir = "$BASE_DIR/dtpp/";
 
 die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 
+#URL of the DTPP catalog
+# my $dtpp_url =
+  # "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
 my $dtpp_url =
-  "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
-
+  "https://nfdc.faa.gov/webContent/dtpp/current.xml";
+  
 #Where to download DTPPs from
 my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
 my ( $count, $downloadedCount, $deletedCount, $changedCount ) = 0;
 
-# print "Downloading the d-TPP metafile: ".$dtpp_url."...";
-# my $ret = 200;
-# my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
-# if ( $ret != 200 )
-# {
-# die "Unable to download d-TPP metadata.";
-# }
-# print "done\n";
+print "Downloading the d-TPP metafile: ".$dtpp_url."...";
+my $ret = 200;
+my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
+if ( $ret != 200 )
+{
+die "Unable to download d-TPP metadata.";
+}
+print "done\n";
 
+#The name of our database
 my $dbfile = "$BASE_DIR/dtpp.db";
 my $dbh = DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "" );
 

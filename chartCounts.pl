@@ -79,7 +79,7 @@ my $iapCount            = $dtppSth->rows;
 say "$iapCount Total Airport Diagrams";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of  miltary Airport diagrams
+#Query the dtpp database for  count of  military Airport diagrams
 $dtppSth = $dtppDbh->prepare(
     "SELECT *
       FROM dtpp as D 
@@ -329,7 +329,7 @@ $dtppSth = $dtppDbh->prepare(
                 DG.PDF_NAME NOT LIKE '%DELETED%'
                 AND
                 MILITARY_USE NOT LIKE 'M'
-                                AND
+                AND
                 CAST (DG.pdftotext AS FLOAT) > 4
                 "
 );
@@ -350,7 +350,7 @@ $dtppSth = $dtppDbh->prepare(
                 DG.PDF_NAME NOT LIKE '%DELETED%'
                 AND
                 CAST (DG.gcpCount AS FLOAT) > 1
-                                                AND
+                AND
                 CAST (DG.pdftotext AS FLOAT) > 4
                 AND
                 CAST (DG.yScaleAvgSize AS FLOAT) > 0
@@ -382,7 +382,7 @@ $dtppSth = $dtppDbh->prepare(
                 DG.PDF_NAME NOT LIKE '%DELETED%'
                 AND
                 CAST (DG.gcpCount AS FLOAT) > 1
-                                                AND
+                AND
                 CAST (DG.pdftotext AS FLOAT) > 4
                 AND
                 CAST (DG.yScaleAvgSize AS FLOAT) > 0
@@ -415,8 +415,8 @@ $dtppSth = $dtppDbh->prepare(
                 AND
                 DG.PDF_NAME NOT LIKE '%DELETED%'
                 AND
-                    (CAST (DG.gcpCount AS FLOAT) < 2)
-                                       AND
+                (CAST (DG.gcpCount AS FLOAT) < 2)
+                AND
                 CAST (DG.pdftotext AS FLOAT) > 4
                 AND
                 D.MILITARY_USE NOT LIKE 'M'
@@ -494,9 +494,9 @@ $dtppSth = $dtppDbh->prepare(
                  D.CHART_CODE = 'IAP'
                 AND
                 DG.PDF_NAME NOT LIKE '%DELETED%'
-                   AND
-                    (CAST (DG.gcpCount AS FLOAT) > 1)
-                                       AND
+                AND
+                (CAST (DG.gcpCount AS FLOAT) > 1)
+                AND
                 CAST (DG.pdftotext AS FLOAT) > 4
                 AND
                     (
@@ -582,7 +582,7 @@ $iapCount            = $dtppSth->rows;
 say "\t\t\t$iapCount HI- or TACAN";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Miltary IAP charts
+#Query the dtpp database for  count of military IAP charts
 $dtppSth = $dtppDbh->prepare(
     "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
              FROM dtpp  
@@ -597,10 +597,10 @@ $dtppSth = $dtppDbh->prepare(
 $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount            = $dtppSth->rows;
-say "\t$iapCount Miltary IAP charts";
+say "\t$iapCount military IAP charts";
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Miltary IAP charts with good ratio
+#Query the dtpp database for  count of military IAP charts with good ratio
 $dtppSth = $dtppDbh->prepare(
     "SELECT *
       FROM dtpp as D 

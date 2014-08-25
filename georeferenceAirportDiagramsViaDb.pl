@@ -746,7 +746,7 @@ sub findAllIcons {
     say ":findAllIcons" if $debug;
 
     #Loop through each "stream" in the pdf looking for our various icon regexes
-    for ( my $i = 0 ; $i < ( $main::objectstreams - 1 ) ; $i++ ) {
+    for ( my $i = 0 ; $i <= ( $main::objectstreams - 1 ) ; $i++ ) {
         $_output = qx(mutool show $main::targetPdf $i x);
         my $retval = $? >> 8;
 

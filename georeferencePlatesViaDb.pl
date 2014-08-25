@@ -20,14 +20,16 @@
 
 #Unavoidable problems:
 #-----------------------------------
-#-Relies on icons being drawn very specific ways, it won't work if these ever change
-#-Relies on actual text being in PDF.  It seems that most, if not all, military plates have no text in them
-#       We may be able to get around this with tesseract OCR but that will take some work
+#-Relies on icons being drawn very specific ways
+#    It won't work if these ever change
+#-Relies on actual text being in PDF.  
+#    It seems that most, if not all, military plates have no text in them
+#    We may be able to get around this with tesseract OCR but that will take some work
 #
 #Known issues:
 #---------------------
 #-Investigate not creating the intermediate PNG (guessing at dimensions)
-#Our pixel/RealWorld ratios are hardcoded now for 300dpi, need to make dynamic per our DPI setting
+#Our pixel/RealWorld ratios are hardcoded now for 300dpi, need to make dynamic per our DPI setting (or just base checks on PDF
 #
 #TODO
 #Instead of only matching on closest, iterate over every icon making sure it's matched to some textbox
@@ -157,7 +159,7 @@ my $dtppDbh =
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect( "dbi:SQLite:dbname=locationinfo.db",
+$dbh = DBI->connect( "dbi:SQLite:dbname=./locationinfo.db",
     "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
@@ -189,6 +191,7 @@ my $_rows               = $dtppSth->rows;
 say "Processing $_rows charts";
 my $completedCount = 0;
 
+#Process each plate returned by our query
 foreach my $_row (@$_allSqlQueryResults) {
 
     (
@@ -201,7 +204,8 @@ foreach my $_row (@$_allSqlQueryResults) {
     say
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
-    doAPlate();
+    #Execute the main loop for this plate
+    doAPlate(); #PDF_NAME, $dtppDirectory
     ++$completedCount;
     say "$completedCount" . "/" . "$_rows";
 }
@@ -215,9 +219,11 @@ $dtppDbh->disconnect();
 $dbh->disconnect();
 
 exit;
-
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#SUBROUTINES
+#------------------------------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------
-
+#The main loop
 sub doAPlate {
 
     #Zero out the stats hash
@@ -253,13 +259,12 @@ sub doAPlate {
         '$xPixelSkew'                => "0",
         '$yPixelSkew'                => "0"
     );
-    #
+    #FQN of the PDF for this chart
     our $targetPdf = $dtppDirectory . $PDF_NAME;
 
     my $retval;
 
-    #Say what our input PDF is
-    say $targetPdf;
+  
 
     #Pull out the various filename components of the input file from the command line
     our ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
@@ -279,13 +284,17 @@ sub doAPlate {
       $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
 
     # convert spaces, ., and slashes to dash
-    $targetVrtFile =~ s/[ |\/|\\|\.]/-/g;
+    $targetVrtFile =~ s/[\s \/ \\ \. \( \)]/-/xg;
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
     our $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $targetvrt         = $dir . $targetVrtFile . ".vrt";
 
     our $targetStatistics = "./statistics.csv";
 
+    #Say what our input PDF and output VRT are
+    say $targetPdf;
+    say $targetvrt;
+    
     if ($debug) {
         say "Directory: " . $dir;
         say "File:      " . $filename;
@@ -406,17 +415,18 @@ sub doAPlate {
     our @validRunwaySlopes          = ();
 
     #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
+    #(airportId,%runwaysFromDatabase,runwaysToDraw)
     findRunwaysInDatabase();
 
     # say "runwaysFromDatabase";
     # print Dumper ( \%runwaysFromDatabase );
     # say "";
 
-    # #Get number of objects/streams in the targetpdf
-    our $objectstreams = getNumberOfStreams();
+    # #Get number of objects/streams in targetPdf
+    our $objectstreams = getNumberOfStreams(); #(targetPdf)
 
     # #Loop through each of the streams in the PDF and find all of the icons we're interested in
-    findAllIcons();
+    findAllIcons(); #(objectstreams,$targetPdf
 
     # my $rawPdf = returnRawPdf();
     # # findIlsIcons( \%icons, $_output );
@@ -439,7 +449,8 @@ sub doAPlate {
     our %navaids_from_db = ();
     findNavaidsNearAirport();
 
-    our @validNavaidNames = keys %navaids_from_db;
+    #A list of valid navaid names around the airport
+    our @validNavaidNames = keys %navaids_from_db;    
     our $validNavaidNames = join( " ", @validNavaidNames );
 
     #Find all of the text boxes in the PDF
@@ -447,7 +458,7 @@ sub doAPlate {
     our %fixTextboxes      = ();
     our %obstacleTextBoxes = ();
     our %vorTextboxes      = ();
-
+    
     findAllTextboxes();
 
     #----------------------------------------------------------------------------------------------------------
@@ -615,7 +626,7 @@ sub doAPlate {
         print Dumper ($matchedObstacleIconsToTextBoxes);
     }
 
-    #Draw a line from obstacle icon to closest text boxes
+    #Draw a line from obstacle icon to matched text boxes
     if ($shouldSaveMarkedPdf) {
         drawLineFromEachIconToMatchedTextBox( \%obstacleIcons,
             \%obstacleTextBoxes );
@@ -633,7 +644,7 @@ sub doAPlate {
     #Orange outline fixTextboxes that have a valid fix name in them
     outlineValidFixTextBoxes() if $shouldSaveMarkedPdf;
 
-    #Delete an icon if the squiggly is too close to it
+    #Delete an icon if the not-to-scale squiggly is too close to it
     findClosestSquigglyToA( \%fixIcons, \%notToScaleIndicator );
 
     #Try to find closest TextBox center to each Icon center
@@ -675,7 +686,7 @@ sub doAPlate {
     #Orange outline fixTextboxes that have a valid GPS waypoint name in them
     outlineValidGpsWaypointTextBoxes() if $shouldSaveMarkedPdf;
 
-    #Delete an icon if the squiggly is too close to it
+    #Delete an icon if the not-to-scale squiggly is too close to it
     say
       'findClosestSquigglyToA( \%gpsWaypointIcons,     \%notToScaleIndicator )'
       if $debug;
@@ -720,7 +731,7 @@ sub doAPlate {
     #Orange outline navaid textboxes that have a valid navaid name in them
     outlineValidNavaidTextBoxes() if $shouldSaveMarkedPdf;
 
-    #Delete an icon if the squiggly is too close to it
+    #Delete an icon if the not-to-scale squiggly is too close to it
     findClosestSquigglyToA( \%navaidIcons, \%notToScaleIndicator );
 
     #Try to find closest TextBox center to each Icon center and then do the reverse
@@ -910,9 +921,7 @@ sub doAPlate {
     return;
 }
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#SUBROUTINES
-#------------------------------------------------------------------------------------------------------------------------------------------
+
 sub findObstacleHeightTexts {
 
     #The text from the PDF
