@@ -72,7 +72,7 @@ sub main {
      FROM 
         dtpp  
      WHERE  
-        (CHART_CODE = 'IAP' OR CHART_CODE = 'AD')
+        (CHART_CODE = 'IAP' OR CHART_CODE = 'APD')
      "
     );
     $dtppSth->execute();
@@ -106,7 +106,8 @@ sub main {
 
         my $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
         my $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
-        my $targetvrt         = $dir . $targetVrtFile . ".vrt";
+
+        my $targetvrt = $dir . $targetVrtFile . ".vrt";
 
         #Make the airport directory if it doesn't already exist
         if ( !-e "./byAirport/$FAA_CODE/" ) {
@@ -118,10 +119,23 @@ sub main {
         # ./dtpp/AL-DHN-00123COPTERV36-PDF-COPTER-VOR-RWY-36.vrt
         if ( -e "$targetvrt" && !-e "./byAirport/$FAA_CODE/$targetVrtFile.vrt" )
         {
-            symlink( "../../$targetvrt",
-                "./byAirport/$FAA_CODE/$targetVrtFile.vrt" );
-            symlink( "../../dtpp/$chartBasename.png",
+
+            link( "$targetvrt", "./byAirport/$FAA_CODE/$targetVrtFile.vrt" );
+
+            link( "./dtpp/$chartBasename.png",
                 "./byAirport/$FAA_CODE/$chartBasename.png" );
+
+            if ( $CHART_CODE eq "APD" ) {
+                $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
+# 		say $targetvrt;
+                if ( -e "$targetvrt"
+                    && !-e "./byAirport/$FAA_CODE/warped-$targetVrtFile.vrt" )
+                {
+                    link( "$targetvrt",
+                        "./byAirport/$FAA_CODE/warped-$targetVrtFile.vrt" );
+#                     say $targetvrt;
+                }
+            }
         }
 
         ++$completedCount;

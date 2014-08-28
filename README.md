@@ -92,7 +92,7 @@ Running
 
 	./georeferencePlatesViaDb.pl -m -p -s ./dtpp/
 
-	./georeferenceAirportDiagramsViaDb.pl -p ./dtpp/
+	./georeferenceAirportDiagramsViaDb.pl -p -s ./dtpp/
 
 This software and the data it produces come with no guarantees about accuracy or usefulness whatsoever!  Don't use it when your life may be on the line!
 

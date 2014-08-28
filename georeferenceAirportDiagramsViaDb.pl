@@ -261,11 +261,13 @@ sub doAPlate {
     # our $targetvrt         = $dir . $filename . ".vrt";
     our $targetVrtFile =
       $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
-
+    
+    # convert spaces, ., and slashes to dash
+    $targetVrtFile =~ s/[ \s | \/ | \\ | \. ]/-/xg;
+    
     our $targetVrtFile2 = "warped" . $targetVrtFile;
 
-    # convert spaces, ., and slashes to dash
-    $targetVrtFile =~ s/[ |\/|\\|\.]/-/g;
+  
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
     our $noPointsFile      = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $failFile          = $dir . "fail-" . $targetVrtFile . ".vrt";
