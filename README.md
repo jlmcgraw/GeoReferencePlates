@@ -53,7 +53,7 @@ How to use these utilities
 			-a<FAA airport ID>  To specify an airport ID
 			-i<2 Letter state ID>  To specify a specific state
 			-p Output a marked up version of PDF
-			-s Output statistics about the PDF
+			-s Output statistics to dtpp.db about the PDF
 			-c Don't overwrite existing .vrt
 			-o Re-create outlines/mask files
 			-b Allow creation of vrt with suspected bad lon/lat ratio
@@ -65,7 +65,7 @@ How to use these utilities
 			-a<FAA airport ID>  To specify an airport ID
 			-i<2 Letter state ID>  To specify a specific state
 			-p Output a marked up version of PDF
-			-s Output statistics  to dtpp.db about the PDF
+			-s Output statistics to dtpp.db about the PDF
 			-c Don't overwrite existing .vrt
 
 	-p will create two extra files:

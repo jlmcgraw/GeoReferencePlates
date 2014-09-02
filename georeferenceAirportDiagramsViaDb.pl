@@ -233,7 +233,7 @@ sub doAPlate {
         '$lowerRightLat'                   => "0",
         '$targetLonLatRatio'               => "0",
         '$runwayIconsCount'                => "0",
-        'isPortait'                => "0",
+        'isPortraitOrientation'                => "0",
         '$xPixelSkew'                => "0",
         '$yPixelSkew'                => "0"
     );
@@ -1911,7 +1911,7 @@ sub georeferenceTheRaster {
     # y = 0.00091147x2 - 0.03659641x + 2.03248188
 
     #BUG TODO Temporaily overloading notToScaleIndicatorCount to show landscape/portait orientation
-    $statistics{'$isPortait'} = $main::isPortraitOrientation;
+    $statistics{'$isPortraitOrientation'} = $main::isPortraitOrientation;
 
     #Check that the latLon ratio fo the image seems valid
     if ($main::isPortraitOrientation) {
@@ -2063,7 +2063,7 @@ sub writeStatistics {
       . "lowerRightLat = ?, "
       . "targetLonLatRatio = ?, "
       . "runwayIconsCount = ?, "
-      . "isPortrait = ?, "
+      . "isPortraitOrientation = ?, "
       . "xPixelSkew = ?, "
       . "yPixelSkew = ?"
       . "WHERE "
@@ -2098,9 +2098,9 @@ sub writeStatistics {
     $dtppSth->bind_param( 25, $statistics{'$lowerRightLat'} );
     $dtppSth->bind_param( 26, $statistics{'$targetLonLatRatio'} );
     $dtppSth->bind_param( 27, $statistics{'$runwayIconsCount'} );
-      $dtppSth->bind_param( 28, $statistics{'$isPortait'} );
-        $dtppSth->bind_param( 29, $statistics{'$xPixelSkew'} );
-          $dtppSth->bind_param( 30, $statistics{'$yPixelSkew'} );
+    $dtppSth->bind_param( 28, $statistics{'$isPortraitOrientation'} );
+    $dtppSth->bind_param( 29, $statistics{'$xPixelSkew'} );
+    $dtppSth->bind_param( 30, $statistics{'$yPixelSkew'} );
     $dtppSth->bind_param( 31, $PDF_NAME );
 
     $dtppSth->execute();

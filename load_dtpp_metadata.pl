@@ -163,7 +163,7 @@ my $insert_dtpp_record =
 #Just trying another way of doing this
 my $create_dtpp_geo_table_sql = <<'END_SQL';
   CREATE TABLE dtppGeo (
-     _id                                                                INTEGER PRIMARY KEY AUTOINCREMENT, 
+     _id				INTEGER PRIMARY KEY AUTOINCREMENT, 
      airportLatitude                                       TEXT, 
      horizontalAndVerticalLinesCount    TEXT, 
      gcpCount                                                  TEXT, 
@@ -199,7 +199,11 @@ my $create_dtpp_geo_table_sql = <<'END_SQL';
 END_SQL
 
 my $insert_dtppGeo_record =
-  "INSERT INTO dtppGeo (" . "PDF_NAME" . ") VALUES (" . "?" . ")";
+  "INSERT INTO dtppGeo (" 
+  . "PDF_NAME" 
+  . ") VALUES (" 
+  . "?" 
+  . ")";
 
 $dbh->do("DROP TABLE IF EXISTS dtpp");
 $dbh->do($create_dtpp_table);
@@ -212,6 +216,7 @@ my $sth_cycle = $dbh->prepare($insert_cycle_record);
 
 $dbh->do("DROP TABLE IF EXISTS dtppGeo");
 $dbh->do($create_dtpp_geo_table_sql);
+
 my $sth_dtppGeo = $dbh->prepare($insert_dtppGeo_record);
 
 my $twig = new XML::Twig(
