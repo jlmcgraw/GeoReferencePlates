@@ -60,7 +60,7 @@ my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
 my ( $count, $downloadedCount, $deletedCount, $changedCount ) = 0;
 
 print "Downloading the d-TPP metafile: ".$dtpp_url."...";
-my $ret = 200;
+# my $ret = 200;
 my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
 if ( $ret != 200 )
 {
@@ -163,38 +163,39 @@ my $insert_dtpp_record =
 #Just trying another way of doing this
 my $create_dtpp_geo_table_sql = <<'END_SQL';
   CREATE TABLE dtppGeo (
-     _id				INTEGER PRIMARY KEY AUTOINCREMENT, 
-     airportLatitude                                       TEXT, 
-     horizontalAndVerticalLinesCount    TEXT, 
-     gcpCount                                                  TEXT, 
-     yMedian                                                    TEXT, 
-     gpsCount                                                  TEXT, 
-     targetPdf                                                   TEXT, 
-     yScaleAvgSize                                           TEXT, 
-     airportLongitude                                     TEXT, 
-     notToScaleIndicatorCount                   TEXT, 
-     unique_obstacles_from_dbCount      TEXT, 
-     xScaleAvgSize                                            TEXT, 
-     navaidCount                                             TEXT, 
-     xMedian                                                     TEXT, 
-     insetCircleCount                                      TEXT, 
-     obstacleCount                                         TEXT, 
-     insetBoxCount                                         TEXT, 
-     fixCount                                                     TEXT, 
-     yAvg                                                             TEXT, 
-     xAvg                                                             TEXT, 
-     pdftotext                                                   TEXT, 
-     lonLatRatio                                                TEXT, 
-     upperLeftLon                                          TEXT, 
-     upperLeftLat                                          TEXT, 
-     lowerRightLon                                        TEXT, 
-     lowerRightLat                                          TEXT, 
-     targetLonLatRatio                                TEXT, 
-     runwayIconsCount                              TEXT, 
-     PDF_NAME                                              TEXT,
-     isPortrait                                                  TEXT,
-     xPixelSkew                                              TEXT,
-     yPixelSkew                                              TEXT
+     _id		   INTEGER PRIMARY KEY AUTOINCREMENT, 
+     airportLatitude                                    TEXT, 
+     horizontalAndVerticalLinesCount                    TEXT, 
+     gcpCount                                           TEXT, 
+     yMedian                                            TEXT, 
+     gpsCount                                           TEXT, 
+     targetPdf                                          TEXT, 
+     yScaleAvgSize                                      TEXT, 
+     airportLongitude                                   TEXT, 
+     notToScaleIndicatorCount                           TEXT, 
+     unique_obstacles_from_dbCount                      TEXT, 
+     xScaleAvgSize                                      TEXT, 
+     navaidCount                                        TEXT, 
+     xMedian                                            TEXT, 
+     insetCircleCount                                   TEXT, 
+     obstacleCount                                      TEXT, 
+     insetBoxCount                                      TEXT, 
+     fixCount                                           TEXT, 
+     yAvg                                               TEXT, 
+     xAvg                                               TEXT, 
+     pdftotext                                          TEXT, 
+     lonLatRatio                                        TEXT, 
+     upperLeftLon                                       TEXT, 
+     upperLeftLat                                       TEXT, 
+     lowerRightLon                                      TEXT, 
+     lowerRightLat                                      TEXT, 
+     targetLonLatRatio                                  TEXT, 
+     runwayIconsCount                                   TEXT, 
+     PDF_NAME                                           TEXT,
+     isPortraitOrientation                              TEXT,
+     xPixelSkew                                         TEXT,
+     yPixelSkew                                         TEXT,
+     status						TEXT
  )
 END_SQL
 
@@ -392,7 +393,7 @@ sub record {
             "$chart_url_base" . "$pdf_name",
             "$dtppDownloadDir" . "$pdf_name"
         );
-
+	++$downloadedCount;
         ++$changedCount;
     }
 

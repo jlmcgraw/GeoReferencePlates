@@ -77,6 +77,7 @@ use Time::HiRes q/gettimeofday/;
 # use Acme::Tools qw(between);
 use Image::Magick;
 use File::Slurp;
+use Storable;
 
 #PDF constants
 use constant mm => 25.4 / 72;
@@ -175,15 +176,29 @@ $dtppDbh->do("PRAGMA synchronous=OFF");
 
 #Query the dtpp database for charts
 my $dtppSth = $dtppDbh->prepare(
-    "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
-             FROM dtpp  
-             WHERE  
-                CHART_CODE = 'IAP' 
-                AND 
-                FAA_CODE LIKE  '$airportId' 
-                AND
-                STATE_ID LIKE  '$stateId'
-                "
+    "SELECT  
+      D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
+      D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
+      D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
+      DG.STATUS
+    FROM 
+      dtpp as D 
+    JOIN 
+      dtppGeo as DG 
+    ON 
+      D.PDF_NAME=DG.PDF_NAME
+    WHERE  
+      -- BUG TODO Testing only selecting non-good plates
+      -- DG.STATUS NOT LIKE '%GOOD%' 
+      -- AND
+      --D.MILITARY_USE != 'M' 
+      --AND
+      D.CHART_CODE = 'IAP' 
+      AND 
+      D.FAA_CODE LIKE  '$airportId' 
+      AND
+      D.STATE_ID LIKE  '$stateId'
+      "
 );
 $dtppSth->execute();
 
@@ -266,7 +281,8 @@ sub doAPlate {
         '$runwayIconsCount'                => "0",
         'isPortraitOrientation'            => "0",
         '$xPixelSkew'                      => "0",
-        '$yPixelSkew'                      => "0"
+        '$yPixelSkew'                      => "0",
+        '$status'                          => "0"
     );
     #FQN of the PDF for this chart
     our $targetPdf = $dtppDirectory . $PDF_NAME;
@@ -287,6 +303,7 @@ sub doAPlate {
     our $targetpng         = $dir . $filename . ".png";
     our $gcpPng            = $dir . "gcp-" . $filename . ".png";
     our $targettif         = $dir . $filename . ".tif";
+    our $storedGcpHash     = $dir . "gcp-" . $filename . "-hash.txt";
 
     # our $targetvrt         = $dir . $filename . ".vrt";
     our $targetVrtFile =
@@ -297,7 +314,8 @@ sub doAPlate {
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
     our $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $targetvrt         = $dir . $targetVrtFile . ".vrt";
-
+    our $targetVrtFile2 = "warped" . $targetVrtFile;
+    our $targetvrt2       = $dir . $targetVrtFile2 . ".vrt";
     our $targetStatistics = "./statistics.csv";
 
     #Say what our input PDF and output VRT are
@@ -338,17 +356,18 @@ sub doAPlate {
     }
     $statistics{'$pdftotext'} = scalar(@pdftotext);
 
-    # if ( scalar(@pdftotext) < 5 ) {
-    # say "Not enough pdftotext output for $targetPdf";
-    # writeStatistics() if $shouldOutputStatistics;
-    # return(1);
-    # }
+    if ( scalar(@pdftotext) < 5 ) {
+    say "Not enough pdftotext output for $targetPdf";
+    writeStatistics() if $shouldOutputStatistics;
+    return(1);
+    }
 
     #Abort if the chart says it's not to scale
     foreach my $line (@pdftotext) {
         $line =~ s/\s//gx;
         if ( $line =~ m/chartnott/i ) {
             say "$targetPdf not to scale, can't georeference";
+              $statistics{'$status'} = "AUTOBAD";
             writeStatistics() if $shouldOutputStatistics;
             return (1);
         }
@@ -422,7 +441,21 @@ sub doAPlate {
     our %runwaysFromDatabase        = ();
     our %runwaysToDraw              = ();
     our @validRunwaySlopes          = ();
+    our %gcps = ();
+    
+       #Don't do anything PDF related unless we've asked to create one on the command line
 
+    our ( $pdf, $page );
+
+    if ($shouldSaveMarkedPdf) {
+        $pdf = PDF::API2->open($targetPdf);
+
+        #Set up the various types of boxes to draw on the output PDF
+        $page = $pdf->openpage(1);
+
+    }
+    
+    if (! -e $storedGcpHash) {
     #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
     #(airportId,%runwaysFromDatabase,runwaysToDraw)
     findRunwaysInDatabase();
@@ -472,17 +505,7 @@ sub doAPlate {
 
     #----------------------------------------------------------------------------------------------------------
     #Modify the PDF
-    #Don't do anything PDF related unless we've asked to create one on the command line
-
-    our ( $pdf, $page );
-
-    if ($shouldSaveMarkedPdf) {
-        $pdf = PDF::API2->open($targetPdf);
-
-        #Set up the various types of boxes to draw on the output PDF
-        $page = $pdf->openpage(1);
-
-    }
+ 
 
     our ( $pdfOutlines,  $pageOutlines );
     our ( $lowerYCutoff, $upperYCutoff );
@@ -777,7 +800,7 @@ sub doAPlate {
 
     #---------------------------------------------------------------------------------------------------------------------------------------------------
     #Create the combined hash of Ground Control Points
-    our %gcps = ();
+
 
     #Add Runway endpoints to Ground Control Points hash
     addCombinedHashToGroundControlPoints( "runway",
@@ -797,7 +820,14 @@ sub doAPlate {
     #Add GPS waypoints to Ground Control Points hash
     addCombinedHashToGroundControlPoints( "gps",
         $matchedGpsWaypointIconsToTextBoxes );
-
+}
+else {
+    say "Loading existing hash table $storedGcpHash";
+    my $gcpHashref = retrieve( $storedGcpHash );
+    #Copy to GCP hash
+    %gcps = %{$gcpHashref};
+    
+}
     if ($debug) {
         say "";
         say "Combined Ground Control Points";
@@ -806,7 +836,7 @@ sub doAPlate {
     }
 
     #build the GCP portion of the command line parameters
-    my $gcpstring = createGcpString();
+    our $gcpstring = createGcpString();
 
     #outline the GCP points we ended up using
     drawCircleAroundGCPs() if $shouldSaveMarkedPdf;
@@ -846,6 +876,8 @@ sub doAPlate {
           "xScaleAvgSize: $statistics{'$xScaleAvgSize'}, yScaleAvgSize: $statistics{'$yScaleAvgSize'}";
 
         #touch($touchFile);
+        
+        $statistics{'$status'} = "AUTOBAD";
         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
@@ -860,6 +892,7 @@ sub doAPlate {
 
         #Is it better to guess or do nothing?  I think we should do nothing
         #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
+        $statistics{'$status'} = "AUTOBAD";
         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
@@ -879,6 +912,7 @@ sub doAPlate {
     # say "";
     # }
 
+    #Did we find come valid GCPs?
     if ( @xScaleAvg && @yScaleAvg ) {
 
         #Smooth out the X and Y scales we previously calculated
@@ -893,7 +927,11 @@ sub doAPlate {
         #Count of entries in this array
         my $yScaleAvgSize = 0 + @yScaleAvg;
 
-        say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize";
+        say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize" if $debug;
+        
+        #These are expected to be negative for affine transform
+        if ($yMedian > 0 ) {$yMedian = -($yMedian);}
+        if ($yAvg > 0 ) {$yAvg = -($yAvg);}
 
         #Save statistics
         $statistics{'$xAvg'}          = $xAvg;
@@ -903,13 +941,14 @@ sub doAPlate {
         $statistics{'$yMedian'}       = $yMedian;
         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
         $statistics{'$lonLatRatio'}   = $lonLatRatio;
+        
     }
     else {
         say
           "No points actually added to the scale arrays for $targetPdf, can't georeference";
 
         say "Touching $touchFile";
-
+	$statistics{'$status'} = "AUTOBAD";
         open( my $fh, ">", "$touchFile" )
           or die "cannot open > $touchFile: $!";
         close($fh);
@@ -3340,6 +3379,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                     say
                       "Bad longitudeToLatitudeRatio: $longitudeToLatitudeRatio, expected $targetLonLatRatio.  Pair $key - $key2"
                       if $debug;
+                       $statistics{'$status'} = "AUTOBAD";
                 }
             }
 
@@ -3439,7 +3479,9 @@ sub georeferenceTheRaster {
         say
           "Bad lonLatRatio $main::lonLatRatio, expected $targetLonLatRatio, Difference: "
           . abs( $main::lonLatRatio - $targetLonLatRatio );
-
+          
+       $statistics{'$status'} = "AUTOBAD";
+        
         if ($shouldSaveBadRatio) {
             $main::targetvrt = $main::targetVrtBadRatio;
 
@@ -3457,6 +3499,7 @@ sub georeferenceTheRaster {
         say "";
     }
 
+    #---Commenting this out to try using GCP strings.  This section works
     my $gdal_translateCommand =
       "gdal_translate -q -of VRT -strict -a_srs \"+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs\" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat '$main::targetpng'  '$main::targetvrt' ";
 
@@ -3474,11 +3517,67 @@ sub georeferenceTheRaster {
     my $retval = $? >> 8;
 
     if ( $retval != 0 ) {
+     $statistics{'$status'} = "AUTOBAD";
         croak
           "Error executing gdal_translate.  Is it installed? Return code was $retval";
     }
     say $gdal_translateoutput if $debug;
 
+    #---------
+# # # # #Comment this section out to get back to working setup
+# # # # 		my $gdal_translateCommand =
+# # # # 	      "gdal_translate -q -of VRT -strict -a_srs EPSG:4326 $main::gcpstring '$main::targetpng'  '$main::targetvrt'";
+# # # # 	    if ($debug) {
+# # # # 		say $gdal_translateCommand;
+# # # # 		say "";
+# # # # 	    }
+# # # # 
+# # # # 	    #Run gdal_translate
+# # # # 
+# # # # 	    my $gdal_translateoutput = qx($gdal_translateCommand);
+# # # # 
+# # # # 	    my $retval = $? >> 8;
+# # # # 
+# # # # 	    if ( $retval != 0 ) {
+# # # # 		carp
+# # # # 		  "Error executing gdal_translate.  Is it installed? Return code was $retval";
+# # # # 		++$main::failCount;
+# # # # 		  $statistics{'$status'} = "AUTOBAD";
+# # # # 		touchFile($main::failFile);
+# # # # 
+# # # # 		# say "Touching $main::failFile";
+# # # # 		# open( my $fh, ">", "$main::failFile" )
+# # # # 		# or die "cannot open > $main::failFile $!";
+# # # # 		# close($fh);
+# # # # 		return (1);
+# # # # 	    }
+# # # # 	    say $gdal_translateoutput if $debug;
+# # # # 	    #Run gdalwarp
+# # # # 
+# # # # 	    my $gdalwarpCommand =
+# # # # 	      "gdalwarp -q -of VRT -t_srs EPSG:4326 -order 1 -overwrite -refine_gcps .1  '$main::targetvrt'  '$main::targetvrt2'";
+# # # # 	    
+# # # # 	    if ($debug) {
+# # # # 		say $gdalwarpCommand;
+# # # # 		say "";
+# # # # 	    }
+# # # # 
+# # # # 	    my $gdalwarpCommandOutput = qx($gdalwarpCommand);
+# # # # 
+# # # # 	    $retval = $? >> 8;
+# # # # 	    
+# # # # 	#     if ( $retval != 0 ) {
+# # # # 	#         carp
+# # # # 	#           "Error executing gdalwarp.  Is it installed? Return code was $retval";
+# # # # 	#         ++$main::failCount;
+# # # # 	#         touchFile($main::failFile);
+# # # # 	#         $statistics{'$status'} = "AUTOBAD";
+# # # # 	#         return (1);
+# # # # 	#     }
+# # # # 
+# # # # 	    say "$retval: $gdalwarpCommandOutput";
+# # # #     #---------
+    
     # my $gdalwarpoutput;
     # $gdalwarpoutput =
     # qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
@@ -3503,6 +3602,7 @@ sub georeferenceTheRaster {
     # say $output;
     # $output = qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha $targetPdf.vrt $targettif);
     # say $output;
+    $statistics{'$status'} = "AUTOGOOD";
     return;
 }
 
@@ -3578,7 +3678,11 @@ sub writeStatistics {
       . "lowerRightLon = ?, "
       . "lowerRightLat = ?, "
       . "targetLonLatRatio = ?, "
-      . "runwayIconsCount = ? "
+      . "runwayIconsCount = ?, "
+      . "isPortraitOrientation = ?, "
+      . "xPixelSkew = ?, "
+      . "yPixelSkew = ?,"
+      . "status = ?"      
       . "WHERE "
       . "PDF_NAME = ?";
 
@@ -3611,8 +3715,11 @@ sub writeStatistics {
     $dtppSth->bind_param( 25, $statistics{'$lowerRightLat'} );
     $dtppSth->bind_param( 26, $statistics{'$targetLonLatRatio'} );
     $dtppSth->bind_param( 27, $statistics{'$runwayIconsCount'} );
-    $dtppSth->bind_param( 28, $PDF_NAME );
-    
+    $dtppSth->bind_param( 28, $statistics{'$isPortraitOrientation'} );
+    $dtppSth->bind_param( 29, $statistics{'$xPixelSkew'} );
+    $dtppSth->bind_param( 30, $statistics{'$yPixelSkew'} );
+    $dtppSth->bind_param( 31, $statistics{'$status'} );
+    $dtppSth->bind_param( 32, $PDF_NAME ); 
 
     $dtppSth->execute();
 
@@ -3933,14 +4040,14 @@ sub addCombinedHashToGroundControlPoints {
 
                 #If it's any of the above strings then it's valid
                 say "$_rasterX $_rasterY $lon $lat" if $debug;
-                $main::gcps{ "$type" . $text . '-' . $rand }{"pngx"} =
+                $main::gcps{ "$type-" . $text . '-' . $rand }{"pngx"} =
                   $_rasterX;
-                $main::gcps{ "$type" . $text . '-' . $rand }{"pngy"} =
+                $main::gcps{ "$type-" . $text . '-' . $rand }{"pngy"} =
                   $_rasterY;
-                $main::gcps{ "$type" . $text . '-' . $rand }{"pdfx"} = $_pdfX;
-                $main::gcps{ "$type" . $text . '-' . $rand }{"pdfy"} = $_pdfY;
-                $main::gcps{ "$type" . $text . '-' . $rand }{"lon"}  = $lon;
-                $main::gcps{ "$type" . $text . '-' . $rand }{"lat"}  = $lat;
+                $main::gcps{ "$type-" . $text . '-' . $rand }{"pdfx"} = $_pdfX;
+                $main::gcps{ "$type-" . $text . '-' . $rand }{"pdfy"} = $_pdfY;
+                $main::gcps{ "$type-" . $text . '-' . $rand }{"lon"}  = $lon;
+                $main::gcps{ "$type-" . $text . '-' . $rand }{"lat"}  = $lat;
             }
             else {
                 say "$type $text is being ignored" if $debug;
@@ -3948,6 +4055,7 @@ sub addCombinedHashToGroundControlPoints {
 
         }
     }
+    store (\%main::gcps, $main::storedGcpHash);
     return;
 }
 
