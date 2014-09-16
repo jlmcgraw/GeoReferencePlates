@@ -80,12 +80,11 @@ my $opt_string = 'cspvobma:i:';
 my $arg_num    = scalar @ARGV;
 
 #Whether to draw various features
-our $shouldDrawRunways = 1;
+our $shouldDrawRunways   = 1;
 our $shouldDrawNavaids   = 1;
-our $shouldDrawFixes = 0;
+our $shouldDrawFixes     = 0;
 our $shouldDrawObstacles = 0;
-our $shouldDrawGcps = 1;
-
+our $shouldDrawGcps      = 1;
 
 #We need at least one argument (the directory with plates)
 if ( $arg_num < 1 ) {
@@ -143,7 +142,7 @@ my $dtppDbh =
 my $cifpDbh =
      DBI->connect( "dbi:SQLite:dbname=./cifp.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
-  
+
 #-----------------------------------------------
 #Open the locations database
 our $dbh;
@@ -211,11 +210,11 @@ foreach my $_row (@$_allPlates) {
     $window->set_screen( $window->get_screen() );
     $window->signal_connect( destroy => sub { Gtk3->main_quit } );
 
-    our $runwayBox    = $builder->get_object('runwayBox');
-    our $navaidBox    = $builder->get_object('navaidBox');
-    our $fixesBox     = $builder->get_object('fixesBox');
-    our $obstaclesBox = $builder->get_object('obstaclesBox');
-    our $gcpBox       = $builder->get_object('gcpBox');
+    our $runwayBox    = $builder->get_object('scrolledwindow2');
+    our $navaidBox    = $builder->get_object('scrolledwindow4');
+    our $fixesBox     = $builder->get_object('scrolledwindow5');
+    our $obstaclesBox = $builder->get_object('scrolledwindow6');
+    our $gcpBox       = $builder->get_object('scrolledwindow3');
 
     my $liststoreNavaids = $builder->get_object('liststoreNavaids');
 
@@ -238,6 +237,9 @@ foreach my $_row (@$_allPlates) {
     # 	        )
     # 	      );
     $window->show_all();
+
+    #     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+    activateNewPlate( @$_allPlates[0] );
     Gtk3->main();
 
     #Execute the main loop for this plate
@@ -301,7 +303,7 @@ exit;
 #----------------------------------------------------------------------------------------------------------------
 #The main loop
 # sub doAPlate {
-# 
+#
 #     #Validate and set input parameters to this function
 #     my ( $PDF_NAME, $FAA_CODE, $STATE_ID, $CHART_NAME ) = validate_pos(
 #         @_,
@@ -310,7 +312,7 @@ exit;
 #         { type => SCALAR },
 #         { type => SCALAR },
 #     );
-# 
+#
 #     #Zero out the stats hash
 #     %statistics = (
 #         '$airportLatitude'                 => "0",
@@ -345,17 +347,17 @@ exit;
 #         '$yPixelSkew'                      => "0",
 #         '$status'                          => "0"
 #     );
-# 
+#
 #     #FQN of the PDF for this chart
 #     our $targetPdf = $dtppDirectory . $PDF_NAME;
-# 
+#
 #     my $retval;
-# 
+#
 #     #Pull out the various filename components of the input file from the command line
 #     our ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
-# 
+#
 #     $airportId = $FAA_CODE;
-# 
+#
 #     #Set some output file names based on the input filename
 #     our $outputPdf         = $dir . "marked-" . $filename . ".pdf";
 #     our $outputPdfOutlines = $dir . "outlines-" . $filename . ".pdf";
@@ -363,23 +365,23 @@ exit;
 #     our $targetpng         = $dir . $filename . ".png";
 #     our $gcpPng            = $dir . "gcp-" . $filename . ".png";
 #     our $targettif         = $dir . $filename . ".tif";
-# 
+#
 #     # our $targetvrt         = $dir . $filename . ".vrt";
 #     our $targetVrtFile =
 #       $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
-# 
+#
 #     # convert spaces, ., and slashes to dash
 #     $targetVrtFile =~ s/[\s \/ \\ \. \( \)]/-/xg;
 #     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
 #     our $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
 #     our $targetvrt         = $dir . $targetVrtFile . ".vrt";
-# 
+#
 #     our $targetStatistics = "./statistics.csv";
-# 
+#
 #     #Say what our input PDF and output VRT are
 #     say $targetPdf;
 #     say $targetvrt;
-# 
+#
 #     if ($debug) {
 #         say "Directory: " . $dir;
 #         say "File:      " . $filename;
@@ -393,32 +395,32 @@ exit;
 #         say "targetStatistics: $targetStatistics";
 #         say "";
 #     }
-# 
+#
 #     # if ( scalar(@pdftotext) < 5 ) {
 #     # say "Not enough pdftotext output for $targetPdf";
 #     # writeStatistics() if $shouldOutputStatistics;
 #     # return(1);
 #     # }
-# 
+#
 #     #Get the mediabox size and other variables from the PDF
 #     our ( $pdfXSize, $pdfYSize, $pdfCenterX, $pdfCenterY, $pdfXYRatio ) =
 #       getMediaboxSize();
-# 
+#
 #     #     #Convert the PDF to a PNG if one doesn't already exist
 #     #     convertPdfToPng();
-# 
+#
 #     #     #Get PNG dimensions and the PDF->PNG scale factors
 #     #     our ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
 #     #       getPngSize();
-# 
+#
 #     # my $rawPdf = returnRawPdf();
-# 
+#
 #     #
-# 
+#
 #     #---------------------------------------------------------------------------------------------------------------------------------------------------
 #     #Create the combined hash of Ground Control Points
 #     our %gcps = ();
-# 
+#
 #     #     #Add Runway endpoints to Ground Control Points hash
 #     #     addCombinedHashToGroundControlPoints( "runway",
 #     #         \%matchedRunIconsToDatabase );
@@ -553,7 +555,7 @@ exit;
 #     #
 #     #     #Write out the statistics of this file if requested
 #     #     writeStatistics() if $shouldOutputStatistics;
-# 
+#
 #     return;
 # }
 
@@ -672,13 +674,13 @@ sub findAirportLatitudeAndLongitude {
 }
 
 # sub getMediaboxSize {
-# 
+#
 #     #Get the mediabox size from the PDF
 #     my $mutoolinfo = qx(mutool info $main::targetPdf);
 #     my $retval     = $? >> 8;
 #     die "No output from mutool info.  Is it installed? Return code was $retval"
 #       if ( $mutoolinfo eq "" || $retval != 0 );
-# 
+#
 #     foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
 #         ## Regular expression magic to grab what you want
 #         if ( $line =~ /([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+) ([-\.0-9]+)/ ) {
@@ -744,7 +746,7 @@ sub getPngSize {
 #     my $median              = &median($targetArrayRef);
 #     my $stdDev              = &stdev($targetArrayRef);
 #     my $lengthOfTargetArray = $#$targetArrayRef;
-# 
+#
 #     if ($debug) {
 #         say "";
 #         say "Initial length of array: $lengthOfTargetArray";
@@ -756,7 +758,7 @@ sub getPngSize {
 #           . sprintf( "%.10g", $median );
 #         say "Removing data outside 1st standard deviation";
 #     }
-# 
+#
 #     #Delete values from the array that are outside 1st dev
 #     for ( my $i = 0 ; $i <= $#$targetArrayRef ; $i++ ) {
 #         splice( @$targetArrayRef, $i, 1 )
@@ -767,7 +769,7 @@ sub getPngSize {
 #     $avg                 = &average($targetArrayRef);
 #     $median              = &median($targetArrayRef);
 #     $stdDev              = &stdev($targetArrayRef);
-# 
+#
 #     if ($debug) {
 #         say "lengthOfTargetArray: $lengthOfTargetArray";
 #         say "Smoothed values: average: "
@@ -778,7 +780,7 @@ sub getPngSize {
 #           . sprintf( "%.10g", $median );
 #         say "";
 #     }
-# 
+#
 #     return ( $avg, $median, $stdDev );
 # }
 
@@ -855,9 +857,13 @@ sub findObstaclesNearAirport {
     #             next if ( $_rows != 1 );
 
     foreach my $_row (@$all) {
-
+            my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
+      if (exists $unique_obstacles_from_db{$heightmsl}) {
+        $lat = $lon = 0;
+        
+        }
         #Populate variables from our database lookup
-        my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
+
         $unique_obstacles_from_db{$heightmsl}{"Name"} = $heightmsl;
         $unique_obstacles_from_db{$heightmsl}{"Lat"}  = $lat;
         $unique_obstacles_from_db{$heightmsl}{"Lon"}  = $lon;
@@ -977,74 +983,74 @@ sub convertPdfToPng {
 # sub calculateRoughRealWorldExtentsOfRaster {
 #     my ($gcpsHashRef) =
 #       validate_pos( @_, { type => HASHREF } );
-# 
+#
 #     #This is where we finally generate the real information for each plate
 #     foreach my $key ( sort keys $gcpsHashRef ) {
-# 
+#
 #         #This code is for calculating the PDF x/y and lon/lat differences between every object
 #         #to calculate the ratio between the two
 #         foreach my $key2 ( sort keys $gcpsHashRef ) {
-# 
+#
 #             #Don't calculate a scale with ourself
 #             next if $key eq $key2;
-# 
+#
 #             my ( $ulX, $ulY, $lrX, $lrY, $longitudeToPixelRatio,
 #                 $latitudeToPixelRatio, $longitudeToLatitudeRatio );
-# 
+#
 #             #X pixels between points
 #             my $pixelDistanceX =
 #               ( $gcpsHashRef->{$key}{"pngx"} - $gcpsHashRef->{$key2}{"pngx"} );
-# 
+#
 #             #Y pixels between points
 #             my $pixelDistanceY =
 #               ( $gcpsHashRef->{$key}{"pngy"} - $gcpsHashRef->{$key2}{"pngy"} );
-# 
+#
 #             #Longitude degrees between points
 #             my $longitudeDiff =
 #               ( $gcpsHashRef->{$key}{"lon"} - $gcpsHashRef->{$key2}{"lon"} );
-# 
+#
 #             #Latitude degrees between points
 #             my $latitudeDiff =
 #               ( $gcpsHashRef->{$key}{"lat"} - $gcpsHashRef->{$key2}{"lat"} );
-# 
+#
 #             #Do some basic sanity checking on the $latitudeToPixelRatio
 #             if ( abs($pixelDistanceY) > 5 && $latitudeDiff ) {
 #                 say
 #                   "pixelDistanceY: $pixelDistanceY, latitudeDiff: $latitudeDiff"
 #                   if $debug;
-# 
+#
 #                 if ( same_sign( $pixelDistanceY, $latitudeDiff ) ) {
 #                     say
 #                       "Bad: $key->$key2 pixelDistanceY and latitudeDiff have same same sign"
 #                       if $debug;
 #                     next;
 #                 }
-# 
+#
 #                 $pixelDistanceY = abs($pixelDistanceY);
 #                 $latitudeDiff   = abs($latitudeDiff);
-# 
+#
 #                 $latitudeToPixelRatio = $latitudeDiff / $pixelDistanceY;
-# 
+#
 #                 if (
 #                     not( is_between( .00011, .00033, $latitudeToPixelRatio ) )
 #                     && not(
 #                         is_between( .00034, .00046, $latitudeToPixelRatio ) )
 #                     && not(
 #                         is_between( .00056, .00060, $latitudeToPixelRatio, ) )
-# 
+#
 #                     # not( is_between(.00008 , .00009, $latitudeToPixelRatio ) )
 #                     # &&
 #                     #&& not( is_between(  .00084, .00085, $latitudeToPixelRatio ) )
-# 
+#
 #                   )
 #                 {
-# 
+#
 #                     #                     if ($debug) {
 #                     say
 #                       "Bad latitudeToPixelRatio $latitudeToPixelRatio on $key->$key2 pair";
-# 
+#
 #                     #                     }
-# 
+#
 #                     #   next;
 #                 }
 #                 else {
@@ -1052,21 +1058,21 @@ sub convertPdfToPng {
 #                     $ulY =
 #                       $gcpsHashRef->{$key}{"lat"} +
 #                       ( $gcpsHashRef->{$key}{"pngy"} * $latitudeToPixelRatio );
-# 
+#
 #                     #For the raster, calculate the latitude of the lower-right corner based on this object's latitude and the degrees per pixel
 #                     $lrY =
 #                       $gcpsHashRef->{$key}{"lat"} -
 #                       (
 #                         abs( $main::pngYSize - $gcpsHashRef->{$key}{"pngy"} ) *
 #                           $latitudeToPixelRatio );
-# 
+#
 #                     #Save this ratio if it seems nominally valid, we'll smooth out these values later
 #                     push @main::yScaleAvg, $latitudeToPixelRatio;
 #                     push @main::ulYAvg,    $ulY;
 #                     push @main::lrYAvg,    $lrY;
 #                 }
 #             }
-# 
+#
 #             if ( abs($pixelDistanceX) > 5 && $longitudeDiff ) {
 #                 say
 #                   "pixelDistanceX: $pixelDistanceX, longitudeDiff $longitudeDiff"
@@ -1079,22 +1085,22 @@ sub convertPdfToPng {
 #                 }
 #                 $longitudeDiff  = abs($longitudeDiff);
 #                 $pixelDistanceX = abs($pixelDistanceX);
-# 
+#
 #                 $longitudeToPixelRatio = $longitudeDiff / $pixelDistanceX;
-# 
+#
 #                 #Do some basic sanity checking on the $longitudeToPixelRatio
 #                 if ( $longitudeToPixelRatio > .0016 ) {
-# 
+#
 #                     say
 #                       "Bad longitudeToPixelRatio $longitudeToPixelRatio on $key-$key2 pair";
-# 
+#
 #                 }
 #                 else {
 #                     #For the raster, calculate the Longitude of the upper-left corner based on this object's longitude and the degrees per pixel
 #                     $ulX =
 #                       $gcpsHashRef->{$key}{"lon"} -
 #                       ( $gcpsHashRef->{$key}{"pngx"} * $longitudeToPixelRatio );
-# 
+#
 #                     #For the raster, calculate the longitude of the lower-right corner based on this object's longitude and the degrees per pixel
 #                     $lrX =
 #                       $gcpsHashRef->{$key}{"lon"} +
@@ -1106,20 +1112,20 @@ sub convertPdfToPng {
 #                     push @main::lrXAvg,    $lrX;
 #                 }
 #             }
-# 
+#
 #             #TODO BUG Is this a good idea?
 #             #This is a hack to weight pairs that have a valid looking longitudeToPixelRatio more heavily
 #             if ( $ulX && $ulY && $lrX && $lrY ) {
-# 
+#
 #                 #The X/Y (or Longitude/Latitude) ratio that would result from using this particular pair
-# 
+#
 #                 $longitudeToLatitudeRatio =
 #                   abs( ( $ulX - $lrX ) / ( $ulY - $lrY ) );
-# 
+#
 #                 #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
 #                 my $targetLonLatRatio =
 #                   targetLonLatRatio($main::airportLatitudeDec);
-# 
+#
 #                 if ( ( $longitudeToLatitudeRatio - $targetLonLatRatio ) < .09 )
 #                 {
 #                     push @main::xScaleAvg, $longitudeToPixelRatio;
@@ -1135,7 +1141,7 @@ sub convertPdfToPng {
 #                       if $debug;
 #                 }
 #             }
-# 
+#
 #             $ulY                   = 0 if not defined $ulY;
 #             $ulX                   = 0 if not defined $ulX;
 #             $lrY                   = 0 if not defined $lrY;
@@ -1144,101 +1150,101 @@ sub convertPdfToPng {
 #             $latitudeToPixelRatio  = 0 if not defined $latitudeToPixelRatio;
 #             $longitudeToLatitudeRatio = 0
 #               if not defined $longitudeToLatitudeRatio;
-# 
+#
 #             #             say
 #             #               "$key,$key2,$pixelDistanceX,$pixelDistanceY,$longitudeDiff,$latitudeDiff,$longitudeToPixelRatio,$latitudeToPixelRatio,$ulX,$ulY,$lrX,$lrY,$longitudeToLatitudeRatio"
 #             #               if $debug;
-# 
+#
 #         }
 #     }
 #     return;
 # }
 
 # sub georeferenceTheRaster {
-# 
+#
 #     #----------------------------------------------------------------------------------------------------------------------------------------------------
 #     #Try to georeference based on Upper Left and Lower Right extents of longitude and latitude
-# 
+#
 #     #Uncomment these lines to use the average values  instead of median
 #     # my $upperLeftLon  = $ulXAvrg;
 #     # my $upperLeftLat  = $ulYAvrg;
 #     # my $lowerRightLon = $lrXAvrg;
 #     # my $lowerRightLat = $lrYAvrg;
-# 
+#
 #     #Uncomment these lines to use the median values instead of average
 #     my $upperLeftLon  = $main::ulXmedian;
 #     my $upperLeftLat  = $main::ulYmedian;
 #     my $lowerRightLon = $main::lrXmedian;
 #     my $lowerRightLat = $main::lrYmedian;
-# 
+#
 #     my $medianLonDiff = $upperLeftLon - $lowerRightLon;
 #     my $medianLatDiff = $upperLeftLat - $lowerRightLat;
-# 
+#
 #     $main::lonLatRatio = abs( $medianLonDiff / $medianLatDiff );
-# 
+#
 #     #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
 #     my $targetLonLatRatio = targetLonLatRatio($main::airportLatitudeDec);
-# 
+#
 #     $statistics{'$upperLeftLon'}      = $upperLeftLon;
 #     $statistics{'$upperLeftLat'}      = $upperLeftLat;
 #     $statistics{'$lowerRightLon'}     = $lowerRightLon;
 #     $statistics{'$lowerRightLat'}     = $lowerRightLat;
 #     $statistics{'$lonLatRatio'}       = $main::lonLatRatio;
 #     $statistics{'$targetLonLatRatio'} = $targetLonLatRatio;
-# 
+#
 #     #    say "lonLatRatio $lonLatRatio, targetLonLatRatio: $targetLonLatRatio, Difference: " . abs( $lonLatRatio - $targetLonLatRatio) . "$targetPdf";
-# 
+#
 #     if ( abs( $main::lonLatRatio - $targetLonLatRatio ) > .1 ) {
 #         say
 #           "Bad lonLatRatio $main::lonLatRatio, expected $targetLonLatRatio, Difference: "
 #           . abs( $main::lonLatRatio - $targetLonLatRatio );
-# 
+#
 #         if ($shouldSaveBadRatio) {
 #             $main::targetvrt = $main::targetVrtBadRatio;
-# 
+#
 #         }
 #         else {
 #             say "Not georeferencing $main::targetPdf";
 #             return;
 #         }
 #     }
-# 
+#
 #     if ($debug) {
 #         say "Target Longitude/Latitude ratio: " . $targetLonLatRatio;
 #         say "Output Longitude/Latitude Ratio: " . $main::lonLatRatio;
 #         say "Input PDF ratio: " . $main::pdfXYRatio;
 #         say "";
 #     }
-# 
+#
 #     my $gdal_translateCommand =
 #       "gdal_translate -q -of VRT -strict -a_srs \"+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs\" -co worldfile=yes  -a_ullr $upperLeftLon $upperLeftLat $lowerRightLon $lowerRightLat '$main::targetpng'  '$main::targetvrt' ";
-# 
+#
 #     if ($debug) {
 #         say $gdal_translateCommand;
 #         say "";
 #     }
-# 
+#
 #     #Run gdal_translate
 #     #Really we're just doing this for the worldfile.  I bet we could create it ourselves quicker
 #     my $gdal_translateoutput = qx($gdal_translateCommand);
-# 
+#
 #     # $gdal_translateoutput =
 #     # qx(gdal_translate  -strict -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetpng $targetvrt);
 #     my $retval = $? >> 8;
-# 
+#
 #     if ( $retval != 0 ) {
 #         croak
 #           "Error executing gdal_translate.  Is it installed? Return code was $retval";
 #     }
 #     say $gdal_translateoutput if $debug;
-# 
+#
 #     # my $gdalwarpoutput;
 #     # $gdalwarpoutput =
 #     # qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
 #     # $retval = $? >> 8;
 #     # die "No output from gdalwarp.  Is it installed? Return code was $retval"
 #     # if ( $gdalwarpoutput eq "" || $retval != 0 );
-# 
+#
 #     # #command line paramets to consider adding: "-r lanczos", "-order 1", "-overwrite"
 #     # # -refine_gcps tolerance minimum_gcps:
 #     # # (GDAL >= 1.9.0) refines the GCPs by automatically eliminating outliers. Outliers will be
@@ -1247,9 +1253,9 @@ sub convertPdfToPng {
 #     # # only works with polynomial interpolation. The tolerance is in pixel units if no
 #     # # projection is available, otherwise it is in SRS units. If minimum_gcps is not provided,
 #     # # the minimum GCPs according to the polynomial model is used.
-# 
+#
 #     # say $gdalwarpoutput;
-# 
+#
 #     #This version tries using the PDF directly instead of the intermediate PNG
 #     # say $gcpstring;
 #     # $output = qx(gdal_translate -a_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" $gcpstring -of VRT $targetPdf $targetPdf.vrt);
@@ -1260,37 +1266,37 @@ sub convertPdfToPng {
 # }
 
 # sub calculateSmoothedRealWorldExtentsOfRaster {
-# 
+#
 #     #X-scale average and standard deviation
 #     #calculateXScale();
 #     say "X-Scale" if $debug;
 #     ( $main::xAvg, $main::xMedian, $main::xStdDev ) =
 #       calculateSmootherValuesOfArray( \@main::xScaleAvg );
-# 
+#
 #     #Y-scale average and standard deviation
 #     # calculateYScale();
 #     say "Y-Scale" if $debug;
 #     ( $main::yAvg, $main::yMedian, $main::yStdDev ) =
 #       calculateSmootherValuesOfArray( \@main::yScaleAvg );
-# 
+#
 #     #ulX average and standard deviation
 #     # calculateULX();
 #     say "ULX" if $debug;
 #     ( $main::ulXAvrg, $main::ulXmedian, $main::ulXStdDev ) =
 #       calculateSmootherValuesOfArray( \@main::ulXAvg );
-# 
+#
 #     #uly average and standard deviation
 #     # calculateULY();
 #     say "ULY" if $debug;
 #     ( $main::ulYAvrg, $main::ulYmedian, $main::ulYStdDev ) =
 #       calculateSmootherValuesOfArray( \@main::ulYAvg );
-# 
+#
 #     #lrX average and standard deviation
 #     # calculateLRX();
 #     say "LRX" if $debug;
 #     ( $main::lrXAvrg, $main::lrXmedian, $main::lrXStdDev ) =
 #       calculateSmootherValuesOfArray( \@main::lrXAvg );
-# 
+#
 #     #lrY average and standard deviation
 #     # calculateLRY();
 #     say "LRY" if $debug;
@@ -1300,7 +1306,7 @@ sub convertPdfToPng {
 # }
 
 # sub writeStatistics {
-# 
+#
 #     #Update the georef table
 #     my $update_dtpp_geo_record =
 #         "UPDATE dtppGeo " . "SET "
@@ -1337,9 +1343,9 @@ sub convertPdfToPng {
 #       . "status = ?"
 #       . "WHERE "
 #       . "PDF_NAME = ?";
-# 
+#
 #     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
-# 
+#
 #     $dtppSth->bind_param( 1,  $statistics{'$airportLatitude'} );
 #     $dtppSth->bind_param( 2,  $statistics{'$horizontalAndVerticalLinesCount'} );
 #     $dtppSth->bind_param( 3,  $statistics{'$gcpCount'} );
@@ -1371,16 +1377,16 @@ sub convertPdfToPng {
 #     $dtppSth->bind_param( 29, $statistics{'$xPixelSkew'} );
 #     $dtppSth->bind_param( 30, $statistics{'$yPixelSkew'} );
 #     $dtppSth->bind_param( 31, $statistics{'$status'} );
-# 
+#
 #     #     $dtppSth->bind_param( 32, $PDF_NAME );
-# 
+#
 #     $dtppSth->execute();
-# 
+#
 #     # open my $file, '>>', $main::targetStatistics
 #     # or croak "can't open '$main::targetStatistics' for writing : $!";
-# 
+#
 #     # my $_header = join ",", sort keys %statistics;
-# 
+#
 #     # # my $_data   = join ",", sort values %statistics;
 #     # #A basic routine for outputting CSV for our statistics hash
 #     # my $_data =
@@ -1389,7 +1395,7 @@ sub convertPdfToPng {
 #     # or croak "Cannot write to $main::targetStatistics: ";
 #     # say {$file} "$_data"
 #     # or croak "Cannot write to $main::targetStatistics: ";
-# 
+#
 #     # close $file;
 #     return;
 # }
@@ -1474,9 +1480,8 @@ sub findFixesNearAirport2 {
     #Validate and set input parameters to this function
     my ( $airportLongitude, $airportLatitude ) =
       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
-    
+
     my %fixes_from_db;
-    
 
     #Query the database for fixes in IAP
     my $sth = $cifpDbh->prepare(
@@ -1500,22 +1505,23 @@ sub findFixesNearAirport2 {
 
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
-
-
     foreach my $_row (@$allSqlQueryResults) {
         my ( $fixname, $lat, $lon ) = @$_row;
 
-        my @A = NESW( coordinateToDecimalCifpFormat($lon),coordinateToDecimalCifpFormat($lat) );
+        my @A = NESW(
+            coordinateToDecimalCifpFormat($lon),
+            coordinateToDecimalCifpFormat($lat)
+        );
         my @B = NESW( $airportLongitude, $airportLatitude );
 
         # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
         my $km = great_circle_distance( @A, @B, 6378.137 );
         my $nm = great_circle_distance( @A, @B, 3443.89849 );
 
-        $fixes_from_db{$fixname}{"Name"}     = $fixname;
-        $fixes_from_db{$fixname}{"Lat"}      = coordinateToDecimalCifpFormat($lat);
-        $fixes_from_db{$fixname}{"Lon"}      = coordinateToDecimalCifpFormat($lon);
-        $fixes_from_db{$fixname}{"Type"}     = '$fixtype';
+        $fixes_from_db{$fixname}{"Name"} = $fixname;
+        $fixes_from_db{$fixname}{"Lat"}  = coordinateToDecimalCifpFormat($lat);
+        $fixes_from_db{$fixname}{"Lon"}  = coordinateToDecimalCifpFormat($lon);
+        $fixes_from_db{$fixname}{"Type"} = '$fixtype';
         $fixes_from_db{$fixname}{"Distance"} = $nm;
     }
 
@@ -1541,22 +1547,23 @@ sub findFixesNearAirport2 {
 
     $allSqlQueryResults = $sth->fetchall_arrayref();
 
-
-
     foreach my $_row (@$allSqlQueryResults) {
         my ( $fixname, $lat, $lon ) = @$_row;
 
-        my @A = NESW( coordinateToDecimalCifpFormat($lon),coordinateToDecimalCifpFormat($lat) );
+        my @A = NESW(
+            coordinateToDecimalCifpFormat($lon),
+            coordinateToDecimalCifpFormat($lat)
+        );
         my @B = NESW( $airportLongitude, $airportLatitude );
 
         # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
         my $km = great_circle_distance( @A, @B, 6378.137 );
         my $nm = great_circle_distance( @A, @B, 3443.89849 );
 
-        $fixes_from_db{$fixname}{"Name"}     = $fixname;
-        $fixes_from_db{$fixname}{"Lat"}      = coordinateToDecimalCifpFormat($lat);
-        $fixes_from_db{$fixname}{"Lon"}      = coordinateToDecimalCifpFormat($lon);
-        $fixes_from_db{$fixname}{"Type"}     = '$fixtype';
+        $fixes_from_db{$fixname}{"Name"} = $fixname;
+        $fixes_from_db{$fixname}{"Lat"}  = coordinateToDecimalCifpFormat($lat);
+        $fixes_from_db{$fixname}{"Lon"}  = coordinateToDecimalCifpFormat($lon);
+        $fixes_from_db{$fixname}{"Type"} = '$fixtype';
         $fixes_from_db{$fixname}{"Distance"} = $nm;
     }
     return ( \%fixes_from_db );
@@ -1762,9 +1769,10 @@ sub findNavaidsNearAirport {
 
     foreach my $_row (@$allSqlQueryResults) {
         my ( $navaidName, $lat, $lon, $navaidType ) = @$_row;
-	#Ignore VOTs
-	next if ($navaidType =~ /^VOT$/i);
-	
+
+        #Ignore VOTs
+        next if ( $navaidType =~ /^VOT$/i );
+
         my @A = NESW( $lon, $lat );
         my @B = NESW( $airportLongitude, $airportLatitude );
 
@@ -1835,8 +1843,6 @@ sub addCombinedHashToGroundControlPoints {
     }
     return;
 }
-
-
 
 # sub findAllTextboxes {
 #
@@ -1986,6 +1992,8 @@ sub chartsWithNoLonLat {
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
         DG.STATUS NOT LIKE '%MANUAL%'
+--              AND
+--        DG.STATUS NOT LIKE '%NOGEOREF%'
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'
 --          AND
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
@@ -2004,20 +2012,46 @@ sub chartsWithNoLonLat {
 sub allIapAndApdCharts {
 
     #Query the dtpp database for IAP and APD charts
-    my $dtppSth = $dtppDbh->prepare(
-        "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
-             FROM dtpp  
-             WHERE  
-                ( 
-                  CHART_CODE = 'IAP' 
-                    OR 
-                  CHART_CODE = 'APD' 
-                )                 
-                AND 
-                FAA_CODE LIKE  '$airportId' 
-                AND
-                STATE_ID LIKE  '$stateId'
-                "
+    my $dtppSth = $dtppDbh->prepare( "
+      SELECT 
+	D.PDF_NAME
+	,D.FAA_CODE
+	,D.CHART_NAME
+	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
+	,DG.upperLeftLon
+	,DG.upperLeftLat
+	,DG.lowerRightLon
+	,DG.lowerRightLat
+	,DG.xMedian
+	,DG.yMedian
+	,DG.xPixelSkew
+	,DG.yPixelSkew
+      FROM 
+	dtpp as D 
+      JOIN 
+	dtppGeo as DG 
+      ON 
+	D.PDF_NAME=DG.PDF_NAME
+      WHERE  
+        ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )                 
+--           AND 
+--        FAA_CODE LIKE  '$airportId' 
+--           AND
+--        STATE_ID LIKE  '$stateId'                   
+          AND
+        DG.PDF_NAME NOT LIKE '%DELETED%'
+          AND
+        DG.STATUS NOT LIKE '%MANUAL%'
+ --         AND
+   --     DG.STATUS NOT LIKE '%NOGEOREF%'
+--        CAST (DG.upperLeftLon AS FLOAT) = '0'
+--          AND
+--        CAST (DG.xScaleAvgSize as FLOAT) > 1
+--          AND
+--        Difference  > .08
+--      ORDER BY 
+--        Difference ASC
+;"
     );
 
     $dtppSth->execute();
@@ -2059,17 +2093,19 @@ sub chartsMarkedBad {
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
         DG.STATUS LIKE '%BAD%'
-        --Civilian charts only for now
+        -- AND
+        -- DG.STATUS NOT LIKE '%NOGEOREF%'
+        -- Civilian charts only for now
          AND
-        D.MILITARY_USE != 'M'
+         D.MILITARY_USE != 'M'
 --          AND
 --        CAST (DG.yScaleAvgSize AS FLOAT) > 1
 --          AND
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
 --          AND
 --        Difference  > .08
-      ORDER BY
-        Difference ASC
+      --ORDER BY
+      --  Difference ASC
 ;"
     );
     $dtppSth->execute();
@@ -2136,48 +2172,49 @@ sub wgs84ToPixelBuf {
     my $scrollWindowWidth = $main::plateSw->get_allocation()->{width};
 
     #The scaling and rotation is set when the transform is created
-if ($main::invertedAffineTransform) {
-    my ( $_xPixel, $_yPixel ) =
-      $main::invertedAffineTransform->transform( $_longitude, $_latitude );
+    if ($main::invertedAffineTransform) {
+        my ( $_xPixel, $_yPixel ) =
+          $main::invertedAffineTransform->transform( $_longitude, $_latitude );
 
-    #     #calculate degrees of latitude per pixel
-    #     my $pixelSizeY =
-    #       abs( $main::upperLeftLat - $main::lowerRightLat ) / $scaledImageHeight;
-    #     my $_yPixel = abs( ( $main::upperLeftLat - $_latitude ) / $pixelSizeY );
+        #     #calculate degrees of latitude per pixel
+        #     my $pixelSizeY =
+        #       abs( $main::upperLeftLat - $main::lowerRightLat ) / $scaledImageHeight;
+        #     my $_yPixel = abs( ( $main::upperLeftLat - $_latitude ) / $pixelSizeY );
 
-    #BUG TODO, why doesn't $_yPixel have right sign after transform?
-    # if ($_yPixel < 0)
-    # { $_yPixel = -($_yPixel);}
-    #Clamp to height
-    if ( $_yPixel < 0 || $_yPixel > $scaledImageHeight ) {
-#         $_yPixel = $scaledImageHeight;
-#          $_yPixel = ($scaledImageHeight + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
-	 $_yPixel = 0;
-    }
-    else {
-        $_yPixel =
-          ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
-    }
+        #BUG TODO, why doesn't $_yPixel have right sign after transform?
+        # if ($_yPixel < 0)
+        # { $_yPixel = -($_yPixel);}
+        #Clamp to height
+        if ( $_yPixel < 0 || $_yPixel > $scaledImageHeight ) {
 
-    #     #calculate degrees of longitude per pixel
-    #     my $pixelSizeX =
-    #       abs( $main::upperLeftLon - $main::lowerRightLon ) / $scaledImageWidth;
-    #     my $_xPixel = abs( $main::upperLeftLon - $_longitude ) / $pixelSizeX;
-    #Clamp to width
-    if (  $_xPixel < 0 || $_xPixel > $scaledImageWidth ) {
-#         $_xPixel = ($scaledImageWidth + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
-	  $_xPixel = 0;
+            #         $_yPixel = $scaledImageHeight;
+            #          $_yPixel = ($scaledImageHeight + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
+            $_yPixel = 0;
+        }
+        else {
+            $_yPixel =
+              ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
+        }
+
+        #     #calculate degrees of longitude per pixel
+        #     my $pixelSizeX =
+        #       abs( $main::upperLeftLon - $main::lowerRightLon ) / $scaledImageWidth;
+        #     my $_xPixel = abs( $main::upperLeftLon - $_longitude ) / $pixelSizeX;
+        #Clamp to width
+        if ( $_xPixel < 0 || $_xPixel > $scaledImageWidth ) {
+
+            #         $_xPixel = ($scaledImageWidth + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+            $_xPixel = 0;
+        }
+        else {
+            $_xPixel =
+              ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+        }
+        return ( $_xPixel, $_yPixel );
     }
-    else {
-        $_xPixel =
-          ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
-    }
-     return ( $_xPixel, $_yPixel ) ;
-}
-else {return (0,0)}
+    else { return ( 0, 0 ) }
     #
-#     say "Longitude: $_longitude -> $_xPixel, Latitude: $_latitude -> $_yPixel";
-  
+    #     say "Longitude: $_longitude -> $_xPixel, Latitude: $_latitude -> $_yPixel";
 
 }
 
@@ -2245,36 +2282,40 @@ else {return (0,0)}
 
 sub toggleDrawingFixes {
     $main::shouldDrawFixes = !$main::shouldDrawFixes;
-#     gtk_widget_draw($main::plateSw, NULL);
-#     $main::plateSw->draw(NULL);
-    $main::plateSw->queue_draw;   
+
+    #     gtk_widget_draw($main::plateSw, NULL);
+    #     $main::plateSw->draw(NULL);
+    $main::plateSw->queue_draw;
 }
 
 sub toggleDrawingNavaids {
     $main::shouldDrawNavaids = !$main::shouldDrawNavaids;
-   $main::plateSw->queue_draw;   
+    $main::plateSw->queue_draw;
 }
 
 sub toggleDrawingRunways {
     $main::shouldDrawRunways = !$main::shouldDrawRunways;
-   $main::plateSw->queue_draw;   
+    $main::plateSw->queue_draw;
 }
+
 sub toggleDrawingGCPs {
     $main::shouldDrawGcps = !$main::shouldDrawGcps;
-   $main::plateSw->queue_draw;   
+    $main::plateSw->queue_draw;
 }
+
 sub toggleDrawingObstacles {
     $main::shouldDrawObstacles = !$main::shouldDrawObstacles;
-   $main::plateSw->queue_draw;   
+    $main::plateSw->queue_draw;
 }
+
 sub cairo_draw {
     my ( $widget, $context, $ref_status ) = @_;
 
-    my $runwayHashRef  = $main::runwaysFromDatabaseHashref;
-    my $navaidsHashRef = $main::navaids_from_db_hashref;
-    my $fixHashRef     = $main::fixes_from_db_hashref;
-    my $gcpHashRef     = $main::gcp_from_db_hashref;
-    my $obstaclesHashRef     = $main::unique_obstacles_from_db_hashref;
+    my $runwayHashRef    = $main::runwaysFromDatabaseHashref;
+    my $navaidsHashRef   = $main::navaids_from_db_hashref;
+    my $fixHashRef       = $main::fixes_from_db_hashref;
+    my $gcpHashRef       = $main::gcp_from_db_hashref;
+    my $obstaclesHashRef = $main::unique_obstacles_from_db_hashref;
 
     #Draw fixes
     if ($shouldDrawFixes) {
@@ -2300,13 +2341,13 @@ sub cairo_draw {
                 $context->set_source_rgba( 0, 0, 255, 0.2 );
                 $context->fill;
 
-#                             # Text
-#                             $context->set_source_rgba( 255, 0, 255, 255 );
-#                             $context->select_font_face( "Sans", "normal", "normal" );
-#                             $context->set_font_size(9);
-#                             $context->move_to( $x1+5, $y1 );
-#                             $context->show_text("$text");
-#                             $context->stroke;
+                #                             # Text
+                #                             $context->set_source_rgba( 255, 0, 255, 255 );
+                #                             $context->select_font_face( "Sans", "normal", "normal" );
+                #                             $context->set_font_size(9);
+                #                             $context->move_to( $x1+5, $y1 );
+                #                             $context->show_text("$text");
+                #                             $context->stroke;
             }
         }
     }
@@ -2337,7 +2378,7 @@ sub cairo_draw {
                 $context->set_source_rgba( 255, 0, 255, 128 );
                 $context->select_font_face( "Sans", "normal", "normal" );
                 $context->set_font_size(10);
-                $context->move_to( $x1+5, $y1 );
+                $context->move_to( $x1 + 5, $y1 );
                 $context->show_text("$text");
                 $context->stroke;
             }
@@ -2381,7 +2422,7 @@ sub cairo_draw {
             # 		  say "$x1, $y1, $x2, $y2";
 
             # Line
-            if ( $x1 && $y1 && $x2 && $y2  ) {
+            if ( $x1 && $y1 && $x2 && $y2 ) {
                 $context->set_source_rgba( 255, 0, 0, 128 );
                 $context->set_line_width(2);
                 $context->move_to( $x1, $y1 );
@@ -2391,8 +2432,9 @@ sub cairo_draw {
 
         }
     }
+
     #Draw GCPs
-    if ($shouldDrawGcps && $gcpHashRef) {
+    if ( $shouldDrawGcps && $gcpHashRef ) {
         foreach my $key ( sort keys $gcpHashRef ) {
 
             my $lat  = $gcpHashRef->{$key}{"lat"};
@@ -2413,20 +2455,22 @@ sub cairo_draw {
                 $context->set_source_rgba( 0, 255, 0, 128 );
                 $context->fill;
 
-#                 # Text
-#                 $context->set_source_rgba( 255, 0, 255, 128 );
-#                 $context->select_font_face( "Sans", "normal", "normal" );
-#                 $context->set_font_size(10);
-#                 $context->move_to( $x1+5, $y1 );
-#                 $context->show_text("$text");
-#                 $context->stroke;
+                #                 # Text
+                #                 $context->set_source_rgba( 255, 0, 255, 128 );
+                #                 $context->select_font_face( "Sans", "normal", "normal" );
+                #                 $context->set_font_size(10);
+                #                 $context->move_to( $x1+5, $y1 );
+                #                 $context->show_text("$text");
+                #                 $context->stroke;
             }
         }
     }
+
     #Draw GCPs
     if ($shouldDrawObstacles) {
         foreach my $key ( sort keys $obstaclesHashRef ) {
-# print Dumper $obstaclesHashRef;
+
+            # print Dumper $obstaclesHashRef;
             my $lat  = $obstaclesHashRef->{$key}{"Lat"};
             my $lon  = $obstaclesHashRef->{$key}{"Lon"};
             my $text = $obstaclesHashRef->{$key}{"Name"};
@@ -2445,21 +2489,22 @@ sub cairo_draw {
                 $context->set_source_rgba( 0, 255, 255, 128 );
                 $context->fill;
 
-#                 # Text
-#                 $context->set_source_rgba( 255, 0, 255, 128 );
-#                 $context->select_font_face( "Sans", "normal", "normal" );
-#                 $context->set_font_size(10);
-#                 $context->move_to( $x1+5, $y1 );
-#                 $context->show_text("$text");
-#                 $context->stroke;
+                #                 # Text
+                #                 $context->set_source_rgba( 255, 0, 255, 128 );
+                #                 $context->select_font_face( "Sans", "normal", "normal" );
+                #                 $context->set_font_size(10);
+                #                 $context->move_to( $x1+5, $y1 );
+                #                 $context->show_text("$text");
+                #                 $context->stroke;
             }
         }
     }
+
     # Text
     $context->set_source_rgba( 0.0, 0.9, 0.9, 0.7 );
     $context->select_font_face( "Sans", "normal", "normal" );
     $context->set_font_size(15);
-    $context->move_to( 0, 0 );
+    $context->move_to( 50, 25 );
     $context->show_text("$main::targetPng");
     $context->stroke;
 
@@ -2512,7 +2557,7 @@ sub plateBox_click {
 
     $main::currentGcpPngX = $x * $horizontalScaleFactor;
     $main::currentGcpPngY = $y * $verticalScaleFactor;
-    
+
     say "Scaled X:$x Y:$y"
       . " Original X:"
       . $x * $horizontalScaleFactor . "Y:"
@@ -2537,8 +2582,7 @@ sub nextZeroButtonClick {
     #
     my $totalPlateCount = scalar @{$_plateWithNoLonLat};
 
-    
-    if ( $indexIntoPlatesWithNoLonLat < $totalPlateCount ) {
+    if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
         $indexIntoPlatesWithNoLonLat++;
     }
 
@@ -2551,7 +2595,6 @@ sub nextZeroButtonClick {
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
-  
     #     say @$_plateWithNoLonLat;
 
     return TRUE;
@@ -2575,18 +2618,17 @@ sub previousZeroButtonClick {
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
     my $totalPlateCount = scalar @{$_plateWithNoLonLat};
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
- 
- if ( $indexIntoPlatesWithNoLonLat > 0 ) {
+
+    if ( $indexIntoPlatesWithNoLonLat > 0 ) {
         $indexIntoPlatesWithNoLonLat--;
     }
-    
+
     #Info about current plate
     my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
-  
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
     #     say @$_plateWithNoLonLat;
@@ -2615,7 +2657,7 @@ sub nextBadButtonClick {
     activateNewPlate($rowRef);
 
     #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedBad < $totalPlateCount ) {
+    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
         $indexIntoPlatesMarkedBad++;
     }
 
@@ -2679,7 +2721,7 @@ sub nextChangedButtonClick {
     activateNewPlate($rowRef);
 
     #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedChanged < $totalPlateCount ) {
+    if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
         $indexIntoPlatesMarkedChanged++;
     }
 
@@ -2754,32 +2796,41 @@ sub addGcpButtonClick {
 sub deleteGcpsButtonClick {
     my ( $widget, $event ) = @_;
 
-#     say "Name: $main::currentGcpName";
-#     say "Longitude: $main::currentGcpLon";
-#     say "Latitude: $main::currentGcpLat";
-#     say "PngX: $main::currentGcpPngX";
-#     say "PngY: $main::currentGcpPngY";
-# 
+    #     say "Name: $main::currentGcpName";
+    #     say "Longitude: $main::currentGcpLon";
+    #     say "Latitude: $main::currentGcpLat";
+    #     say "PngX: $main::currentGcpPngX";
+    #     say "PngY: $main::currentGcpPngY";
+    #
     my $lstore = $main::gcpModel;
     $lstore->clear;
-# 
-#     my $iter = $lstore->append();
-# 
-#     #         say $hashRef->{$item}{Name};
-#     #         say $hashRef->{$item}{Type};
-#     #         get length of key
-#     #         split in two
-#     # say length $item;
-# 
-#     $lstore->set(
-#         $iter,                 0, $main::currentGcpName, 1,
-#         $main::currentGcpLon,  2, $main::currentGcpLat,  3,
-#         "0",                   4, "0",                   5,
-#         $main::currentGcpPngX, 6, $main::currentGcpPngY
-#     );
+
+    #
+    #     my $iter = $lstore->append();
+    #
+    #     #         say $hashRef->{$item}{Name};
+    #     #         say $hashRef->{$item}{Type};
+    #     #         get length of key
+    #     #         split in two
+    #     # say length $item;
+    #
+    #     $lstore->set(
+    #         $iter,                 0, $main::currentGcpName, 1,
+    #         $main::currentGcpLon,  2, $main::currentGcpLat,  3,
+    #         "0",                   4, "0",                   5,
+    #         $main::currentGcpPngX, 6, $main::currentGcpPngY
+    #     );
 
     return TRUE;
 }
+
+sub markNotReferenceableButtonClick {
+    my ( $widget, $event ) = @_;
+    updateStatus( "NOGEOREF", $main::PDF_NAME );
+
+    return TRUE;
+}
+
 sub activateNewPlate {
 
     #Stuff we want to update every time we go to a new plate
@@ -2851,17 +2902,20 @@ sub activateNewPlate {
     my $runwayTreeview = Gtk3::TreeView->new($runwayModel);
     $runwayTreeview->set_rules_hint(TRUE);
     $runwayTreeview->set_search_column(0);
-    $runwayTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
+
+    #     $runwayTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
 
     $runwayTreeview->get_selection->signal_connect(
         changed => sub {
             my ($selection) = @_;
             my ( $model, $iter ) = $selection->get_selected;
-            $main::currentGcpName = $model->get_value( $iter, 0 );
-            $main::currentGcpLon  = $model->get_value( $iter, 1 );
-            $main::currentGcpLat  = $model->get_value( $iter, 2 );
-            if ($iter) {
 
+            #             say $main::currentGcpName;
+            #             say $iter;
+            if ($iter) {
+                $main::currentGcpName = $model->get_value( $iter, 0 );
+                $main::currentGcpLon  = $model->get_value( $iter, 1 );
+                $main::currentGcpLat  = $model->get_value( $iter, 2 );
                 $selection->get_tree_view->scroll_to_cell(
                     $model->get_path($iter),
                     undef, FALSE, 0.0, 0.0 );
@@ -2906,11 +2960,11 @@ sub activateNewPlate {
         changed => sub {
             my ($selection) = @_;
             my ( $model, $iter ) = $selection->get_selected;
-            $main::currentGcpName = $model->get_value( $iter, 0 );
-            $main::currentGcpLon  = $model->get_value( $iter, 2 );
-            $main::currentGcpLat  = $model->get_value( $iter, 3 );
-            if ($iter) {
 
+            if ($iter) {
+                $main::currentGcpName = $model->get_value( $iter, 0 );
+                $main::currentGcpLon  = $model->get_value( $iter, 2 );
+                $main::currentGcpLat  = $model->get_value( $iter, 3 );
                 $selection->get_tree_view->scroll_to_cell(
                     $model->get_path($iter),
                     undef, FALSE, 0.0, 0.0 );
@@ -2956,14 +3010,19 @@ sub activateNewPlate {
     $fixesTreeview->get_selection->signal_connect(
         changed => sub {
             my ($selection) = @_;
+
             my ( $model, $iter ) = $selection->get_selected;
+
             if ($iter) {
                 $main::currentGcpName = $model->get_value( $iter, 0 );
                 $main::currentGcpLon  = $model->get_value( $iter, 2 );
                 $main::currentGcpLat  = $model->get_value( $iter, 3 );
+
+                #                 say $main::currentGcpName;
+                #                 say \$iter;
                 $selection->get_tree_view->scroll_to_cell(
                     $model->get_path($iter),
-                    undef, TRUE, 0.5, 0.5 );
+                    undef, FALSE, 0.5, 0.5 );
 
                 #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
 
@@ -3046,46 +3105,46 @@ sub activateNewPlate {
         say "Loading existing hash table $storedGcpHash";
         $gcp_from_db_hashref = retrieve($storedGcpHash);
 
-#         print Dumper($gcp_from_db_hashref);
+        #         print Dumper($gcp_from_db_hashref);
 
     }
-    else { 
-    say "No stored GCP hash, creating an empty one";
-    my %gcpHash;
-    $gcp_from_db_hashref = \%gcpHash;
+    else {
+        say "No stored GCP hash, creating an empty one";
+        my %gcpHash;
+        $gcp_from_db_hashref = \%gcpHash;
     }
 
-        #           'fix-COATT-0.335522331285691' => {
-        #                                              'lat' => '37.9582805555556',
-        #                                              'lon' => '-77.5768027777778',
-        #                                              'pdfx' => '135.945',
-        #                                              'pdfy' => '467.38',
-        #                                              'pngx' => '566.613139534884',
-        #                                              'pngy' => '527.583333333333'
-        #                                            },
+    #           'fix-COATT-0.335522331285691' => {
+    #                                              'lat' => '37.9582805555556',
+    #                                              'lon' => '-77.5768027777778',
+    #                                              'pdfx' => '135.945',
+    #                                              'pdfy' => '467.38',
+    #                                              'pngx' => '566.613139534884',
+    #                                              'pngy' => '527.583333333333'
+    #                                            },
 
-        #Testing adding liststore programmmatically to partially glade-built interface
-        # Create TreeModel
-        our $gcpModel = create_model_gcp($gcp_from_db_hashref);
+    #Testing adding liststore programmmatically to partially glade-built interface
+    # Create TreeModel
+    our $gcpModel = create_model_gcp($gcp_from_db_hashref);
 
-        #Create a TreeView
-        my $gcpTreeview = Gtk3::TreeView->new($gcpModel);
-        $gcpTreeview->set_rules_hint(TRUE);
-        $gcpTreeview->set_search_column(0);
+    #Create a TreeView
+    my $gcpTreeview = Gtk3::TreeView->new($gcpModel);
+    $gcpTreeview->set_rules_hint(TRUE);
+    $gcpTreeview->set_search_column(0);
 
-        #     $fixesTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
+    #     $fixesTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
 
-        #Delete all existing children for the tab box
-        foreach my $child ( $main::gcpBox->get_children ) {
-            $main::gcpBox->remove($child);    # remove all the children
-        }
+    #Delete all existing children for the tab box
+    foreach my $child ( $main::gcpBox->get_children ) {
+        $main::gcpBox->remove($child);    # remove all the children
+    }
 
-        $main::gcpBox->add($gcpTreeview);
+    $main::gcpBox->add($gcpTreeview);
 
-        # Add columns to TreeView
-        add_columns_gcp($gcpTreeview);
-        $main::gcpBox->show_all();
-        
+    # Add columns to TreeView
+    add_columns_gcp($gcpTreeview);
+    $main::gcpBox->show_all();
+
     #--------------------------------------------------------------------------
     #Commenting this out since military plates dont have text anyhow
 
@@ -3131,19 +3190,25 @@ sub activateNewPlate {
     #       say "$originalImageHeight -> $scaledImageHeight";
 
     #     $xMed = $xMed * ($scaledImageWidth / $originalImageWidth);
-    $xMed = $xMed * $horizontalScaleFactor;
-$xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
+    $xMed       = $xMed * $horizontalScaleFactor;
+    $xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
+
     #     say $xMed;
     #     $yMed = $yMed * ($scaledImageHeight / $originalImageHeight);
-    $yMed = $yMed * $verticalScaleFactor;
-$yPixelSkew = $yPixelSkew * $verticalScaleFactor;
+    $yMed       = $yMed * $verticalScaleFactor;
+    $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
+
     #     say "------";
     say
       " $xMed, $xPixelSkew, $yPixelSkew,  $yMed, $upperLeftLon, $upperLeftLat";
 
     #Set up the affine transformations
     #y sizes have to be negative
-    if ( $yMed > 0 ) { $yMed = -($yMed); }
+    if ( $yMed > 0 ) {
+        say "Converting $yMed to negative";
+        $yMed = -($yMed);
+    }
+
     our ( $AffineTransform, $invertedAffineTransform );
 
     #Make our basic parameters are defined before trying to create the transforms
@@ -3158,6 +3223,10 @@ $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
         );
         $invertedAffineTransform = $AffineTransform->clone()->invert();
     }
+    else {
+        $AffineTransform         = undef;
+        $invertedAffineTransform = undef;
+    }
 
     #     say "Affine";
     #     my ( $x, $y ) = $AffineTransform->transform( 0, 0 );
@@ -3171,19 +3240,19 @@ $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
     #Connect this signal to draw features over the plate
     $main::plate->signal_connect_after( draw => \&cairo_draw );
 
-    if ( $upperLeftLon && $upperLeftLat && $lowerRightLon && $lowerRightLat ) {
-        say
-          "$upperLeftLon && $upperLeftLat && $lowerRightLon && $lowerRightLat";
-
-        #         drawFeaturesOnPlate();
-        #
-        #         my ( $pixmap, $mask ) = $main::pixbuf->render_pixmap_and_mask();
-        #         my $cm  = $pixmap->get_colormap();
-        #         my $red = $cm->alloc_color('red');
-        #         my $gc  = $pixmap->new_gc( $red );
-        #         $pixmap->draw_rectangle( $gc, "False", 0, 0, 400, 100 );
-        #         $main::plate->set_from_pixmap( $pixmap, $mask );
-    }
+    #     if ( $upperLeftLon && $upperLeftLat && $lowerRightLon && $lowerRightLat ) {
+    #         say
+    #           "$upperLeftLon && $upperLeftLat && $lowerRightLon && $lowerRightLat";
+    #
+    #         #         drawFeaturesOnPlate();
+    #         #
+    #         #         my ( $pixmap, $mask ) = $main::pixbuf->render_pixmap_and_mask();
+    #         #         my $cm  = $pixmap->get_colormap();
+    #         #         my $red = $cm->alloc_color('red');
+    #         #         my $gc  = $pixmap->new_gc( $red );
+    #         #         $pixmap->draw_rectangle( $gc, "False", 0, 0, 400, 100 );
+    #         #         $main::plate->set_from_pixmap( $pixmap, $mask );
+    #     }
     return;
 }
 
@@ -3338,18 +3407,18 @@ sub create_model {
     );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( keys $hashRef ) {
+    for my $item ( sort keys $hashRef ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
         #         say $hashRef->{$item}{Type};
         $lstore->set(
-            $iter,                   
-            COLUMN_NAME,            $hashRef->{$item}{Name}, 
-            COLUMN_TYPE,            $hashRef->{$item}{Type}, 
-            COLUMN_LONGITUDE,            $hashRef->{$item}{Lon},  
-            COLUMN_LATITUDE,            $hashRef->{$item}{Lat},  
-            COLUMN_DISTANCE,            $hashRef->{$item}{Distance}
+            $iter,                   COLUMN_NAME,
+            $hashRef->{$item}{Name}, COLUMN_TYPE,
+            $hashRef->{$item}{Type}, COLUMN_LONGITUDE,
+            $hashRef->{$item}{Lon},  COLUMN_LATITUDE,
+            $hashRef->{$item}{Lat},  COLUMN_DISTANCE,
+            $hashRef->{$item}{Distance}
         );
     }
     return $lstore;
@@ -3442,7 +3511,7 @@ sub create_model_obstacles {
       Gtk3::ListStore->new( 'Glib::Int', 'Glib::Double', 'Glib::Double' );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( keys $hashRef ) {
+    for my $item ( sort keys $hashRef ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -3539,7 +3608,7 @@ sub create_model_gcp {
     );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( keys $hashRef ) {
+    for my $item ( sort keys $hashRef ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -3563,68 +3632,68 @@ sub listStoreRowClicked {
 }
 
 sub georeferenceButtonClicked {
-  #Convert our liststore of GCPs to a hash
-  gcpListstoreToHash();
-  
-#     #----------------------------------------------------------------------------------------------------------------------------------------------------
-#     #Now some math
-#     our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
-# 
-#     our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
-#     our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
-#     our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
-#     our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
-#     our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
-#     our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
-#     our ($lonLatRatio) = 0;
-# 
-#     calculateRoughRealWorldExtentsOfRaster($main::gcp_from_db_hashref);
-# 
-#     #
-# 
-#     #
-#     #         #Smooth out the X and Y scales we previously calculated
-#     calculateSmoothedRealWorldExtentsOfRaster();
-#     #
-#     #         #Actually produce the georeferencing data via GDAL
-#     georeferenceTheRaster();
-#     #
-#     #         #Count of entries in this array
-#     #         my $xScaleAvgSize = 0 + @xScaleAvg;
-#     #
-#     #         #Count of entries in this array
-#     #         my $yScaleAvgSize = 0 + @yScaleAvg;
-#     #
-#     #         say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize";
-#     #
-#     #         #Save statistics
-#     #         $statistics{'$xAvg'}          = $xAvg;
-#     #         $statistics{'$xMedian'}       = $xMedian;
-#     #         $statistics{'$xScaleAvgSize'} = $xScaleAvgSize;
-#     #         $statistics{'$yAvg'}          = $yAvg;
-#     #         $statistics{'$yMedian'}       = $yMedian;
-#     #         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
-#     #         $statistics{'$lonLatRatio'}   = $lonLatRatio;
-#     #
+
+    #Convert our liststore of GCPs to a hash
+    gcpListstoreToHash();
+
+    #update the affine transform with new parameters
+
+    #redraw the plate
+    $main::plateSw->queue_draw;
+
+    #     #----------------------------------------------------------------------------------------------------------------------------------------------------
+    #     #Now some math
+    #     our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
+    #
+    #     our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
+    #     our ( $yAvg,    $yMedian,   $yStdDev )   = 0;
+    #     our ( $ulXAvrg, $ulXmedian, $ulXStdDev ) = 0;
+    #     our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
+    #     our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
+    #     our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
+    #     our ($lonLatRatio) = 0;
+    #
+    #     calculateRoughRealWorldExtentsOfRaster($main::gcp_from_db_hashref);
+    #
+    #     #
+    #
+    #     #
+    #     #         #Smooth out the X and Y scales we previously calculated
+    #     calculateSmoothedRealWorldExtentsOfRaster();
+    #     #
+    #     #         #Actually produce the georeferencing data via GDAL
+    #     georeferenceTheRaster();
+    #     #
+    #     #         #Count of entries in this array
+    #     #         my $xScaleAvgSize = 0 + @xScaleAvg;
+    #     #
+    #     #         #Count of entries in this array
+    #     #         my $yScaleAvgSize = 0 + @yScaleAvg;
+    #     #
+    #     #         say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize";
+    #     #
+    #     #         #Save statistics
+    #     #         $statistics{'$xAvg'}          = $xAvg;
+    #     #         $statistics{'$xMedian'}       = $xMedian;
+    #     #         $statistics{'$xScaleAvgSize'} = $xScaleAvgSize;
+    #     #         $statistics{'$yAvg'}          = $yAvg;
+    #     #         $statistics{'$yMedian'}       = $yMedian;
+    #     #         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
+    #     #         $statistics{'$lonLatRatio'}   = $lonLatRatio;
+    #     #
 
 }
+
 sub updateStatus {
-  my ($_status, $_PDF_NAME) = validate_pos(
-        @_,
-        { type => SCALAR },
-        { type => SCALAR },
-        );
+    my ( $_status, $_PDF_NAME ) =
+      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+
     #Update the georef table
     my $update_dtpp_geo_record =
-        "UPDATE dtppGeo " 
-      . "SET "
-      . "status = ? "
-      . "WHERE "
-      . "PDF_NAME = ?";
+      "UPDATE dtppGeo " . "SET " . "status = ? " . "WHERE " . "PDF_NAME = ?";
 
     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
-   
     $dtppSth->bind_param( 1, $_status );
     $dtppSth->bind_param( 2, $_PDF_NAME );
 
@@ -3649,6 +3718,7 @@ sub updateStatus {
     # close $file;
     return;
 }
+
 sub markGoodButtonClick {
     my ( $widget, $event ) = @_;
 
@@ -3665,40 +3735,55 @@ sub markGoodButtonClick {
     #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
-    updateStatus ("MANUALGOOD", $main::PDF_NAME);
-#     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+    updateStatus( "MANUALGOOD", $main::PDF_NAME );
+
+    #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+    #
+    #     #Update information for the plate we're getting ready to display
+    #     activateNewPlate($rowRef);
+    #
+    #     if ( $indexIntoPlatesMarkedChanged > 0 ) {
+    #         $indexIntoPlatesMarkedChanged--;
+    #     }
+    #     say $indexIntoPlatesMarkedChanged;
+    #
+    #     #     say @$_plateWithNoLonLat;
+    
+#     #Use this section to skip to next "good" plate
+#     my $totalPlateCount = scalar @{$_plateWithNoLonLat};
 # 
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
+#     #BUG TODO Make length of array
+#     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+#         $indexIntoPlatesWithNoLonLat++;
+# 	}
 # 
-#     if ( $indexIntoPlatesMarkedChanged > 0 ) {
-#         $indexIntoPlatesMarkedChanged--;
-#     }
-#     say $indexIntoPlatesMarkedChanged;
+#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 # 
-#     #     say @$_plateWithNoLonLat;
-    my $totalPlateCount = scalar @{$_plateWithNoLonLat};
+#     #Get info about the airport we're currently pointing to
+#     my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+
+    #--------------------------------------
+ 
+    #Use this section to skip to next "bad" plate
+    my $totalPlateCount = scalar @{$_platesMarkedBad};
 
     #BUG TODO Make length of array
-    if ( $indexIntoPlatesWithNoLonLat < $totalPlateCount ) {
-        $indexIntoPlatesWithNoLonLat++;
+    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+        $indexIntoPlatesMarkedBad++;
     }
-
-    say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+    #---------------------------------------
     
-    #Get info about the airport we're currently pointing to
-    my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
-
+    
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
-
-
     #     say @$_plateWithNoLonLat;
-
 
     return TRUE;
 }
+
 sub markBadButtonClick {
     my ( $widget, $event ) = @_;
 
@@ -3715,34 +3800,37 @@ sub markBadButtonClick {
     #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
-    updateStatus ("MANUALBAD", $main::PDF_NAME);
+
+    #Set status in the database
+    updateStatus( "MANUALBAD", $main::PDF_NAME );
+
     my $totalPlateCount = scalar @{$_plateWithNoLonLat};
 
     #BUG TODO Make length of array
-    if ( $indexIntoPlatesWithNoLonLat < $totalPlateCount ) {
+    if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
         $indexIntoPlatesWithNoLonLat++;
-        
+
     }
 
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    
+
     #Get info about the airport we're currently pointing to
     my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
-    
-#     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-# 
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-# 
-#     if ( $indexIntoPlatesMarkedChanged > 0 ) {
-#         $indexIntoPlatesMarkedChanged--;
-#     }
-#     say $indexIntoPlatesMarkedChanged;
-# 
-#     #     say @$_plateWithNoLonLat;
+
+    #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+    #
+    #     #Update information for the plate we're getting ready to display
+    #     activateNewPlate($rowRef);
+    #
+    #     if ( $indexIntoPlatesMarkedChanged > 0 ) {
+    #         $indexIntoPlatesMarkedChanged--;
+    #     }
+    #     say $indexIntoPlatesMarkedChanged;
+    #
+    #     #     say @$_plateWithNoLonLat;
 
     return TRUE;
 }
@@ -3750,11 +3838,8 @@ sub markBadButtonClick {
 sub coordinateToDecimalCifpFormat {
 
     #Convert a latitude or longitude in CIFP format to its decimal equivalent
-    my ($coordinate)= validate_pos(
-        @_,
-        { type => SCALAR },
-        );
-        
+    my ($coordinate) = validate_pos( @_, { type => SCALAR }, );
+
     my ( $deg, $min, $sec, $signedDegrees, $declination, $secPostDecimal );
     my $data;
 
@@ -3838,52 +3923,52 @@ sub coordinateToDecimalCifpFormat {
 }
 
 sub gcpListstoreToHash {
-  #create a new hash from the current GCP liststore
-  my $model = $main::gcpModel;
-  my %newGcpHash;
-  #   my $iter = $lstore->append();
-  $model->foreach(\&gcpTest, \%newGcpHash);
-  print Dumper \%newGcpHash;
-  
-  #Create the string of GCPs for gdal_translate from the hash
-  my $gcpstring = createGcpString(\%newGcpHash);
-  
-  #Call gdal_translate to georef 
-  georeferenceTheRaster($gcpstring);
-  
-  #Save the hash back to disk
-  store(\%newGcpHash, $main::storedGcpHash);
-  }
-  
+
+    #create a new hash from the current GCP liststore
+    my $model = $main::gcpModel;
+    my %newGcpHash;
+
+    #For each line in the GPC liststore, extract column data and save in hash
+    $model->foreach( \&gcpTest, \%newGcpHash );
+
+    #     print Dumper \%newGcpHash;
+
+    #Create the string of GCPs for gdal_translate from the hash
+    my $gcpstring = createGcpString( \%newGcpHash );
+
+    #Call gdal_translate to georef
+    georeferenceTheRaster($gcpstring);
+
+    #Save the hash back to disk
+    store( \%newGcpHash, $main::storedGcpHash )|| die "can't store to $main::storedGcpHash\n";
+}
+
 sub gcpTest {
+
     #Extract column data from the GCP liststore and save in hash
-    my ($model, $path, $iter, $user_data)= validate_pos(
+    my ( $model, $path, $iter, $user_data ) = validate_pos(
         @_,
         { type => HASHREF },
         { type => SCALARREF },
         { type => SCALARREF },
         { type => HASHREF | UNDEF },
-        );
-        my $key = $model->get_value( $iter, 0 );
-        $user_data->{$key}{lon} = $model->get_value( $iter, 1 );
-        $user_data->{$key}{lat} = $model->get_value( $iter, 2 );
-        $user_data->{$key}{pdfx} = $model->get_value( $iter, 3 );
-        $user_data->{$key}{pdfy} = $model->get_value( $iter, 4 );
-        $user_data->{$key}{pngx} = $model->get_value( $iter, 5 );
-        $user_data->{$key}{pngy} = $model->get_value( $iter, 6 );
-        
-        
-# say $model->get_value( $iter, 0 );
-# say $model->get_value( $iter, 1 );
-# say $model->get_value( $iter, 2 );
-return FALSE;
+    );
+    my $key = $model->get_value( $iter, 0 );
+    $user_data->{$key}{lon}  = $model->get_value( $iter, 1 );
+    $user_data->{$key}{lat}  = $model->get_value( $iter, 2 );
+    $user_data->{$key}{pdfx} = $model->get_value( $iter, 3 );
+    $user_data->{$key}{pdfy} = $model->get_value( $iter, 4 );
+    $user_data->{$key}{pngx} = $model->get_value( $iter, 5 );
+    $user_data->{$key}{pngy} = $model->get_value( $iter, 6 );
+
+    # say $model->get_value( $iter, 0 );
+    # say $model->get_value( $iter, 1 );
+    # say $model->get_value( $iter, 2 );
+    return FALSE;
 }
 
 sub createGcpString {
-my ($gcpHashRef)= validate_pos(
-        @_,
-        { type => HASHREF },
-        );
+    my ($gcpHashRef) = validate_pos( @_, { type => HASHREF }, );
     my $_gcpstring = "";
     foreach my $key ( keys $gcpHashRef ) {
 
@@ -3897,34 +3982,34 @@ my ($gcpHashRef)= validate_pos(
           . $gcpHashRef->{$key}{"lat"};
     }
 
-        say "Ground Control Points command line string";
-        say $_gcpstring;
-        say "";
-    
+    say "Ground Control Points command line string";
+    say $_gcpstring;
+    say "";
+
     return $_gcpstring;
 }
-sub georeferenceTheRaster {
-my ($gcpstring)= validate_pos(
-        @_,
-        { type => SCALAR },
-        );
-    # #Try to georeference
-# You may be able to create the world files but you will need to know the pixel resolution and calculate the skew. Your world file should be named exactly the same as the image, but with a different exstention (.wld or .jpgw) and have the following lines:
-# 
-#     pixel resolution * cos(rotation angle)
-#     -pixel resolution * sin(rotation angle)
-#     -pixel resolution * sin(rotation angle)
-#     -pixel resolution * cos(rotation angle)
-#     upper left x
-#     upper left y
 
-    
+sub georeferenceTheRaster {
+    my ($gcpstring) = validate_pos( @_, { type => SCALAR }, );
+
+    # #Try to georeference
+    # You may be able to create the world files but you will need to know the pixel resolution and calculate the skew. Your world file should be named exactly the same as the image, but with a different exstention (.wld or .jpgw) and have the following lines:
+    #
+    #     pixel resolution * cos(rotation angle)
+    #     -pixel resolution * sin(rotation angle)
+    #     -pixel resolution * sin(rotation angle)
+    #     -pixel resolution * cos(rotation angle)
+    #     upper left x
+    #     upper left y
+
     my $gdal_translateCommand =
       "gdal_translate -q -of VRT -strict -a_srs EPSG:4326 $gcpstring '$main::targetPng'  '$main::targetVrt'";
-#     if ($debug) {
+
+    if ($debug) {
         say $gdal_translateCommand;
-#         say "";
-#     }
+
+        say "";
+    }
 
     #Run gdal_translate
 
@@ -3935,74 +4020,77 @@ my ($gcpstring)= validate_pos(
     if ( $retval != 0 ) {
         carp
           "Error executing gdal_translate.  Is it installed? Return code was $retval";
-#         ++$main::failCount;
-#           $statistics{'$status'} = "AUTOBAD";
-#         touchFile($main::failFile);
+
+        #         ++$main::failCount;
+        #           $statistics{'$status'} = "AUTOBAD";
+        #         touchFile($main::failFile);
 
         # say "Touching $main::failFile";
         # open( my $fh, ">", "$main::failFile" )
         # or die "cannot open > $main::failFile $!";
         # close($fh);
-#         return (1);
+        #         return (1);
     }
-    say $gdal_translateoutput;# if $debug;
+    say $gdal_translateoutput if $debug;
 
-#     #Run gdalwarp
-# 
-#     my $gdalwarpCommand =
-#       "gdalwarp -q -of VRT -t_srs EPSG:4326 -order 1 -overwrite ''$main::targetvrt''  '$main::targetvrt2'";
-#     if ($debug) {
-#         say $gdalwarpCommand;
-#         say "";
-#     }
-# 
-#     my $gdalwarpCommandOutput = qx($gdalwarpCommand);
-# 
-#     $retval = $? >> 8;
-# 
-#     if ( $retval != 0 ) {
-#         carp
-#           "Error executing gdalwarp.  Is it installed? Return code was $retval";
-#         ++$main::failCount;
-#         touchFile($main::failFile);
-#         $statistics{'$status'} = "AUTOBAD";
-#         return (1);
-#     }
-# 
-#     say $gdalwarpCommandOutput if $debug;
-# 
-#     #Run gdalinfo
-# 
-#     my $gdalinfoCommand = "gdalinfo '$main::targetvrt2'";
-#     if ($debug) {
-#         say $gdalinfoCommand;
-#         say "";
-#     }
-# 
-#     my $gdalinfoCommandOutput = qx($gdalinfoCommand);
-# 
-#     $retval = $? >> 8;
-# 
-#     if ( $retval != 0 ) {
-#         carp
-#           "Error executing gdalinfo.  Is it installed? Return code was $retval";
-#           $statistics{'$status'} = "AUTOBAD";
-#         return;
-#     }
-#     say $gdalinfoCommandOutput if $debug;
-# 
-#     #Extract georeference info from gdalinfo output (some of this will be overwritten below)
-#     my (
-#         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
-#         $lowerRightLon, $lowerRightLat, $lonLatRatio
-#     ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
+    #     #Run gdalwarp
+    #
+    #     my $gdalwarpCommand =
+    #       "gdalwarp -q -of VRT -t_srs EPSG:4326 -order 1 -overwrite ''$main::targetvrt''  '$main::targetvrt2'";
+    #     if ($debug) {
+    #         say $gdalwarpCommand;
+    #         say "";
+    #     }
+    #
+    #     my $gdalwarpCommandOutput = qx($gdalwarpCommand);
+    #
+    #     $retval = $? >> 8;
+    #
+    #     if ( $retval != 0 ) {
+    #         carp
+    #           "Error executing gdalwarp.  Is it installed? Return code was $retval";
+    #         ++$main::failCount;
+    #         touchFile($main::failFile);
+    #         $statistics{'$status'} = "AUTOBAD";
+    #         return (1);
+    #     }
+    #
+    #     say $gdalwarpCommandOutput if $debug;
+    #
+    #     #Run gdalinfo
+    #
+    #     my $gdalinfoCommand = "gdalinfo '$main::targetvrt2'";
+    #     if ($debug) {
+    #         say $gdalinfoCommand;
+    #         say "";
+    #     }
+    #
+    #     my $gdalinfoCommandOutput = qx($gdalinfoCommand);
+    #
+    #     $retval = $? >> 8;
+    #
+    #     if ( $retval != 0 ) {
+    #         carp
+    #           "Error executing gdalinfo.  Is it installed? Return code was $retval";
+    #           $statistics{'$status'} = "AUTOBAD";
+    #         return;
+    #     }
+    #     say $gdalinfoCommandOutput if $debug;
+    #
+    #     #Extract georeference info from gdalinfo output (some of this will be overwritten below)
+    #     my (
+    #         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
+    #         $lowerRightLon, $lowerRightLat, $lonLatRatio
+    #     ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
 
-   #---------------------
-  my $gdalinfoCommand = "gcps2wld.py '$main::targetVrt'";
-#     if ($debug) {
+    #---------------------
+    my $gdalinfoCommand = "gcps2wld.py '$main::targetVrt'";
+
+    if ($debug) {
         say $gdalinfoCommand;
-#         say "";
-#     }
+
+        say "";
+    }
 
     my $gdalinfoCommandOutput = qx($gdalinfoCommand);
 
@@ -4010,83 +4098,110 @@ my ($gcpstring)= validate_pos(
 
     if ( $retval != 0 ) {
         carp
-          "Error executing gdalinfo.  Is it installed? Return code was $retval";
-#           $statistics{'$status'} = "AUTOBAD";
-#         return;
+          "Error executing gcps2wld.py, is it installed? Return code was $retval";
+
+        #           $statistics{'$status'} = "AUTOBAD";
+        #         return;
     }
-    
-        my (
-        $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
-        );
-    say $gdalinfoCommandOutput;# if $debug;
-my ($xPixelSkew, $yPixelSkew);
+
+    my ( $pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, );
+    say $gdalinfoCommandOutput if $debug;
+    my ( $xPixelSkew, $yPixelSkew );
+
     #Extract georeference info from gdalinfo output
-     ($pixelSizeX,    $pixelSizeY,   $xPixelSkew, $yPixelSkew, $upperLeftLon, $upperLeftLat
-        
-    ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput); 
+    (
+        $pixelSizeX, $pixelSizeY, $xPixelSkew, $yPixelSkew, $upperLeftLon,
+        $upperLeftLat
 
-if ($pixelSizeX && $pixelSizeY && $upperLeftLon && $upperLeftLat)
-   {
-   say "Updating database with new affine transform information";
-   
-    #Update the georef table
-    my $update_dtpp_geo_record =
-        "UPDATE dtppGeo " 
-      . "SET "      
-      . "xMedian = ?, "
-      . "yMedian = ?, "
-      . "upperLeftLon = ?, "
-      . "upperLeftLat = ?, "
-      . "xPixelSkew = ?, "
-      . "yPixelSkew = ? "
-      . "WHERE "
-      . "PDF_NAME = ?";
+    ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput);
 
+    if ( $pixelSizeX && $pixelSizeY && $upperLeftLon && $upperLeftLat ) {
+        say "Updating database with new affine transform information";
 
+        #Update the georef table
+        my $update_dtpp_geo_record =
+            "UPDATE dtppGeo " . "SET "
+          . "xMedian = ?, "
+          . "yMedian = ?, "
+          . "upperLeftLon = ?, "
+          . "upperLeftLat = ?, "
+          . "xPixelSkew = ?, "
+          . "yPixelSkew = ? "
+          . "WHERE "
+          . "PDF_NAME = ?";
 
-    my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
+        my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
-   
-    $dtppSth->bind_param( 1, $pixelSizeX );
-    $dtppSth->bind_param( 2, $pixelSizeY );
-    $dtppSth->bind_param( 3, $upperLeftLon );
-    $dtppSth->bind_param( 4, $upperLeftLat );
-    $dtppSth->bind_param( 5, $xPixelSkew );
-    $dtppSth->bind_param( 6, $yPixelSkew );
-    $dtppSth->bind_param( 7, $main::PDF_NAME );
-    
-#     say "$_status, $_PDF_NAME";
-    my $rc = $dtppSth->execute()
-    or die "Can't execute statement: $DBI::errstr"; 
-  #a reference to an array of charts with no longitude or latitude info
-# $_plateWithNoLonLat          = chartsWithNoLonLat();
-# # my $indexIntoPlatesWithNoLonLat = 0;
-# 
-# #a reference to an array of charts marked bad
-# $_platesMarkedBad         = chartsMarkedBad();
-# # my $indexIntoPlatesMarkedBad = 0;
-# 
-# #a reference to an array of charts marked Changed
-# $_platesMarkedChanged         = chartsMarkedChanged();
-# my $indexIntoPlatesMarkedChanged = 0;
-#   we need to refresh 
+        $dtppSth->bind_param( 1, $pixelSizeX );
+        $dtppSth->bind_param( 2, $pixelSizeY );
+        $dtppSth->bind_param( 3, $upperLeftLon );
+        $dtppSth->bind_param( 4, $upperLeftLat );
+        $dtppSth->bind_param( 5, $xPixelSkew );
+        $dtppSth->bind_param( 6, $yPixelSkew );
+        $dtppSth->bind_param( 7, $main::PDF_NAME );
+
+        #     say "$_status, $_PDF_NAME";
+        my $rc = $dtppSth->execute()
+          or die "Can't execute statement: $DBI::errstr";
+
+        #a reference to an array of charts with no longitude or latitude info
+        # $_plateWithNoLonLat          = chartsWithNoLonLat();
+        # # my $indexIntoPlatesWithNoLonLat = 0;
+        #
+        # #a reference to an array of charts marked bad
+        # $_platesMarkedBad         = chartsMarkedBad();
+        # # my $indexIntoPlatesMarkedBad = 0;
+        #
+        # #a reference to an array of charts marked Changed
+        # $_platesMarkedChanged         = chartsMarkedChanged();
+        # my $indexIntoPlatesMarkedChanged = 0;
+        #   we need to refresh
         #Make our basic parameters are defined before trying to create the transforms
-   
-#         $main::AffineTransform = Geometry::AffineTransform->new(
-#             m11 => $pixelSizeX,
-#             m12 => $yPixelSkew,
-#             m21 => $xPixelSkew,
-#             m22 => $pixelSizeY,
-#             tx  => $upperLeftLon,
-#             ty  => $upperLeftLat
-#         );
-#         $main::invertedAffineTransform = $main::AffineTransform->clone()->invert();
-    
+        my $originalImageWidth  = $main::pixbuf->get_width();
+        my $originalImageHeight = $main::pixbuf->get_height();
+        my $scaledImageWidth    = $main::scaledPlate->get_width();
+        my $scaledImageHeight   = $main::scaledPlate->get_height();
 
-    
+        my $horizontalScaleFactor = $originalImageWidth / $scaledImageWidth;
+        my $verticalScaleFactor   = $originalImageHeight / $scaledImageHeight;
+        say "horz: $horizontalScaleFactor, vert: $verticalScaleFactor";
+
+        #adjust the scale factors per the ratio of the image to the actual window
+        #      say "------";
+        #      say $xMed;
+        #      say "$originalImageWidth -> $scaledImageWidth";
+        #       say "$originalImageHeight -> $scaledImageHeight";
+
+        #     $xMed = $xMed * ($scaledImageWidth / $originalImageWidth);
+        say "pixX: $pixelSizeX pixY: $pixelSizeY";
+        $pixelSizeX = $pixelSizeX * $horizontalScaleFactor;
+        $xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
+
+        #     say $xMed;
+        #     $yMed = $yMed * ($scaledImageHeight / $originalImageHeight);
+        $pixelSizeY = $pixelSizeY * $verticalScaleFactor;
+        $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
+        say "pixX: $pixelSizeX pixY: $pixelSizeY";
+
+        #Update the transform
+        $main::AffineTransform = Geometry::AffineTransform->new(
+            m11 => $pixelSizeX,
+            m12 => $yPixelSkew,
+            m21 => $xPixelSkew,
+            m22 => $pixelSizeY,
+            tx  => $upperLeftLon,
+            ty  => $upperLeftLat
+        );
+        $main::invertedAffineTransform =
+          $main::AffineTransform->clone()->invert();
+
     }
+    return (
+        $pixelSizeX, $yPixelSkew,   $xPixelSkew,
+        $pixelSizeY, $upperLeftLon, $upperLeftLat
+    );
 
-#     return 0;
+    #     return 0;
 }
 
 sub extractGeoreferenceInfoGcps2Wld {
@@ -4094,18 +4209,23 @@ sub extractGeoreferenceInfoGcps2Wld {
     #Pull relevant information out of gdalinfo command
     my ($_output) = @_;
     my (
-        $pixelSizeX,   $yPixelSkew,  $xPixelSkew, $pixelSizeY,  $upperLeftLon, $upperLeftLat
-        
-    )= split (/\n/, $_output);
-    
-say '$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew';
-say "$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew";
-#     return (
-#         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
-#         $xPixelSkew, $yPixelSkew
-#     );
-      return (
-        
-       $pixelSizeX,    $pixelSizeY,   $xPixelSkew, $yPixelSkew, $upperLeftLon, $upperLeftLat
+        $pixelSizeX, $yPixelSkew, $xPixelSkew, $pixelSizeY, $upperLeftLon,
+        $upperLeftLat
+
+    ) = split( /\n/, $_output );
+
+    say
+      '$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew';
+    say
+      "$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew";
+
+    #     return (
+    #         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
+    #         $xPixelSkew, $yPixelSkew
+    #     );
+    return (
+
+        $pixelSizeX, $pixelSizeY, $xPixelSkew, $yPixelSkew, $upperLeftLon,
+        $upperLeftLat
     );
 }

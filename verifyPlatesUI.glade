@@ -49,10 +49,11 @@
             </child>
             <child>
               <object class="GtkButton" id="button2">
-                <property name="label" translatable="yes">Clear Status</property>
+                <property name="label" translatable="yes">Mark Not Referenceable</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
+                <signal name="clicked" handler="markNotReferenceableButtonClick" swapped="no"/>
               </object>
               <packing>
                 <property name="left_attach">1</property>
