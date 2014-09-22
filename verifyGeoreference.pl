@@ -161,11 +161,11 @@ $dtppDbh->do("PRAGMA synchronous=OFF");
 my $_allPlates = allIapAndApdCharts();
 
 #a reference to an array of charts with no longitude or latitude info
-my $_plateWithNoLonLat          = chartsWithNoLonLat();
+my $_platesNotMarkedManually    = findPlatesNotMarkedManually();
 my $indexIntoPlatesWithNoLonLat = 0;
 
 #a reference to an array of charts marked bad
-my $_platesMarkedBad         = chartsMarkedBad();
+my $_platesMarkedBad         = findPlatesMarkedBad();
 my $indexIntoPlatesMarkedBad = 0;
 
 #a reference to an array of charts marked Changed
@@ -177,77 +177,87 @@ our (
     $currentGcpPdfY, $currentGcpPngX, $currentGcpPngY
 );
 
-#Process each plate returned by our query
-foreach my $_row (@$_allPlates) {
+# #Process each plate returned by our query
+# # foreach my $_row (@$_allPlates) {
+#
+#     my (
+#         $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
+#         $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
+#         $MILITARY_USE, $COPTER_USE,  $STATE_ID,    $Difference,
+#         $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat,
+#         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew
+#     ) = @$_allPlates[0];
+#
+# say     @$_allPlates[0];
+#
+# say "        $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
+#         $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
+#         $MILITARY_USE, $COPTER_USE,  $STATE_ID,    $Difference,
+#         $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat,
+#         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew";
 
-    my (
-        $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
-        $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
-        $MILITARY_USE, $COPTER_USE,  $STATE_ID
-    ) = @$_row;
+our ( $airportLatitudeDec, $airportLongitudeDec );
 
-    our ( $airportLatitudeDec, $airportLongitudeDec );
+#--------------------------------------------------------------------------------------------------------------
+# #Some regex building blocks to be used elsewhere
+#numbers that start with 1-9 followed by 2 or more digits
+our $obstacleHeightRegex = qr/[1-9]\d{1,}/x;
 
-    #--------------------------------------------------------------------------------------------------------------
-    # #Some regex building blocks to be used elsewhere
-    #numbers that start with 1-9 followed by 2 or more digits
-    our $obstacleHeightRegex = qr/[1-9]\d{1,}/x;
+#A number with possible decimal point and minus sign
+our $numberRegex = qr/[-\.\d]+/x;
 
-    #A number with possible decimal point and minus sign
-    our $numberRegex = qr/[-\.\d]+/x;
+#Create the UI
+my $builder = Gtk3::Builder->new();
+$builder->add_from_file('./verifyPlatesUI.glade');
 
-    #Create the UI
-    my $builder = Gtk3::Builder->new();
-    $builder->add_from_file('./verifyPlatesUI.glade');
+#Set the initial plate
+our $plate   = $builder->get_object('image2');
+our $plateSw = $builder->get_object('viewport1');
+our $pixbuf;
 
-    #Set the initial plate
-    our $plate   = $builder->get_object('image2');
-    our $plateSw = $builder->get_object('viewport1');
-    our $pixbuf;
+#Connect our handlers
+$builder->connect_signals(undef);
 
-    #Connect our handlers
-    $builder->connect_signals(undef);
+my $window = $builder->get_object('applicationwindow1');
+$window->set_screen( $window->get_screen() );
+$window->signal_connect( destroy => sub { Gtk3->main_quit } );
 
-    my $window = $builder->get_object('applicationwindow1');
-    $window->set_screen( $window->get_screen() );
-    $window->signal_connect( destroy => sub { Gtk3->main_quit } );
+our $runwayBox    = $builder->get_object('scrolledwindow2');
+our $navaidBox    = $builder->get_object('scrolledwindow4');
+our $fixesBox     = $builder->get_object('scrolledwindow5');
+our $obstaclesBox = $builder->get_object('scrolledwindow6');
+our $gcpBox       = $builder->get_object('scrolledwindow3');
 
-    our $runwayBox    = $builder->get_object('scrolledwindow2');
-    our $navaidBox    = $builder->get_object('scrolledwindow4');
-    our $fixesBox     = $builder->get_object('scrolledwindow5');
-    our $obstaclesBox = $builder->get_object('scrolledwindow6');
-    our $gcpBox       = $builder->get_object('scrolledwindow3');
+my $liststoreNavaids = $builder->get_object('liststoreNavaids');
 
-    my $liststoreNavaids = $builder->get_object('liststoreNavaids');
+#     $liststoreNavaids->set_column_types( qw/Glib::String/ );
+#     my $navaidsIter = $liststoreNavaids->append;
+# #		my $s = Gtk2::ListStore->new('G::String');
+# 	      for (qw(foo bar baz foofoo foobar foobaz)) {
+# # 		$listStoreNadvaids->set($navaidsIter, 3 => "test");
+# 		$liststoreNavaids->insert_with_values($navaidsIter,0 => "$_");
+# # 		$liststoreNavaids->insert_with_values($navaidsIter,0,"TEST2");
+# 	      }
+#
+#  my $treeView = $builder->get_object('treeview');
+# # 	      my $l = Gtk2::TreeView->new($s);
+# 	      $treeView->append_column(
+# 	       Gtk3::TreeViewColumn->new_with_attributes(
+# 	        "foo",
+# 	        Gtk3::CellRendererText->new,
+# 	        text => 3
+# 	        )
+# 	      );
+$window->show_all();
 
-    #     $liststoreNavaids->set_column_types( qw/Glib::String/ );
-    #     my $navaidsIter = $liststoreNavaids->append;
-    # #		my $s = Gtk2::ListStore->new('G::String');
-    # 	      for (qw(foo bar baz foofoo foobar foobaz)) {
-    # # 		$listStoreNadvaids->set($navaidsIter, 3 => "test");
-    # 		$liststoreNavaids->insert_with_values($navaidsIter,0 => "$_");
-    # # 		$liststoreNavaids->insert_with_values($navaidsIter,0,"TEST2");
-    # 	      }
-    #
-    #  my $treeView = $builder->get_object('treeview');
-    # # 	      my $l = Gtk2::TreeView->new($s);
-    # 	      $treeView->append_column(
-    # 	       Gtk3::TreeViewColumn->new_with_attributes(
-    # 	        "foo",
-    # 	        Gtk3::CellRendererText->new,
-    # 	        text => 3
-    # 	        )
-    # 	      );
-    $window->show_all();
+#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+activateNewPlate( @$_allPlates[0] );
+Gtk3->main();
 
-    #     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-    activateNewPlate( @$_allPlates[0] );
-    Gtk3->main();
-
-    #Execute the main loop for this plate
-    #     doAPlate( $PDF_NAME, $FAA_CODE, $STATE_ID, $CHART_NAME );
-    exit;
-}
+#Execute the main loop for this plate
+#     doAPlate( $PDF_NAME, $FAA_CODE, $STATE_ID, $CHART_NAME );
+#     exit;
+# }
 
 # #Close the charts database
 # $dtppSth->finish();
@@ -1964,14 +1974,22 @@ sub usage {
     return;
 }
 
-sub chartsWithNoLonLat {
+sub findPlatesNotMarkedManually {
 
     #Charts with no lon/lat
     my $dtppSth = $dtppDbh->prepare( "
       SELECT 
-	D.PDF_NAME
-	,D.FAA_CODE
-	,D.CHART_NAME
+	D.TPP_VOLUME
+	,D.FAA_CODE    
+	,D.CHART_SEQ 
+	,D.CHART_CODE
+        ,D.CHART_NAME   
+        ,D.USER_ACTION
+        ,D.PDF_NAME
+        ,D.FAANFD18_CODE
+        ,D.MILITARY_USE
+        ,D.COPTER_USE
+        ,D.STATE_ID
 	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
 	,DG.upperLeftLon
 	,DG.upperLeftLat
@@ -2023,9 +2041,17 @@ sub allIapAndApdCharts {
     #Query the dtpp database for IAP and APD charts
     my $dtppSth = $dtppDbh->prepare( "
       SELECT 
-	D.PDF_NAME
-	,D.FAA_CODE
-	,D.CHART_NAME
+	D.TPP_VOLUME
+	,D.FAA_CODE    
+	,D.CHART_SEQ 
+	,D.CHART_CODE
+        ,D.CHART_NAME   
+        ,D.USER_ACTION
+        ,D.PDF_NAME
+        ,D.FAANFD18_CODE
+        ,D.MILITARY_USE
+        ,D.COPTER_USE
+        ,D.STATE_ID
 	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
 	,DG.upperLeftLon
 	,DG.upperLeftLat
@@ -2049,10 +2075,10 @@ sub allIapAndApdCharts {
 --        STATE_ID LIKE  '$stateId'                   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
-          AND
-        DG.STATUS NOT LIKE '%MANUAL%'
-          AND
-        DG.STATUS NOT LIKE '%NOGEOREF%'
+--          AND
+--        DG.STATUS NOT LIKE '%MANUAL%'
+--          AND
+--        DG.STATUS NOT LIKE '%NOGEOREF%'
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'
 --          AND
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
@@ -2069,14 +2095,22 @@ sub allIapAndApdCharts {
     return ( $dtppSth->fetchall_arrayref() );
 }
 
-sub chartsMarkedBad {
+sub findPlatesMarkedBad {
 
     #Charts marked bad
     my $dtppSth = $dtppDbh->prepare( "
       SELECT
-	D.PDF_NAME
-	,D.FAA_CODE
-	,D.CHART_NAME
+	D.TPP_VOLUME
+	,D.FAA_CODE    
+	,D.CHART_SEQ 
+	,D.CHART_CODE
+        ,D.CHART_NAME   
+        ,D.USER_ACTION
+        ,D.PDF_NAME
+        ,D.FAANFD18_CODE
+        ,D.MILITARY_USE
+        ,D.COPTER_USE
+        ,D.STATE_ID
 	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
 	,DG.upperLeftLon
 	,DG.upperLeftLat
@@ -2129,9 +2163,17 @@ sub chartsMarkedChanged {
     #Charts marked bad
     my $dtppSth = $dtppDbh->prepare( "
       SELECT
-	D.PDF_NAME
-	,D.FAA_CODE
-	,D.CHART_NAME
+	D.TPP_VOLUME
+	,D.FAA_CODE    
+	,D.CHART_SEQ 
+	,D.CHART_CODE
+        ,D.CHART_NAME   
+        ,D.USER_ACTION
+        ,D.PDF_NAME
+        ,D.FAANFD18_CODE
+        ,D.MILITARY_USE
+        ,D.COPTER_USE
+        ,D.STATE_ID
 	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
 	,DG.upperLeftLon
 	,DG.upperLeftLat
@@ -2625,7 +2667,7 @@ sub nextZeroButtonClick {
     #         $MILITARY_USE, $COPTER_USE,  $STATE_ID
     #     ) = @$_row;
     #
-    my $totalPlateCount = scalar @{$_plateWithNoLonLat};
+    my $totalPlateCount = scalar @{$_platesNotMarkedManually};
 
     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
         $indexIntoPlatesWithNoLonLat++;
@@ -2635,12 +2677,12 @@ sub nextZeroButtonClick {
 
     #Get info about the airport we're currently pointing to
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2658,10 +2700,10 @@ sub previousZeroButtonClick {
     #
 
     #     #Get info about the airport we're currently pointing to
-    #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    #     my $_row = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
-    my $totalPlateCount = scalar @{$_plateWithNoLonLat};
+    my $totalPlateCount = scalar @{$_platesNotMarkedManually};
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
     if ( $indexIntoPlatesWithNoLonLat > 0 ) {
@@ -2669,14 +2711,14 @@ sub previousZeroButtonClick {
     }
 
     #Info about current plate
-    my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2708,7 +2750,7 @@ sub nextBadButtonClick {
 
     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2726,7 +2768,7 @@ sub previousBadButtonClick {
     #
 
     #     #Get info about the airport we're currently pointing to
-    #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    #     my $_row = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
 
@@ -2740,7 +2782,7 @@ sub previousBadButtonClick {
     }
     say $indexIntoPlatesMarkedBad;
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2772,7 +2814,7 @@ sub nextChangedButtonClick {
 
     say "$indexIntoPlatesMarkedChanged / $totalPlateCount";
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2790,7 +2832,7 @@ sub previousChangedButtonClick {
     #
 
     #     #Get info about the airport we're currently pointing to
-    #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    #     my $_row = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
 
@@ -2804,7 +2846,7 @@ sub previousChangedButtonClick {
     }
     say $indexIntoPlatesMarkedChanged;
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2889,7 +2931,9 @@ sub activateNewPlate {
     );
 
     our (
-        $PDF_NAME,     $FAA_CODE,     $CHART_NAME,    $Difference,
+        $TPP_VOLUME,   $FAA_CODE,     $CHART_SEQ,     $CHART_CODE,
+        $CHART_NAME,   $USER_ACTION,  $PDF_NAME,      $FAANFD18_CODE,
+        $MILITARY_USE, $COPTER_USE,   $STATE_ID,      $Difference,
         $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat,
         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew
     ) = @$rowRef;
@@ -3745,11 +3789,7 @@ sub updateStatus {
 
     #Update the georef table
     my $update_dtpp_geo_record =
-      "UPDATE dtppGeo " 
-      . "SET " 
-	. "status = ? " 
-      . "WHERE " 
-	. "PDF_NAME = ?";
+      "UPDATE dtppGeo " . "SET " . "status = ? " . "WHERE " . "PDF_NAME = ?";
 
     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
@@ -3791,7 +3831,7 @@ sub markGoodButtonClick {
     #
 
     #     #Get info about the airport we're currently pointing to
-    #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    #     my $_row = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
     updateStatus( "MANUALGOOD", $main::PDF_NAME );
@@ -3806,10 +3846,10 @@ sub markGoodButtonClick {
     #     }
     #     say $indexIntoPlatesMarkedChanged;
     #
-    #     #     say @$_plateWithNoLonLat;
+    #     #     say @$_platesNotMarkedManually;
 
     #Use this section to skip to next "good" plate
-    my $totalPlateCount = scalar @{$_plateWithNoLonLat};
+    my $totalPlateCount = scalar @{$_platesNotMarkedManually};
 
     #BUG TODO Make length of array
     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
@@ -3819,7 +3859,7 @@ sub markGoodButtonClick {
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
     #Get info about the airport we're currently pointing to
-    my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
     #     #--------------------------------------
     #
@@ -3837,7 +3877,7 @@ sub markGoodButtonClick {
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
-    #     say @$_plateWithNoLonLat;
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -3855,14 +3895,14 @@ sub markBadButtonClick {
     #
 
     #     #Get info about the airport we're currently pointing to
-    #     my $_row = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    #     my $_row = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
     #
     #     my ( $PDF_NAME, $FAA_CODE, $CHART_NAME, $Difference ) = @$_row;
 
     #Set status in the database
     updateStatus( "MANUALBAD", $main::PDF_NAME );
 
-    my $totalPlateCount = scalar @{$_plateWithNoLonLat};
+    my $totalPlateCount = scalar @{$_platesNotMarkedManually};
 
     #BUG TODO Make length of array
     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
@@ -3873,7 +3913,7 @@ sub markBadButtonClick {
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
     #Get info about the airport we're currently pointing to
-    my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
+    my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
@@ -3888,7 +3928,7 @@ sub markBadButtonClick {
     #     }
     #     say $indexIntoPlatesMarkedChanged;
     #
-    #     #     say @$_plateWithNoLonLat;
+    #     #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -4227,11 +4267,11 @@ sub georeferenceTheRaster {
           or die "Can't execute statement: $DBI::errstr";
 
         #a reference to an array of charts with no longitude or latitude info
-        # $_plateWithNoLonLat          = chartsWithNoLonLat();
+        # $_platesNotMarkedManually          = findPlatesNotMarkedManually();
         # # my $indexIntoPlatesWithNoLonLat = 0;
         #
         # #a reference to an array of charts marked bad
-        # $_platesMarkedBad         = chartsMarkedBad();
+        # $_platesMarkedBad         = findPlatesMarkedBad();
         # # my $indexIntoPlatesMarkedBad = 0;
         #
         # #a reference to an array of charts marked Changed
