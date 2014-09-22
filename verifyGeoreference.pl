@@ -18,6 +18,8 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 #-------------------------------------------------------------------------------------------------------------------------------------------
 
+#BUG TODO LMS GPS approach bad!
+
 use 5.010;
 
 use strict;
@@ -857,12 +859,14 @@ sub findObstaclesNearAirport {
     #             next if ( $_rows != 1 );
 
     foreach my $_row (@$all) {
-            my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
-      if (exists $unique_obstacles_from_db{$heightmsl}) {
-       #This is a duplicate obstacle
-        $lat = $lon = 0;
-        
+        my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
+        if ( exists $unique_obstacles_from_db{$heightmsl} ) {
+
+            #This is a duplicate obstacle
+            $lat = $lon = 0;
+
         }
+
         #Populate variables from our database lookup
 
         $unique_obstacles_from_db{$heightmsl}{"Name"} = $heightmsl;
@@ -1781,11 +1785,11 @@ sub findNavaidsNearAirport {
         my $km = great_circle_distance( @A, @B, 6378.137 );
         my $nm = great_circle_distance( @A, @B, 3443.89849 );
 
-        $navaids_from_db{$navaidName . $navaidType}{"Name"}     = $navaidName;
-        $navaids_from_db{$navaidName . $navaidType}{"Lat"}      = $lat;
-        $navaids_from_db{$navaidName . $navaidType}{"Lon"}      = $lon;
-        $navaids_from_db{$navaidName . $navaidType}{"Type"}     = $navaidType;
-        $navaids_from_db{$navaidName . $navaidType}{"Distance"} = $nm;
+        $navaids_from_db{ $navaidName . $navaidType }{"Name"}     = $navaidName;
+        $navaids_from_db{ $navaidName . $navaidType }{"Lat"}      = $lat;
+        $navaids_from_db{ $navaidName . $navaidType }{"Lon"}      = $lon;
+        $navaids_from_db{ $navaidName . $navaidType }{"Type"}     = $navaidType;
+        $navaids_from_db{ $navaidName . $navaidType }{"Distance"} = $nm;
 
     }
     return ( \%navaids_from_db );
@@ -1984,7 +1988,7 @@ sub chartsWithNoLonLat {
       ON 
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
-        ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )                 
+        ( CHART_CODE = 'IAP'OR CHART_CODE = 'APD' )                 
 --           AND 
 --        FAA_CODE LIKE  '$airportId' 
 --           AND
@@ -1993,8 +1997,12 @@ sub chartsWithNoLonLat {
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
         DG.STATUS NOT LIKE '%MANUAL%'
-              AND
+          AND
         DG.STATUS NOT LIKE '%NOGEOREF%'
+--          AND
+--        (CAST (DG.xPixelSkew as FLOAT) != '0'
+--          OR
+--          CAST (DG.yPixelSkew as FLOAT) != '0')
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'
 --          AND
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
@@ -2315,19 +2323,22 @@ sub toggleDrawingObstacles {
 
 sub cairo_draw {
     my ( $widget, $context, $ref_status ) = @_;
+
     #Immediate exit if no inverse transform defined
-if (! $main::invertedAffineTransform) {
-return FALSE;
-}
-    my $runwayHashRef    = $main::runwaysFromDatabaseHashref;
-    my $navaidsHashRef   = $main::navaids_from_db_hashref;
-#     my $fixHashRef       = $main::fixes_from_db_hashref;
-    my $gcpHashRef       = $main::gcp_from_db_hashref;
-#     my $obstaclesHashRef = $main::unique_obstacles_from_db_hashref;
+    if ( !$main::invertedAffineTransform ) {
+        return FALSE;
+    }
+    my $runwayHashRef  = $main::runwaysFromDatabaseHashref;
+    my $navaidsHashRef = $main::navaids_from_db_hashref;
+
+    #     my $fixHashRef       = $main::fixes_from_db_hashref;
+    my $gcpHashRef = $main::gcp_from_db_hashref;
+
+    #     my $obstaclesHashRef = $main::unique_obstacles_from_db_hashref;
 
     #Draw fixes
     if ($shouldDrawFixes) {
-        foreach my $key (  keys $main::fixes_from_db_hashref ) {
+        foreach my $key ( keys $main::fixes_from_db_hashref ) {
 
             my $lat  = $main::fixes_from_db_hashref->{$key}{"Lat"};
             my $lon  = $main::fixes_from_db_hashref->{$key}{"Lon"};
@@ -2344,7 +2355,7 @@ return FALSE;
                 $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
                 $context->set_line_width(2);
                 $context->stroke_preserve;
-                $context->set_source_rgba( 0, 1, 1,0.5 );
+                $context->set_source_rgba( 0, 1, 1, 0.5 );
                 $context->fill;
 
                 #                             # Text
@@ -2357,40 +2368,39 @@ return FALSE;
             }
         }
     }
-        foreach my $key ( keys $main::fixes_from_db_iap_hashref ) {
+    foreach my $key ( keys $main::fixes_from_db_iap_hashref ) {
 
-            my $lat  = $main::fixes_from_db_iap_hashref->{$key}{"Lat"};
-            my $lon  = $main::fixes_from_db_iap_hashref->{$key}{"Lon"};
-            my $text = $main::fixes_from_db_iap_hashref->{$key}{"Name"};
+        my $lat  = $main::fixes_from_db_iap_hashref->{$key}{"Lat"};
+        my $lon  = $main::fixes_from_db_iap_hashref->{$key}{"Lon"};
+        my $text = $main::fixes_from_db_iap_hashref->{$key}{"Name"};
 
-            # 		    say "$latLE, $lonLE, $latHE, $lonHE";
-            #             my $y1 = latitudeToPixel($lat);
-            #             my $x1 = longitudeToPixel($lon);
-            my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
-            if ( $x1 && $y1 ) {
+        # 		    say "$latLE, $lonLE, $latHE, $lonHE";
+        #             my $y1 = latitudeToPixel($lat);
+        #             my $x1 = longitudeToPixel($lon);
+        my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
+        if ( $x1 && $y1 ) {
 
-                # Circle with border - transparent
-                $context->set_source_rgba( 0, 0, 1, 0.5 );
-                $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
-                $context->set_line_width(2);
-                $context->stroke_preserve;
-                $context->set_source_rgba( 0, 1, 1,0.5 );
-                $context->fill;
+            # Circle with border - transparent
+            $context->set_source_rgba( 0, 0, 1, 0.5 );
+            $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
+            $context->set_line_width(2);
+            $context->stroke_preserve;
+            $context->set_source_rgba( 0, 1, 1, 0.5 );
+            $context->fill;
 
-                #                             # Text
-                #                             $context->set_source_rgba( 255, 0, 255, 255 );
-                #                             $context->select_font_face( "Sans", "normal", "normal" );
-                #                             $context->set_font_size(9);
-                #                             $context->move_to( $x1+5, $y1 );
-                #                             $context->show_text("$text");
-                #                             $context->stroke;
-            }
+            #                             # Text
+            #                             $context->set_source_rgba( 255, 0, 255, 255 );
+            #                             $context->select_font_face( "Sans", "normal", "normal" );
+            #                             $context->set_font_size(9);
+            #                             $context->move_to( $x1+5, $y1 );
+            #                             $context->show_text("$text");
+            #                             $context->stroke;
         }
-        
+    }
 
     #Draw navaids
     if ($shouldDrawNavaids) {
-        foreach my $key (  keys $navaidsHashRef ) {
+        foreach my $key ( keys $navaidsHashRef ) {
 
             my $lat  = $navaidsHashRef->{$key}{"Lat"};
             my $lon  = $navaidsHashRef->{$key}{"Lon"};
@@ -2428,8 +2438,6 @@ return FALSE;
     #  		$context->line_to(550, 350);
     #  		$context->stroke;
 
-
-
     #Draw GCPs
     if ( $shouldDrawGcps && $gcpHashRef ) {
         foreach my $key ( sort keys $gcpHashRef ) {
@@ -2465,7 +2473,7 @@ return FALSE;
 
     #Draw GCPs
     if ($shouldDrawObstacles) {
-        foreach my $key (  keys $main::unique_obstacles_from_db_hashref ) {
+        foreach my $key ( keys $main::unique_obstacles_from_db_hashref ) {
 
             # print Dumper $obstaclesHashRef;
             my $lat  = $main::unique_obstacles_from_db_hashref->{$key}{"Lat"};
@@ -2536,6 +2544,7 @@ return FALSE;
 
         }
     }
+
     # Text
     $context->set_source_rgba( 0.0, 0.9, 0.9, 0.5 );
     $context->select_font_face( "Sans", "normal", "normal" );
@@ -2804,10 +2813,10 @@ sub addGcpButtonClick {
     my ( $widget, $event ) = @_;
 
     say "Name: $main::currentGcpName";
-    say "Longitude: $main::currentGcpLon";
-    say "Latitude: $main::currentGcpLat";
-    say "PngX: $main::currentGcpPngX";
-    say "PngY: $main::currentGcpPngY";
+    say " Longitude: $main::currentGcpLon";
+    say " Latitude: $main::currentGcpLat";
+    say " PngX: $main::currentGcpPngX";
+    say " PngY: $main::currentGcpPngY";
 
     my $lstore = $main::gcpModel;
 
@@ -3026,13 +3035,13 @@ sub activateNewPlate {
 
     #Find fixes near the airport
     our $fixes_from_db_hashref =
-      findFixesNearAirport ( $main::airportLongitudeDec,
+      findFixesNearAirport( $main::airportLongitudeDec,
         $main::airportLatitudeDec );
 
     our $fixes_from_db_iap_hashref =
-      findFixesNearAirport2 ( $main::airportLongitudeDec,
+      findFixesNearAirport2( $main::airportLongitudeDec,
         $main::airportLatitudeDec );
-        
+
     #     print Dumper($fixes_from_db_hashref);
 
     #Testing adding liststore programmmatically to partially glade-built interface
@@ -3239,8 +3248,14 @@ sub activateNewPlate {
     $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
 
     #     say "------";
-    say
-      " $xMed, $xPixelSkew, $yPixelSkew,  $yMed, $upperLeftLon, $upperLeftLat";
+
+    say "calculated from existing GCP hash";
+    say " pixelSizeX->$xMed";
+    say " yPixelSkew->$yPixelSkew";
+    say " xPixelSkew->$xPixelSkew";
+    say " pixelSizeY->$yMed";
+    say " upperLeftLon->$upperLeftLon";
+    say " upperLeftLat->$upperLeftLat";
 
     #Set up the affine transformations
     #y sizes have to be negative
@@ -3559,10 +3574,9 @@ sub create_model_obstacles {
         #         get length of key
         #         split in two
         # say length $item;
-      
+
         $lstore->set(
-            $iter, 
-            0, $hashRef->{$item}{Name},
+            $iter, 0, $hashRef->{$item}{Name},
             1, $hashRef->{$item}{Lon},
             2, $hashRef->{$item}{Lat},
         );
@@ -3731,7 +3745,11 @@ sub updateStatus {
 
     #Update the georef table
     my $update_dtpp_geo_record =
-      "UPDATE dtppGeo " . "SET " . "status = ? " . "WHERE " . "PDF_NAME = ?";
+      "UPDATE dtppGeo " 
+      . "SET " 
+	. "status = ? " 
+      . "WHERE " 
+	. "PDF_NAME = ?";
 
     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
@@ -3789,34 +3807,33 @@ sub markGoodButtonClick {
     #     say $indexIntoPlatesMarkedChanged;
     #
     #     #     say @$_plateWithNoLonLat;
-    
+
     #Use this section to skip to next "good" plate
     my $totalPlateCount = scalar @{$_plateWithNoLonLat};
 
     #BUG TODO Make length of array
     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
         $indexIntoPlatesWithNoLonLat++;
-	}
+    }
 
     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
     #Get info about the airport we're currently pointing to
     my $rowRef = ( @$_plateWithNoLonLat[$indexIntoPlatesWithNoLonLat] );
 
-#     #--------------------------------------
-#  
-#     #Use this section to skip to next "bad" plate
-#     my $totalPlateCount = scalar @{$_platesMarkedBad};
-# 
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesMarkedBad++;
-#     }
-#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-#     #---------------------------------------
-    
-    
+    #     #--------------------------------------
+    #
+    #     #Use this section to skip to next "bad" plate
+    #     my $totalPlateCount = scalar @{$_platesMarkedBad};
+    #
+    #     #BUG TODO Make length of array
+    #     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+    #         $indexIntoPlatesMarkedBad++;
+    #     }
+    #     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+    #     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+    #     #---------------------------------------
+
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
@@ -3978,17 +3995,20 @@ sub gcpListstoreToHash {
     my $gcpstring = createGcpString( \%newGcpHash );
 
     #Call gdal_translate to georef
-    my ( $pixelSizeX, $yPixelSkew,   $xPixelSkew,
-        $pixelSizeY, $upperLeftLon, $upperLeftLat) = georeferenceTheRaster($gcpstring);
+    my (
+        $pixelSizeX, $yPixelSkew,   $xPixelSkew,
+        $pixelSizeY, $upperLeftLon, $upperLeftLat
+    ) = georeferenceTheRaster($gcpstring);
 
-#                     not( is_between( .00011, .00033, $pixelSizeY ) )
-#                     && not(
-#                         is_between( .00034, .00046, $pixelSizeY ) )
-#                     && not(
-#                         is_between( .00056, .00060, $pixelSizeY, ) )
-                        
+    #                     not( is_between( .00011, .00033, $pixelSizeY ) )
+    #                     && not(
+    #                         is_between( .00034, .00046, $pixelSizeY ) )
+    #                     && not(
+    #                         is_between( .00056, .00060, $pixelSizeY, ) )
+
     #Save the hash back to disk
-    store( \%newGcpHash, $main::storedGcpHash )|| die "can't store to $main::storedGcpHash\n";
+    store( \%newGcpHash, $main::storedGcpHash )
+      || die "can't store to $main::storedGcpHash\n";
 }
 
 sub gcpTest {
@@ -4051,11 +4071,10 @@ sub georeferenceTheRaster {
     #     upper left y
 
     my $gdal_translateCommand =
-      "gdal_translate -q -of VRT -strict -a_srs EPSG:4326 $gcpstring '$main::targetPng'  '$main::targetVrt'";
+      "gdal_translate -of VRT -strict -a_srs EPSG:4326 $gcpstring '$main::targetPng' '$main::targetVrt'";
 
-    if ($debug) {
+    if ($main::debug) {
         say $gdal_translateCommand;
-
         say "";
     }
 
@@ -4079,7 +4098,7 @@ sub georeferenceTheRaster {
         # close($fh);
         #         return (1);
     }
-    say $gdal_translateoutput if $debug;
+    say $gdal_translateoutput if $main::debug;
 
     #     #Run gdalwarp
     #
@@ -4162,15 +4181,25 @@ sub georeferenceTheRaster {
         $upperLeftLat
 
     ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput);
+    say "From gcps2wld: ";
+    say " pixelSizeX->$pixelSizeX";
+    say " yPixelSkew->$yPixelSkew";
+    say " xPixelSkew->$xPixelSkew";
+    say " pixelSizeY->$pixelSizeY";
+    say " upperLeftLon->$upperLeftLon";
+    say " upperLeftLat->$upperLeftLat";
 
     if ( $pixelSizeX && $pixelSizeY && $upperLeftLon && $upperLeftLat ) {
         say "Updating database with new affine transform information";
 
-# #         if ($main::CHART_CODE =~ /IAP/) {
-#         #Instrument Approach Procedures are always True North Up
-#         $xPixelSkew = 0;
-#         $yPixelSkew = 0;
-# #         }
+        #BUG TODO
+        if ( $main::CHART_CODE =~ /IAP/ ) {
+
+            #Instrument Approach Procedures are always True North Up
+            $xPixelSkew = 0;
+            $yPixelSkew = 0;
+        }
+
         #Update the georef table
         my $update_dtpp_geo_record =
             "UPDATE dtppGeo " . "SET "
@@ -4217,22 +4246,25 @@ sub georeferenceTheRaster {
 
         my $horizontalScaleFactor = $originalImageWidth / $scaledImageWidth;
         my $verticalScaleFactor   = $originalImageHeight / $scaledImageHeight;
-#         say "horz: $horizontalScaleFactor, vert: $verticalScaleFactor";
+
+        #         say "horz: $horizontalScaleFactor, vert: $verticalScaleFactor";
 
         #adjust the scale factors per the ratio of the image to the actual window
-        say "pixX: $pixelSizeX pixY: $pixelSizeY";
+
         $pixelSizeX = $pixelSizeX * $horizontalScaleFactor;
         $xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
         $pixelSizeY = $pixelSizeY * $verticalScaleFactor;
         $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
-#         say "pixX: $pixelSizeX pixY: $pixelSizeY";
-say "pixelSizeX->$pixelSizeX";
-say "yPixelSkew->$yPixelSkew";
-say "xPixelSkew->$xPixelSkew";
-say "pixelSizeY->$pixelSizeY";
-say "upperLeftLon->$upperLeftLon";
-say "upperLeftLat->$upperLeftLat";
-	
+
+        #         say "pixX: $pixelSizeX pixY: $pixelSizeY";
+        say "Values scaled to image size:";
+        say " pixelSizeX->$pixelSizeX";
+        say " yPixelSkew->$yPixelSkew";
+        say " xPixelSkew->$xPixelSkew";
+        say " pixelSizeY->$pixelSizeY";
+        say " upperLeftLon->$upperLeftLon";
+        say " upperLeftLat->$upperLeftLat";
+
         #Update the transform
         $main::AffineTransform = Geometry::AffineTransform->new(
             m11 => $pixelSizeX,

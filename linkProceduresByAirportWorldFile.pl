@@ -48,25 +48,25 @@ sub main {
     # for each DTPP that is IAP or AirportDiagram
     # santize procedure Name
     # create a .wld file from database
-    # link ./byAirport/AirportCode/procedureName.png -> ./dtpp/chartcode.png
+    # link ./byAirportWorldFile/AirportCode/procedureName.png -> ./dtpp/chartcode.png
 
     #database of metadata for dtpp
     my $dtppDbh =
       DBI->connect( "dbi:SQLite:dbname=./dtpp.db", "", "", { RaiseError => 1 } )
       or croak $DBI::errstr;
 
-    my (
-        $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
-        $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
-        $MILITARY_USE, $COPTER_USE,  $STATE_ID
-    );
+    #     my (
+    #         $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
+    #         $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
+    #         $MILITARY_USE, $COPTER_USE,  $STATE_ID
+    #     );
 
     $dtppDbh->do("PRAGMA page_size=4096");
     $dtppDbh->do("PRAGMA synchronous=OFF");
 
     #Query the dtpp database for charts
     my $dtppSth = $dtppDbh->prepare(
-      "SELECT 
+        "SELECT 
 	D.PDF_NAME
 	,D.FAA_CODE
 	,D.CHART_NAME
@@ -87,9 +87,9 @@ sub main {
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
-        DG.STATUS NOT LIKE '%MANUAL%'
-          AND
-        DG.STATUS NOT LIKE '%NOGEOREF%'
+        DG.STATUS LIKE '%MANUALGOOD%'
+--          AND
+--        CAST (DG.xPixelSkew as FLOAT) > '0'    
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'
 --          AND
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
@@ -106,66 +106,77 @@ sub main {
     say "Processing $_rows charts";
     my $completedCount = 0;
 
-    my $dir = "./dtpp/";
+    my $inputDir  = "./dtpp/";
+    my $outputDir = "./byAirportWorldFile/";
 
     #Process each plate returned by our query
     foreach my $_row (@$_allSqlQueryResults) {
 
-       my (
-            	D.PDF_NAME
-	,D.FAA_CODE
-	,D.CHART_NAME
-	,DG.upperLeftLon
-	,DG.upperLeftLat
-	,DG.xMedian
-	,DG.yMedian
-	,DG.xPixelSkew
-	,DG.yPixelSkew
+        my (
+            $PDF_NAME,     $FAA_CODE,     $CHART_NAME,
+            $upperLeftLon, $upperLeftLat, $xPixelSize,
+            $yPixelSize,   $xPixelSkew,   $yPixelSkew
         ) = @$_row;
 
         # EC-3, ORD, 51125, IAP, ILS RWY 09L (SA CAT I), , 00166I9LSAC1.PDF, , N, , IL
         # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
-        say
-          "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
+#         say "$PDF_NAME,     $FAA_CODE,     $CHART_NAME,
+#             $upperLeftLon, $upperLeftLat, $xPixelSize,
+#             $yPixelSize,   $xPixelSkew,   $yPixelSkew";
 
-        my $targetVrtFile =
-          $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
+        #         my $targetVrtFile =
+        #           $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
+        #
+        #         # convert spaces, ., and slashes to dash
+        #         $targetVrtFile =~ s/[\s \/ \\ \. \( \)]/-/xg;
+        #
+        #         my $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
+        #         my $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
 
-        # convert spaces, ., and slashes to dash
-        $targetVrtFile =~ s/[\s \/ \\ \. \( \)]/-/xg;
-
-        my $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
-        my $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
-
-        my $targetvrt = $dir . $targetVrtFile . ".vrt";
+        #         my $targetvrt = $dir . $targetVrtFile . ".vrt";
 
         #Make the airport directory if it doesn't already exist
-        if ( !-e "./byAirport/$FAA_CODE/" ) {
-            make_path("./byAirport/$FAA_CODE/");
+        if ( !-e "$outputDir" . "$FAA_CODE/" ) {
+            make_path("$outputDir" . "$FAA_CODE/");
         }
         my ($chartBasename) = $PDF_NAME =~ m/(\w+)\.PDF/i;
+        my $pngName         = $chartBasename . '.png';
+        my $worldFileName   = $chartBasename . '.wld';
 
-        #This won't make links to the bad charts
-        # ./dtpp/AL-DHN-00123COPTERV36-PDF-COPTER-VOR-RWY-36.vrt
-        if ( -e "$targetvrt" && !-e "./byAirport/$FAA_CODE/$targetVrtFile.vrt" )
-        {
+        #Does the .png for this procedure exist
+        if ( -e "$inputDir" . "$pngName" ) {
 
-            link( "$targetvrt", "./byAirport/$FAA_CODE/$targetVrtFile.vrt" );
+            #             link( "$", "$outputDir . $FAA_CODE/$targetVrtFile.vrt" );
 
-            link( "./dtpp/$chartBasename.png",
-                "./byAirport/$FAA_CODE/$chartBasename.png" );
+            link( "$inputDir" . "$pngName",
+                "$outputDir" . "$FAA_CODE/$pngName" );
 
-            if ( $CHART_CODE eq "APD" ) {
-                $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
-# 		say $targetvrt;
-                if ( -e "$targetvrt"
-                    && !-e "./byAirport/$FAA_CODE/warped-$targetVrtFile.vrt" )
-                {
-                    link( "$targetvrt",
-                        "./byAirport/$FAA_CODE/warped-$targetVrtFile.vrt" );
-#                     say $targetvrt;
-                }
-            }
+                my $filename = "$outputDir" . "$FAA_CODE/$worldFileName";
+open(my $fh, '>', $filename) or die "Could not open file '$filename' $!";
+   if ( $yPixelSize > 0 ) {
+        say "Converting $yPixelSize to negative";
+        $yPixelSize = -($yPixelSize);
+    }
+    
+say $fh $xPixelSize;
+say $fh $yPixelSkew;
+say $fh $xPixelSkew;
+say $fh $yPixelSize;
+say $fh $upperLeftLon;
+say $fh $upperLeftLat;
+close $fh;
+
+            #             if ( $CHART_CODE eq "APD" ) {
+            #                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
+            # # 		say $targetvrt;
+            #                 if ( -e "$targetvrt"
+            #                     && !-e "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" )
+            #                 {
+            #                     link( "$targetvrt",
+            #                         "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" );
+            # #                     say $targetvrt;
+            #                 }
+            #             }
         }
 
         ++$completedCount;
