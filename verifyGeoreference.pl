@@ -224,11 +224,12 @@ exit;
 sub findAirportLatitudeAndLongitude {
 
     #Returns the lat/lon of the airport for the plate we're working on
+
     #Validate and set input parameters to this function
     my ($FAA_CODE) = validate_pos( @_, { type => SCALAR }, );
 
-    my $_airportLatitudeDec  = "";
-    my $_airportLongitudeDec = "";
+    my $_airportLatitudeDec;
+    my $_airportLongitudeDec;
 
     #Query the database for airport
     my $sth = $dbh->prepare(
@@ -258,17 +259,8 @@ sub findAirportLatitudeAndLongitude {
         #             }
     }
 
-    #         if ( $_airportLongitudeDec eq "" or $_airportLatitudeDec eq "" ) {
-    #             say
-    #               "No airport coordinate information found for $airportId in $main::targetPdf  or database";
-    #             return (1);
-    #         }
-
-    #     #Save statistics
-    #     $statistics{'$airportLatitude'}  = $_airportLatitudeDec;
-    #     $statistics{'$airportLongitude'} = $_airportLongitudeDec;
     say
-      "FAA_CODE: $FAA_CODE, Lat:$_airportLatitudeDec, Lon:$_airportLongitudeDec";
+      "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec";
     return ( $_airportLatitudeDec, $_airportLongitudeDec );
 }
 
@@ -829,20 +821,20 @@ sub findPlatesNotMarkedManually {
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
         ( 
-        --CHART_CODE = 'IAP'
-        --OR 
+        CHART_CODE = 'IAP'
+         OR 
         CHART_CODE = 'APD' 
         )                 
---           AND 
---        FAA_CODE LIKE  '$airportId' 
---           AND
---        STATE_ID LIKE  '$stateId'                   
+           AND 
+        FAA_CODE LIKE  '$main::airportId' 
+           AND
+        STATE_ID LIKE  '$main::stateId'                   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
-        --  AND
-        --DG.STATUS NOT LIKE '%MANUAL%'
-        --  AND
-        --DG.STATUS NOT LIKE '%NOGEOREF%'
+          AND
+        DG.STATUS NOT LIKE '%MANUAL%'
+          AND
+        DG.STATUS NOT LIKE '%NOGEOREF%'
 --          AND
 --        (CAST (DG.xPixelSkew as FLOAT) != '0'
 --          OR
@@ -853,8 +845,8 @@ sub findPlatesNotMarkedManually {
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
 --          AND
 --        Difference  > .08
---      ORDER BY 
---        Difference ASC
+      ORDER BY
+        D.FAA_CODE ASC
 ;"
     );
     $dtppSth->execute();
@@ -896,10 +888,10 @@ sub allIapAndApdCharts {
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
         ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )                 
---           AND 
---        FAA_CODE LIKE  '$airportId' 
---           AND
---        STATE_ID LIKE  '$stateId'                   
+           AND 
+	FAA_CODE LIKE  '$main::airportId' 
+           AND
+        STATE_ID LIKE  '$main::stateId'                    
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
 --          AND
@@ -911,8 +903,8 @@ sub allIapAndApdCharts {
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
 --          AND
 --        Difference  > .08
---      ORDER BY 
---        Difference ASC
+      ORDER BY
+        D.FAA_CODE ASC
 ;"
     );
 
@@ -955,17 +947,17 @@ sub findPlatesMarkedBad {
 	D.PDF_NAME=DG.PDF_NAME
       WHERE
         ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )
---           AND
---        FAA_CODE LIKE  '$airportId'
---           AND
---        STATE_ID LIKE  '$stateId'
+           AND
+	FAA_CODE LIKE  '$main::airportId' 
+           AND
+        STATE_ID LIKE  '$main::stateId'   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
         DG.STATUS LIKE '%BAD%'
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
-        -- Civilian charts only for now
+        -- BUG TODO: Civilian charts only for now
 	  AND
         D.MILITARY_USE != 'M'
 --          AND
@@ -974,8 +966,8 @@ sub findPlatesMarkedBad {
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
 --          AND
 --        Difference  > .08
---      ORDER BY
---        Difference ASC
+      ORDER BY
+        D.FAA_CODE ASC
 ;"
     );
 
@@ -1018,17 +1010,27 @@ sub chartsMarkedChanged {
       ON
 	D.PDF_NAME=DG.PDF_NAME
       WHERE
+	(
+        D.USER_ACTION = 'C'
+        OR
+        D.USER_ACTION = 'A'
+        )
+          AND
         ( 
-                  CHART_CODE = 'IAP' 
-                    OR 
-                  CHART_CODE = 'APD' 
-                )  
+         CHART_CODE = 'IAP' 
+           OR 
+         CHART_CODE = 'APD' 
+        )  
+          AND
+        FAA_CODE LIKE  '$main::airportId' 
+           AND
+        STATE_ID LIKE  '$main::stateId'   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
-         AND
-         DG.STATUS NOT LIKE '%MANUALGOOD%'
+        -- AND
+        -- DG.STATUS NOT LIKE '%MANUALGOOD%'
 
       ORDER BY
         D.FAA_CODE ASC
