@@ -70,6 +70,7 @@ sub main {
 	D.PDF_NAME
 	,D.FAA_CODE
 	,D.CHART_NAME
+	,D.MILITARY_USE
 	,DG.upperLeftLon
 	,DG.upperLeftLat
 	,DG.xMedian
@@ -83,11 +84,15 @@ sub main {
       ON 
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
-        ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )                          
+        ( 
+        --CHART_CODE = 'IAP'
+        --OR 
+        CHART_CODE = 'APD' 
+        )                          
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
-          AND
-        DG.STATUS LIKE '%MANUALGOOD%'
+--          AND
+--        DG.STATUS LIKE '%MANUALGOOD%'
 --          AND
 --        CAST (DG.xPixelSkew as FLOAT) > '0'    
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'
@@ -113,16 +118,16 @@ sub main {
     foreach my $_row (@$_allSqlQueryResults) {
 
         my (
-            $PDF_NAME,     $FAA_CODE,     $CHART_NAME,
+            $PDF_NAME,     $FAA_CODE,     $CHART_NAME, $MILITARY_USE,
             $upperLeftLon, $upperLeftLat, $xPixelSize,
             $yPixelSize,   $xPixelSkew,   $yPixelSkew
         ) = @$_row;
 
         # EC-3, ORD, 51125, IAP, ILS RWY 09L (SA CAT I), , 00166I9LSAC1.PDF, , N, , IL
         # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
-#         say "$PDF_NAME,     $FAA_CODE,     $CHART_NAME,
-#             $upperLeftLon, $upperLeftLat, $xPixelSize,
-#             $yPixelSize,   $xPixelSkew,   $yPixelSkew";
+        #         say "$PDF_NAME,     $FAA_CODE,     $CHART_NAME,
+        #             $upperLeftLon, $upperLeftLat, $xPixelSize,
+        #             $yPixelSize,   $xPixelSkew,   $yPixelSkew";
 
         #         my $targetVrtFile =
         #           $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
@@ -135,36 +140,80 @@ sub main {
 
         #         my $targetvrt = $dir . $targetVrtFile . ".vrt";
 
-        #Make the airport directory if it doesn't already exist
-        if ( !-e "$outputDir" . "$FAA_CODE/" ) {
-            make_path("$outputDir" . "$FAA_CODE/");
+           #Make the airport directory if it doesn't already exist
+        if ( !-e "$outputDir"  ) {
+            make_path( "$outputDir");
         }
+#         #Make the airport directory if it doesn't already exist
+#         if ( !-e "$outputDir" . "$FAA_CODE/" ) {
+#             make_path( "$outputDir" . "$FAA_CODE/" );
+#         }
         my ($chartBasename) = $PDF_NAME =~ m/(\w+)\.PDF/i;
         my $pngName         = $chartBasename . '.png';
         my $worldFileName   = $chartBasename . '.wld';
+my $numberFormat = "%.10f";
 
         #Does the .png for this procedure exist
         if ( -e "$inputDir" . "$pngName" ) {
 
             #             link( "$", "$outputDir . $FAA_CODE/$targetVrtFile.vrt" );
 
-            link( "$inputDir" . "$pngName",
-                "$outputDir" . "$FAA_CODE/$pngName" );
+            link( "$inputDir" 
+                . "$pngName"
+                ,
+                "$outputDir" 
+                #. "$FAA_CODE" 
+                . "/$FAA_CODE-$pngName" );
 
-                my $filename = "$outputDir" . "$FAA_CODE/$worldFileName";
-open(my $fh, '>', $filename) or die "Could not open file '$filename' $!";
-   if ( $yPixelSize > 0 ) {
-        say "Converting $yPixelSize to negative";
-        $yPixelSize = -($yPixelSize);
-    }
-    
-say $fh $xPixelSize;
-say $fh $yPixelSkew;
-say $fh $xPixelSkew;
-say $fh $yPixelSize;
-say $fh $upperLeftLon;
-say $fh $upperLeftLat;
-close $fh;
+            my $worldfilePath = "$outputDir" 
+            #. "$FAA_CODE" 
+            . "/$FAA_CODE-$worldFileName";
+
+            #Create the world file
+            open( my $fh, '>', $worldfilePath )
+              or die "Could not open file '$worldfilePath' $!";
+            
+            if ( $yPixelSize > 0 ) {
+#                 say "Converting $yPixelSize to negative";
+                $yPixelSize = -($yPixelSize);
+            }
+
+#             if ($xPixelSkew != 0 && $yPixelSkew == 0)
+# 	      {
+# # say "Something wrong with X skew on $FAA_CODE ($PDF_NAME)";
+# }
+# 	    if ($yPixelSkew != 0 && $xPixelSkew == 0)
+# 	      {
+# # 	      say "Something wrong with Y skew on $FAA_CODE ($PDF_NAME)";
+# 	      }
+# 	    if ($yPixelSkew != 0 && $xPixelSkew != 0)
+# # 	      {say "Non-zero X and Y skew on $FAA_CODE ($PDF_NAME)";}  
+# 	    
+# 	    if (abs($yPixelSize) < 0.00001 )
+# # 	      {say " yPixelSize too small (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+# 	    
+# 	    if (abs($yPixelSize) > 0.00009 )
+# # 	      {say " yPixelSize too big (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+# 	    
+# 	    if ($xPixelSize < 0.00001 )
+# # 	      {say " xPixelSize too small (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+# 	    
+# 	    if ($xPixelSize > 0.00009 )
+# # 	      {say " xPixelSize too big (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";} 
+
+#             say $fh $xPixelSize;
+            say $fh sprintf($numberFormat,$xPixelSize);
+#             say $fh $yPixelSkew;
+            say $fh sprintf($numberFormat,$yPixelSkew);
+#             say $fh $xPixelSkew;
+            say $fh sprintf($numberFormat,$xPixelSkew);
+#             say $fh $yPixelSize;
+            say $fh sprintf($numberFormat,$yPixelSize);
+#             say $fh $upperLeftLon;
+            say $fh sprintf($numberFormat,$upperLeftLon);
+#             say $fh $upperLeftLat;
+            say $fh sprintf($numberFormat,$upperLeftLat);
+            close $fh;
 
             #             if ( $CHART_CODE eq "APD" ) {
             #                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
@@ -178,9 +227,10 @@ close $fh;
             #                 }
             #             }
         }
-
+else {
+say "No .png for $FAA_CODE";}
         ++$completedCount;
-        say "$completedCount" . "/" . "$_rows";
+#         say "$completedCount" . "/" . "$_rows";
     }
 
 }

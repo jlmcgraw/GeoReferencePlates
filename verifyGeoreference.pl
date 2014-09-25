@@ -82,11 +82,12 @@ my $opt_string = 'cspvobma:i:';
 my $arg_num    = scalar @ARGV;
 
 #Whether to draw various features
-our $shouldDrawRunways   = 1;
-our $shouldDrawNavaids   = 1;
-our $shouldDrawFixes     = 0;
-our $shouldDrawObstacles = 0;
-our $shouldDrawGcps      = 1;
+our $shouldDrawRunways    = 1;
+our $shouldDrawNavaids    = 1;
+our $shouldDrawFixes      = 0;
+our $shouldDrawObstacles  = 0;
+our $shouldDrawGcps       = 1;
+our $shouldDrawGraticules = 1;
 
 #We need at least one argument (the directory with plates)
 if ( $arg_num < 1 ) {
@@ -195,11 +196,12 @@ $window->set_screen( $window->get_screen() );
 $window->signal_connect( destroy => sub { Gtk3->main_quit } );
 
 #Various UI elements we populate programmmatically
-our $runwayBox    = $builder->get_object('scrolledwindow2');
-our $navaidBox    = $builder->get_object('scrolledwindow4');
-our $fixesBox     = $builder->get_object('scrolledwindow5');
-our $obstaclesBox = $builder->get_object('scrolledwindow6');
-our $gcpBox       = $builder->get_object('scrolledwindow3');
+our $runwayBox       = $builder->get_object('scrolledwindow2');
+our $navaidBox       = $builder->get_object('scrolledwindow4');
+our $fixesBox        = $builder->get_object('scrolledwindow5');
+our $obstaclesBox    = $builder->get_object('scrolledwindow6');
+our $gcpBox          = $builder->get_object('scrolledwindow3');
+our $lonLatTextEntry = $builder->get_object('lonLatTextEntry');
 
 $window->show_all();
 
@@ -230,11 +232,15 @@ sub findAirportLatitudeAndLongitude {
 
     #Query the database for airport
     my $sth = $dbh->prepare(
-        "SELECT  FaaID, Latitude, Longitude, Name  
-             FROM airports  
-             WHERE  FaaID = '$FAA_CODE'"
+        "SELECT  
+	    FaaID, Latitude, Longitude, Name  
+         FROM 
+	    airports  
+         WHERE
+	    FaaID = '$FAA_CODE'"
     );
     $sth->execute();
+
     my $_allSqlQueryResults = $sth->fetchall_arrayref();
 
     foreach my $_row (@$_allSqlQueryResults) {
@@ -343,6 +349,7 @@ sub findObstaclesNearAirport {
     foreach my $_row (@$all) {
         my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
         if ( exists $unique_obstacles_from_db{$heightmsl} ) {
+
             #This is a duplicate obstacle
             $lat = $lon = 0;
         }
@@ -821,21 +828,26 @@ sub findPlatesNotMarkedManually {
       ON 
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
-        ( CHART_CODE = 'IAP'OR CHART_CODE = 'APD' )                 
+        ( 
+        --CHART_CODE = 'IAP'
+        --OR 
+        CHART_CODE = 'APD' 
+        )                 
 --           AND 
 --        FAA_CODE LIKE  '$airportId' 
 --           AND
 --        STATE_ID LIKE  '$stateId'                   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
-          AND
-        DG.STATUS NOT LIKE '%MANUAL%'
-          AND
-        DG.STATUS NOT LIKE '%NOGEOREF%'
+        --  AND
+        --DG.STATUS NOT LIKE '%MANUAL%'
+        --  AND
+        --DG.STATUS NOT LIKE '%NOGEOREF%'
 --          AND
 --        (CAST (DG.xPixelSkew as FLOAT) != '0'
 --          OR
 --          CAST (DG.yPixelSkew as FLOAT) != '0')
+--          and D.MILITARY_USE = 'M'
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'
 --          AND
 --        CAST (DG.xScaleAvgSize as FLOAT) > 1
@@ -954,8 +966,8 @@ sub findPlatesMarkedBad {
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
         -- Civilian charts only for now
-         AND
-         D.MILITARY_USE != 'M'
+	  AND
+        D.MILITARY_USE != 'M'
 --          AND
 --        CAST (DG.yScaleAvgSize AS FLOAT) > 1
 --          AND
@@ -966,7 +978,7 @@ sub findPlatesMarkedBad {
 --        Difference ASC
 ;"
     );
-         
+
     $dtppSth->execute();
 
     #Return the arraryRef
@@ -1048,22 +1060,27 @@ sub wgs84ToPixelBuf {
           $main::invertedAffineTransform->transform( $_longitude, $_latitude );
 
         #Clamp to height of our scaled image
-        if ( $_yPixel < 0 || $_yPixel > $scaledImageHeight ) {
+        if ( $_yPixel < 0 ) {
             $_yPixel = 0;
         }
-        else {
-            $_yPixel =
-              ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
+        elsif ( $_yPixel > $scaledImageHeight ) {
+            $_yPixel = $scaledImageHeight;
         }
 
+        $_yPixel =
+          ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
+
         #Clamp to width
-        if ( $_xPixel < 0 || $_xPixel > $scaledImageWidth ) {
+        if ( $_xPixel < 0 ) {
             $_xPixel = 0;
         }
-        else {
-            $_xPixel =
-              ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+        elsif ( $_xPixel > $scaledImageWidth ) {
+            $_xPixel = $scaledImageWidth;
         }
+
+        $_xPixel =
+          ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+
         return ( $_xPixel, $_yPixel );
     }
     else { return ( 0, 0 ) }
@@ -1094,6 +1111,10 @@ sub toggleDrawingObstacles {
     $main::plateSw->queue_draw;
 }
 
+sub toggleDrawingGraticules {
+    $main::shouldDrawGraticules = !$main::shouldDrawGraticules;
+    $main::plateSw->queue_draw;
+}
 sub cairo_draw {
     my ( $widget, $context, $ref_status ) = @_;
 
@@ -1244,7 +1265,7 @@ sub cairo_draw {
         }
     }
 
-    #Draw GCPs
+    #Draw Obstacles?
     if ($shouldDrawObstacles) {
         foreach my $key ( keys $main::unique_obstacles_from_db_hashref ) {
 
@@ -1252,9 +1273,10 @@ sub cairo_draw {
             my $lat  = $main::unique_obstacles_from_db_hashref->{$key}{"Lat"};
             my $lon  = $main::unique_obstacles_from_db_hashref->{$key}{"Lon"};
             my $text = $main::unique_obstacles_from_db_hashref->{$key}{"Name"};
-            
+
             #non-unique obstacles have lon/lat both equal to 0
-	    next if ($lon == 0 && $lat == 0);
+            next if ( $lon == 0 && $lat == 0 );
+
             # 		    say "$latLE, $lonLE, $latHE, $lonHE";
             #             my $y1 = latitudeToPixel($lat);
             #             my $x1 = longitudeToPixel($lon);
@@ -1317,6 +1339,52 @@ sub cairo_draw {
                 $context->stroke;
             }
 
+        }
+    }
+
+    if ($shouldDrawGraticules) {
+
+        #Draw some squares, if they aren't square then something's wrong with transform
+        #     my $radius = .5;
+
+        foreach my $radius ( .125, .25, .375, .5 ) {
+            my ( $latRadius, $lonRadius ) =
+              radiusGivenLatitude( $radius, $main::airportLatitudeDec );
+              
+            my ( $x1, $y1 ) = wgs84ToPixelBuf(
+                $main::airportLongitudeDec - $lonRadius,
+                $main::airportLatitudeDec - $latRadius
+            );
+            my ( $x2, $y2 ) = wgs84ToPixelBuf(
+                $main::airportLongitudeDec - $lonRadius,
+                $main::airportLatitudeDec + $latRadius
+            );
+            my ( $x3, $y3 ) = wgs84ToPixelBuf(
+                $main::airportLongitudeDec + $lonRadius,
+                $main::airportLatitudeDec + $latRadius
+            );
+            my ( $x4, $y4 ) = wgs84ToPixelBuf(
+                $main::airportLongitudeDec + $lonRadius,
+                $main::airportLatitudeDec - $latRadius
+            );
+# 	    say "$lonRadius $latRadius $x1 $y1 $x2 $y2";
+	    
+            $context->set_source_rgba( 0, 0, 1, .5 );
+            $context->set_line_width(2);
+            $context->move_to( $x1, $y1 );
+            $context->line_to( $x2, $y2);
+            $context->line_to( $x3, $y3);
+            $context->line_to( $x4, $y4);
+            $context->line_to( $x1, $y1);
+            $context->stroke;
+#             
+#             $context->set_source_rgba( 0, 1, 1, .9 );
+#             $context->set_line_width(2);
+#             $context->move_to( $x2, $y2 );
+#             $context->line_to( $x3, $y3 );
+#             
+# 
+#             $context->stroke;
         }
     }
 
@@ -1564,6 +1632,7 @@ sub activateNewPlate {
         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew
     ) = @$rowRef;
 
+    say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
     #FQN of the PDF for this chart
     my $targetPdf = $dtppDirectory . $PDF_NAME;
 
@@ -2233,6 +2302,90 @@ sub georeferenceButtonClicked {
 
 }
 
+sub lonLatButtonClicked {
+    my $text = $main::lonLatTextEntry->get_text;
+    my ( $lonDecimal, $latDecimal );
+
+    # say"wheee!";
+    # say $text;
+    #BUG TODO Change to named captures...
+    $text =~
+      m/(?<lonDegrees>\d{2,})-(?<lonMinutes>\d\d\.?\d?)(?<lonDeclination>[E|W]),(?<latDegrees>\d{2,})-(?<latMinutes>\d\d\.?\d?)(?<latDeclination>[N|S])/ix;
+
+    my $lonDegrees     = $+{lonDegrees};
+    my $lonMinutes     = $+{lonMinutes};
+    my $lonSeconds     = 0;
+    my $lonDeclination = $+{lonDeclination};
+
+    my $latDegrees     = $+{latDegrees};
+    my $latMinutes     = $+{latMinutes};
+    my $latSeconds     = 0;
+    my $latDeclination = $+{latDeclination};
+
+    #             say "$lonDegrees-$lonMinutes-$lonSeconds-$lonDeclination,$latDegrees-$latMinutes-$latSeconds-$latDeclination";
+    if (   $lonDegrees
+        && $lonMinutes
+        && $lonDeclination
+        && $latDegrees
+        && $latMinutes
+        && $latDeclination )
+    {
+        $lonDecimal =
+          coordinateToDecimal2( $lonDegrees, $lonMinutes, $lonSeconds,
+            $lonDeclination );
+        $latDecimal =
+          coordinateToDecimal2( $latDegrees, $latMinutes, $latSeconds,
+            $latDeclination );
+        say
+          "$text -> $lonDegrees-$lonMinutes-$lonSeconds-$lonDeclination,$latDegrees-$latMinutes-$latSeconds-$latDeclination -> $lonDecimal,$latDecimal";
+    }
+
+    #Update the current GCP
+    $main::currentGcpLon = $lonDecimal;
+    $main::currentGcpLat = $latDecimal;
+    $main::currentGcpName =
+      "$lonDegrees-$lonMinutes-$lonSeconds-$lonDeclination,$latDegrees-$latMinutes-$latSeconds-$latDeclination";
+}
+
+sub coordinateToDecimal2 {
+
+    my ( $deg, $min, $sec, $declination ) = @_;
+
+    my $signeddegrees;
+
+    return "" if !( $declination =~ /[NSEW]/ );
+
+    $deg = $deg / 1;
+    $min = $min / 60;
+    $sec = $sec / 3600;
+
+    $signeddegrees = ( $deg + $min + $sec );
+
+    if ( ( $declination eq "S" ) || ( $declination eq "W" ) ) {
+        $signeddegrees = -($signeddegrees);
+    }
+
+    given ($declination) {
+        when (/N|S/) {
+
+            #Latitude is invalid if less than -90  or greater than 90
+            $signeddegrees = "" if ( abs($signeddegrees) > 90 );
+        }
+        when (/E|W/) {
+
+            #Longitude is invalid if less than -180 or greater than 180
+            $signeddegrees = "" if ( abs($signeddegrees) > 180 );
+        }
+        default {
+        }
+
+    }
+
+    # say "Coordinate: $coordinate to $signeddegrees"        if $debug;
+    say "Deg: $deg, Min:$min, Sec:$sec, Decl:$declination" if $debug;
+    return ($signeddegrees);
+}
+
 sub updateStatus {
 
     #Update this plates status in database to the passed in text
@@ -2271,31 +2424,32 @@ sub markGoodButtonClick {
     #
     #     #     say @$_platesNotMarkedManually;
 
-#     #Use this section to skip to next "unverified" plate
-#     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-# 
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesWithNoLonLat++;
-#     }
-# 
-#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-# 
-#     #Get info about the airport we're currently pointing to
-#     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+    #     #Use this section to skip to next "unverified" plate
+    #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+    #
+    #     #BUG TODO Make length of array
+    #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+    #         $indexIntoPlatesWithNoLonLat++;
+    #     }
+    #
+    #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+    #
+    #     #Get info about the airport we're currently pointing to
+    #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
-        #--------------------------------------
-    
-        #Use this section to skip to next "bad" plate
-        my $totalPlateCount = scalar @{$_platesMarkedBad};
-    
-        #BUG TODO Make length of array
-        if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-            $indexIntoPlatesMarkedBad++;
-        }
-        my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-        say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-        #---------------------------------------
+    #--------------------------------------
+
+    #Use this section to skip to next "bad" plate
+    my $totalPlateCount = scalar @{$_platesMarkedBad};
+
+    #BUG TODO Make length of array
+    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+        $indexIntoPlatesMarkedBad++;
+    }
+    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+
+    #---------------------------------------
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
@@ -2310,32 +2464,32 @@ sub markBadButtonClick {
 
     #Set status in the database
     updateStatus( "MANUALBAD", $main::PDF_NAME );
-    
-#Use this section to skip to next "unverified" plate
-#     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-# 
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesWithNoLonLat++;
-# 
-#     }
-# 
-#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-# 
-#     #Get info about the airport we're currently pointing to
-#     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
- #Use this section to skip to next "bad" plate
-        my $totalPlateCount = scalar @{$_platesMarkedBad};
-    
-        #BUG TODO Make length of array
-        if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-            $indexIntoPlatesMarkedBad++;
-        }
-        my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-        say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-    
-        #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+    #Use this section to skip to next "unverified" plate
+    #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+    #
+    #     #BUG TODO Make length of array
+    #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+    #         $indexIntoPlatesWithNoLonLat++;
+    #
+    #     }
+    #
+    #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+    #
+    #     #Get info about the airport we're currently pointing to
+    #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+
+    #Use this section to skip to next "bad" plate
+    my $totalPlateCount = scalar @{$_platesMarkedBad};
+
+    #BUG TODO Make length of array
+    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+        $indexIntoPlatesMarkedBad++;
+    }
+    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+
+    #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
     #
     #     #Update information for the plate we're getting ready to display
     #     activateNewPlate($rowRef);
@@ -2346,11 +2500,9 @@ sub markBadButtonClick {
     #     say $indexIntoPlatesMarkedChanged;
     #
     #     #     say @$_platesNotMarkedManually;
-    
+
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
-
-
 
     return TRUE;
 }
