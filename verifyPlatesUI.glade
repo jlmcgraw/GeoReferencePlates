@@ -42,7 +42,7 @@
               </object>
               <packing>
                 <property name="left_attach">2</property>
-                <property name="top_attach">3</property>
+                <property name="top_attach">4</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -57,7 +57,7 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">3</property>
+                <property name="top_attach">4</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -72,7 +72,7 @@
               </object>
               <packing>
                 <property name="left_attach">0</property>
-                <property name="top_attach">3</property>
+                <property name="top_attach">4</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -145,7 +145,7 @@
             </child>
             <child>
               <object class="GtkButton" id="button8">
-                <property name="label" translatable="yes">Next Changed</property>
+                <property name="label" translatable="yes">Next Added/Changed</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
@@ -160,7 +160,7 @@
             </child>
             <child>
               <object class="GtkButton" id="button9">
-                <property name="label" translatable="yes">Prev. Changed</property>
+                <property name="label" translatable="yes">Prev. Added/Changed</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
@@ -183,24 +183,7 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">4</property>
-                <property name="width">1</property>
-                <property name="height">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkCheckButton" id="checkbutton1">
-                <property name="label" translatable="yes">Locked</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">False</property>
-                <property name="xalign">0.25</property>
-                <property name="image_position">bottom</property>
-                <property name="draw_indicator">True</property>
-              </object>
-              <packing>
-                <property name="left_attach">0</property>
-                <property name="top_attach">4</property>
+                <property name="top_attach">5</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -218,7 +201,7 @@
               </object>
               <packing>
                 <property name="left_attach">0</property>
-                <property name="top_attach">6</property>
+                <property name="top_attach">7</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -236,7 +219,7 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">6</property>
+                <property name="top_attach">7</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -251,14 +234,14 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">9</property>
+                <property name="top_attach">11</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkButton" id="button13">
-                <property name="label" translatable="yes">Delete GCPs</property>
+                <property name="label" translatable="yes">Delete all GCPs</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
@@ -266,34 +249,22 @@
               </object>
               <packing>
                 <property name="left_attach">2</property>
-                <property name="top_attach">9</property>
+                <property name="top_attach">11</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkButton" id="button11">
-                <property name="label" translatable="yes">Save georeference</property>
+                <property name="label" translatable="yes">Save current GCPs</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
+                <signal name="clicked" handler="saveGeoreferenceButtonClicked" swapped="no"/>
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">5</property>
-                <property name="width">1</property>
-                <property name="height">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkEntry" id="lonLatTextEntry">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="placeholder_text" translatable="yes">11-22E,33-44S</property>
-              </object>
-              <packing>
-                <property name="left_attach">1</property>
-                <property name="top_attach">2</property>
+                <property name="top_attach">6</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -308,7 +279,7 @@
               </object>
               <packing>
                 <property name="left_attach">0</property>
-                <property name="top_attach">9</property>
+                <property name="top_attach">11</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -326,7 +297,7 @@
               </object>
               <packing>
                 <property name="left_attach">0</property>
-                <property name="top_attach">7</property>
+                <property name="top_attach">8</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -343,7 +314,7 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">7</property>
+                <property name="top_attach">8</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -360,7 +331,7 @@
               </object>
               <packing>
                 <property name="left_attach">2</property>
-                <property name="top_attach">6</property>
+                <property name="top_attach">7</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -378,7 +349,7 @@
               </object>
               <packing>
                 <property name="left_attach">2</property>
-                <property name="top_attach">7</property>
+                <property name="top_attach">8</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -395,7 +366,7 @@
               </object>
               <packing>
                 <property name="left_attach">0</property>
-                <property name="top_attach">8</property>
+                <property name="top_attach">10</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -412,7 +383,7 @@
               </object>
               <packing>
                 <property name="left_attach">1</property>
-                <property name="top_attach">8</property>
+                <property name="top_attach">10</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
@@ -429,10 +400,86 @@
               </object>
               <packing>
                 <property name="left_attach">2</property>
-                <property name="top_attach">8</property>
+                <property name="top_attach">10</property>
                 <property name="width">1</property>
                 <property name="height">1</property>
               </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="lonLatTextEntry">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="placeholder_text" translatable="yes">11-22E,33-44S</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">3</property>
+                <property name="width">1</property>
+                <property name="height">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkCheckButton" id="checkbutton1">
+                <property name="label" translatable="yes">Navaid Names</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="xalign">0</property>
+                <property name="draw_indicator">True</property>
+                <signal name="toggled" handler="toggleDrawingNavaidsNames" swapped="no"/>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">9</property>
+                <property name="width">1</property>
+                <property name="height">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkCheckButton" id="checkbutton8">
+                <property name="label" translatable="yes">Obstacle Heights</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="xalign">0</property>
+                <property name="draw_indicator">True</property>
+                <signal name="toggled" handler="toggleDrawingObstaclesHeights" swapped="no"/>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">9</property>
+                <property name="width">1</property>
+                <property name="height">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkCheckButton" id="checkbutton9">
+                <property name="label" translatable="yes">Fix Names</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="xalign">0</property>
+                <property name="draw_indicator">True</property>
+                <signal name="toggled" handler="toggleDrawingFixesNames" swapped="no"/>
+              </object>
+              <packing>
+                <property name="left_attach">2</property>
+                <property name="top_attach">9</property>
+                <property name="width">1</property>
+                <property name="height">1</property>
+              </packing>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
             </child>
             <child>
               <placeholder/>
@@ -696,6 +743,7 @@
       </object>
     </child>
   </object>
+  <object class="GtkListStore" id="liststore1"/>
   <object class="GtkListStore" id="liststore19">
     <columns>
       <!-- column-name gchararray1 -->
@@ -718,6 +766,7 @@
       </row>
     </data>
   </object>
+  <object class="GtkListStore" id="liststore2"/>
   <object class="GtkListStore" id="liststoreFixes"/>
   <object class="GtkListStore" id="liststoreGCPs"/>
   <object class="GtkTreeView" id="gcpTreeview">

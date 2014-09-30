@@ -29,6 +29,12 @@ use DBI;
 use LWP::Simple;
 use XML::Twig;
 use Parallel::ForkManager;
+use File::Path qw(make_path remove_tree);
+use Params::Validate qw(:all);
+use File::Basename;
+use Data::Dumper;
+$Data::Dumper::Sortkeys = 1;
+
 my @links = ();
 
 my $arg_num = scalar @ARGV;
@@ -36,17 +42,21 @@ my $arg_num = scalar @ARGV;
 #We need at least one argument (the name of the PDF to process)
 if ( $arg_num < 2 ) {
     say "Specify base dir and cycle";
-    say "eg: $0 . 1409";
+    say "eg: $0 . 1410";
     exit(1);
 }
 
 my $BASE_DIR          = shift @ARGV;
 my $cycle             = shift @ARGV;
-my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile.xml";
+my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile-$cycle.xml";
 
 #Where to download DTPPs to
-my $dtppDownloadDir = "$BASE_DIR/dtpp/";
+my $dtppDownloadDir = "$BASE_DIR/dtpp-$cycle/";
 
+        if ( !-e "$dtppDownloadDir"  ) {
+            make_path( "$dtppDownloadDir");
+        }
+        
 die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 
 #URL of the DTPP catalog
@@ -57,19 +67,25 @@ my $dtpp_url =
   
 #Where to download DTPPs from
 my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
-my ( $count, $downloadedCount, $deletedCount, $changedCount ) = 0;
+my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
 
+my %countHash;
+
+if(! -e $TPP_METADATA_FILE) {
 print "Downloading the d-TPP metafile: ".$dtpp_url."...";
 # my $ret = 200;
 my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
-if ( $ret != 200 )
-{
-die "Unable to download d-TPP metadata.";
-}
-print "done\n";
+  if ( $ret != 200 )
+  {
+  die "Unable to download d-TPP metadata.";
+  }
+  print "done\n";
+  }
+else 
+{say "Using existing $TPP_METADATA_FILE";}
 
 #The name of our database
-my $dbfile = "$BASE_DIR/dtpp.db";
+my $dbfile = "$BASE_DIR/dtpp-$cycle.db";
 my $dbh = DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "" );
 
 $dbh->do("PRAGMA page_size=4096");
@@ -259,7 +275,9 @@ print "\rDone loading $count records\n";
 say "$downloadedCount charts downloaded";
 say "$deletedCount charts deleted";
 say "$changedCount charts changed";
+say "$addedCount charts changed";
 
+print Dumper (\%countHash);
 exit;
 
 my $from_date;
@@ -268,6 +286,7 @@ my $volume;
 my $state_id;
 my $faa_code;
 my $military_use;
+
 
 sub digital_tpp {
     my ( $twig, $dtpp ) = @_;
@@ -358,6 +377,39 @@ sub record {
     $sth_dtppGeo->bind_param( 1, $pdf_name );
     $sth_dtppGeo->execute;
 
+    #Keep a tally of chart types and actions
+    $countHash{$chart_code}{$user_action}++;
+    
+    #We're only going to download IAPs or APDs, though all charts will be put in DB
+if (! ($chart_code eq "APD" || $chart_code eq "IAP" ))
+{return;}
+
+    if ( $user_action =~ /D/i ) {
+        say "Deleting old " . "$dtppDownloadDir" . "$pdf_name";
+        deleteStaleFiles($pdf_name);
+        ++$deletedCount;
+    }
+   if ( $user_action =~ /A/i ) {
+        say "Added " . "$dtppDownloadDir" . "$pdf_name";      
+        ++$addedCount;
+    }
+    if ( $user_action =~ /C/i ) {
+        say "Download changed chart $chart_url_base"
+          . "$pdf_name" . " -> "
+          . "$dtppDownloadDir"
+          . "$pdf_name";
+        #Delete old files
+# #         deleteStaleFiles($pdf_name);
+#         #Get the new one
+#              my $status = getstore(
+#             "$chart_url_base" . "$pdf_name",
+#             "$dtppDownloadDir" . "$pdf_name"
+#         );
+#         die "Error $status on $pdf_name" unless is_success($status);
+	++$downloadedCount;
+        ++$changedCount;
+    }
+    
     #If the pdf doesn't exist locally fetch it
     if ( !-e ( "$dtppDownloadDir" . "$pdf_name" ) ) {
 
@@ -369,34 +421,29 @@ sub record {
         #Save the link in an array for downloading in parallel
         push @links,
           [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
+ 
 
-        getstore(
+        my $status = getstore(
             "$chart_url_base" . "$pdf_name",
             "$dtppDownloadDir" . "$pdf_name"
         );
+        die "Error $status on $pdf_name" unless is_success($status);
         ++$downloadedCount;
     }
+    #FQN of the PDF for this chart
+    my $targetPdf = $dtppDownloadDir . $pdf_name;
 
-    if ( $user_action =~ /D/i ) {
-        say "Deleting " . "$dtppDownloadDir" . "$pdf_name";
-        deleteStaleFiles($pdf_name);
-        ++$deletedCount;
+    #Pull out the various filename components of the input file from the command line
+    my ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
+
+    my $targetPng     = $dtppDownloadDir . $filename . ".png";
+
+    if (($chart_code eq "APD" || $chart_code eq "IAP" ) && ! -e $targetPng) {
+    #Convert the PDF to a PNG if one doesn't already exist
+    say "$targetPdf -> $targetPng";
+    convertPdfToPng( $targetPdf, $targetPng );
     }
-
-    if ( $user_action =~ /C/i ) {
-        say "Download changed chart $chart_url_base"
-          . "$pdf_name" . " -> "
-          . "$dtppDownloadDir"
-          . "$pdf_name";
-        deleteStaleFiles($pdf_name);
-        getstore(
-            "$chart_url_base" . "$pdf_name",
-            "$dtppDownloadDir" . "$pdf_name"
-        );
-	++$downloadedCount;
-        ++$changedCount;
-    }
-
+    
     $twig->purge;
     ++$count;
 
@@ -425,6 +472,7 @@ sub deleteStaleFiles {
         say "Deleting " . $dtppDownloadDir . $pdf_name;
         unlink( "$dtppDownloadDir" . "$pdf_name" );
     }
+    #delete the old .png
     if ( -e ( "$dtppDownloadDir" . "$pdf_name" . "png" ) ) {
         say "Deleting " . $dtppDownloadDir . $pdf_name . "png";
         unlink( "$dtppDownloadDir" . "$pdf_name" . "png" );
@@ -435,13 +483,33 @@ sub deleteStaleFiles {
         say "Deleting " . $dtppDownloadDir . "outlines-" . $pdf_name_lower;
         unlink( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower );
     }
+    #delete the outlines .png
     if ( -e ( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower . ".png" ) ) {
         say "Deleting $dtppDownloadDir"
           . "outlines-"
           . $pdf_name_lower . ".png";
 
-        #delete the outlines .png
         unlink( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower . ".png" );
     }
 
+}
+
+sub convertPdfToPng {
+#DPI of the output PNG
+my $pngDpi = 300;
+    #Validate and set input parameters to this function
+    my ( $targetPdf, $targetpng ) =
+      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+
+    #---------------------------------------------------
+    #Convert the PDF to a PNG
+    my $pdfToPpmOutput;
+    if ( -e $targetpng ) {
+        return;
+    }
+    $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetpng);
+
+    my $retval = $? >> 8;
+#     die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
+    return;
 }

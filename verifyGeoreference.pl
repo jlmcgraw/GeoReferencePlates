@@ -84,8 +84,11 @@ my $arg_num    = scalar @ARGV;
 #Whether to draw various features
 our $shouldDrawRunways    = 1;
 our $shouldDrawNavaids    = 1;
+our $shouldDrawNavaidsNames    = 0;
 our $shouldDrawFixes      = 0;
+our $shouldDrawFixesNames      = 0;
 our $shouldDrawObstacles  = 0;
+our $shouldDrawObstaclesHeights  = 0;
 our $shouldDrawGcps       = 1;
 our $shouldDrawGraticules = 1;
 
@@ -102,7 +105,8 @@ unless ( getopts( "$opt_string", \%opt ) ) {
 }
 
 #Get the target PDF file from command line options
-our ($dtppDirectory) = $ARGV[0];
+our $cycle = $ARGV[0];
+our ($dtppDirectory) = "./dtpp-$cycle/";
 
 if ( !-e ($dtppDirectory) ) {
     say "Target dTpp directory $dtppDirectory doesn't exist";
@@ -138,7 +142,7 @@ our $shouldUseMultipleObstacles = $opt{m};
 
 #database of metadata for dtpp
 my $dtppDbh =
-     DBI->connect( "dbi:SQLite:dbname=./dtpp.db", "", "", { RaiseError => 1 } )
+     DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #CIFP database
@@ -775,16 +779,11 @@ sub findRunwaysInDatabase {
 }
 
 sub usage {
-    say "Usage: $0 <options> <directory_with_PDFs>";
+    say "Usage: $0 <options> <cycle>";
+    say " <cycle> The cycle number, eg. 1410";
     say "-v debug";
     say "-a<FAA airport ID>  To specify an airport ID";
     say "-i<2 Letter state ID>  To specify a specific state";
-    say "-p Output a marked up version of PDF";
-    say "-s Output statistics about the PDF";
-    say "-c Don't overwrite existing .vrt";
-    say "-o Re-create outlines/mask files";
-    say "-b Allow creation of vrt with known bad lon/lat ratio";
-    say "-m Allow use of non-unique obstacles";
     return;
 }
 
@@ -832,7 +831,9 @@ sub findPlatesNotMarkedManually {
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
-        DG.STATUS NOT LIKE '%MANUAL%'
+        DG.STATUS LIKE '%MONKEY%'
+        --        AND
+        --DG.STATUS NOT LIKE '%MANUAL%'
           AND
         DG.STATUS NOT LIKE '%NOGEOREF%'
 --          AND
@@ -1092,12 +1093,19 @@ sub toggleDrawingFixes {
     $main::shouldDrawFixes = !$main::shouldDrawFixes;
     $main::plateSw->queue_draw;
 }
+sub toggleDrawingFixesNames {
+    $main::shouldDrawFixesNames = !$main::shouldDrawFixesNames;
+    $main::plateSw->queue_draw;
+}
 
 sub toggleDrawingNavaids {
     $main::shouldDrawNavaids = !$main::shouldDrawNavaids;
     $main::plateSw->queue_draw;
 }
-
+sub toggleDrawingNavaidsNames {
+    $main::shouldDrawNavaidsNames = !$main::shouldDrawNavaidsNames;
+    $main::plateSw->queue_draw;
+}
 sub toggleDrawingRunways {
     $main::shouldDrawRunways = !$main::shouldDrawRunways;
     $main::plateSw->queue_draw;
@@ -1112,11 +1120,16 @@ sub toggleDrawingObstacles {
     $main::shouldDrawObstacles = !$main::shouldDrawObstacles;
     $main::plateSw->queue_draw;
 }
+sub toggleDrawingObstaclesHeights {
+    $main::shouldDrawObstaclesHeights = !$main::shouldDrawObstaclesHeights;
+    $main::plateSw->queue_draw;
+}
 
 sub toggleDrawingGraticules {
     $main::shouldDrawGraticules = !$main::shouldDrawGraticules;
     $main::plateSw->queue_draw;
 }
+
 sub cairo_draw {
     my ( $widget, $context, $ref_status ) = @_;
 
@@ -1154,13 +1167,16 @@ sub cairo_draw {
                 $context->set_source_rgba( 0, 1, 1, 0.5 );
                 $context->fill;
 
-                #                             # Text
-                #                             $context->set_source_rgba( 255, 0, 255, 255 );
-                #                             $context->select_font_face( "Sans", "normal", "normal" );
-                #                             $context->set_font_size(9);
-                #                             $context->move_to( $x1+5, $y1 );
-                #                             $context->show_text("$text");
-                #                             $context->stroke;
+                if ($main::shouldDrawFixesNames){
+                                            # Text
+                                            $context->set_source_rgba( 255, 0, 255, 255 );
+                                            $context->select_font_face( "Sans", "normal", "normal" );
+                                            $context->set_font_size(9);
+                                            $context->move_to( $x1+5, $y1 );
+                                            $context->show_text("$text");
+                                            $context->stroke;
+                                            }
+
             }
         }
     }
@@ -1183,14 +1199,15 @@ sub cairo_draw {
             $context->stroke_preserve;
             $context->set_source_rgba( 0, 1, 1, 0.5 );
             $context->fill;
-
-            #                             # Text
-            #                             $context->set_source_rgba( 255, 0, 255, 255 );
-            #                             $context->select_font_face( "Sans", "normal", "normal" );
-            #                             $context->set_font_size(9);
-            #                             $context->move_to( $x1+5, $y1 );
-            #                             $context->show_text("$text");
-            #                             $context->stroke;
+if ($main::shouldDrawFixesNames){
+                                        # Text
+                                        $context->set_source_rgba( 255, 0, 255, 255 );
+                                        $context->select_font_face( "Sans", "normal", "normal" );
+                                        $context->set_font_size(9);
+                                        $context->move_to( $x1+5, $y1 );
+                                        $context->show_text("$text");
+                                        $context->stroke;
+            }
         }
     }
 
@@ -1216,13 +1233,14 @@ sub cairo_draw {
                 $context->set_source_rgba( 0, 255, 0, .8 );
                 $context->fill;
 
+                 if ($main::shouldDrawNavaidsNames){
                 # Text
                 $context->set_source_rgba( 255, 0, 255, 1 );
                 $context->select_font_face( "Sans", "normal", "normal" );
                 $context->set_font_size(10);
                 $context->move_to( $x1 + 5, $y1 );
                 $context->show_text("$text");
-                $context->stroke;
+                $context->stroke;}
             }
         }
     }
@@ -1286,20 +1304,20 @@ sub cairo_draw {
             if ( $x1 && $y1 ) {
 
                 # Circle with border - transparent
-                $context->set_source_rgba( 0, 1, 1, 0.1 );
+                $context->set_source_rgba( 0, 1, 1, 0.2 );
                 $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
                 $context->set_line_width(2);
                 $context->stroke_preserve;
-                $context->set_source_rgba( 0, 1, 1, 0.1 );
+                $context->set_source_rgba( 0, 1, 1, 0.2 );
                 $context->fill;
-
-                #                 # Text
-                #                 $context->set_source_rgba( 255, 0, 255, 128 );
-                #                 $context->select_font_face( "Sans", "normal", "normal" );
-                #                 $context->set_font_size(10);
-                #                 $context->move_to( $x1+5, $y1 );
-                #                 $context->show_text("$text");
-                #                 $context->stroke;
+ if ($main::shouldDrawObstaclesHeights){
+                                # Text
+                                $context->set_source_rgba( 255, 0, 255, 128 );
+                                $context->select_font_face( "Sans", "normal", "normal" );
+                                $context->set_font_size(10);
+                                $context->move_to( $x1+5, $y1 );
+                                $context->show_text("$text");
+                                $context->stroke;}
             }
         }
     }
@@ -1352,7 +1370,7 @@ sub cairo_draw {
         foreach my $radius ( .125, .25, .375, .5 ) {
             my ( $latRadius, $lonRadius ) =
               radiusGivenLatitude( $radius, $main::airportLatitudeDec );
-              
+
             my ( $x1, $y1 ) = wgs84ToPixelBuf(
                 $main::airportLongitudeDec - $lonRadius,
                 $main::airportLatitudeDec - $latRadius
@@ -1369,24 +1387,26 @@ sub cairo_draw {
                 $main::airportLongitudeDec + $lonRadius,
                 $main::airportLatitudeDec - $latRadius
             );
-# 	    say "$lonRadius $latRadius $x1 $y1 $x2 $y2";
-	    
+
+            # 	    say "$lonRadius $latRadius $x1 $y1 $x2 $y2";
+
             $context->set_source_rgba( 0, 0, 1, .5 );
             $context->set_line_width(2);
             $context->move_to( $x1, $y1 );
-            $context->line_to( $x2, $y2);
-            $context->line_to( $x3, $y3);
-            $context->line_to( $x4, $y4);
-            $context->line_to( $x1, $y1);
+            $context->line_to( $x2, $y2 );
+            $context->line_to( $x3, $y3 );
+            $context->line_to( $x4, $y4 );
+            $context->line_to( $x1, $y1 );
             $context->stroke;
-#             
-#             $context->set_source_rgba( 0, 1, 1, .9 );
-#             $context->set_line_width(2);
-#             $context->move_to( $x2, $y2 );
-#             $context->line_to( $x3, $y3 );
-#             
-# 
-#             $context->stroke;
+
+            #
+            #             $context->set_source_rgba( 0, 1, 1, .9 );
+            #             $context->set_line_width(2);
+            #             $context->move_to( $x2, $y2 );
+            #             $context->line_to( $x3, $y3 );
+            #
+            #
+            #             $context->stroke;
         }
     }
 
@@ -1613,6 +1633,48 @@ sub markNotReferenceableButtonClick {
     return TRUE;
 }
 
+# sub deleteActiveGcp {
+#   #Delete the active item in the liststore
+#   my ( undef, $tree ) = @_;
+#
+#   my $sel = $main::gcpTreeview->get_selection;
+#
+#   my ( $model, $iter ) = $sel->get_selected;
+#   return unless $iter;
+#   $model->remove($iter);
+#   return TRUE;
+# }
+
+sub deleteActiveGcpDelKey {
+    #Linked to "Del" key on treeview
+    #Delete the active item in the liststore
+    my ( $widget, $event ) = @_;
+
+    #   say "Almost";
+
+    my $key = $event->keyval;
+
+    #    say $key;
+    #   say Gtk3::Gdk->keyval_name($key);
+    if (
+        #Delete key value
+        $key == 65535
+
+        #             $event->keyval == Gtk3::Gdk::KEY_DELETE;
+      )
+    {
+        #
+        #   say $key;
+        #   if ($key eq 'Delete') {
+        my $sel = $main::gcpTreeview->get_selection;
+        say "There!";
+        my ( $model, $iter ) = $sel->get_selected;
+        return unless $iter;
+        $model->remove($iter);
+        return TRUE;
+    }
+}
+
 sub activateNewPlate {
 
     #Stuff we want to update every time we go to a new plate
@@ -1635,6 +1697,7 @@ sub activateNewPlate {
     ) = @$rowRef;
 
     say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
+
     #FQN of the PDF for this chart
     my $targetPdf = $dtppDirectory . $PDF_NAME;
 
@@ -1891,7 +1954,7 @@ sub activateNewPlate {
     our $gcpModel = create_model_gcp($gcp_from_db_hashref);
 
     #Create a TreeView
-    my $gcpTreeview = Gtk3::TreeView->new($gcpModel);
+    our $gcpTreeview = Gtk3::TreeView->new($gcpModel);
     $gcpTreeview->set_rules_hint(TRUE);
     $gcpTreeview->set_search_column(0);
 
@@ -1906,6 +1969,11 @@ sub activateNewPlate {
 
     # Add columns to TreeView
     add_columns_gcp($gcpTreeview);
+
+    $gcpTreeview->signal_connect(
+        key_press_event => \&deleteActiveGcpDelKey,
+        $main::gcpTreeview
+    );
     $main::gcpBox->show_all();
 
     #--------------------------------------------------------------------------
@@ -2294,13 +2362,49 @@ sub listStoreRowClicked {
 
 sub georeferenceButtonClicked {
 
-    #Convert our liststore of GCPs to a hash
-    gcpListstoreToHash();
+    #Create a new hash from the current GCP liststore
+    my $model = $main::gcpModel;
+    my %newGcpHash;
+
+    #For each line in the GPC liststore, extract column data and save in hash
+    $model->foreach( \&gcpTest, \%newGcpHash );
+
+    #     print Dumper \%newGcpHash;
+
+    #Create the string of GCPs for gdal_translate from the hash
+    my $gcpstring = createGcpString( \%newGcpHash );
+
+    #Call gdal_translate to georef
+    my (
+        $pixelSizeX, $yPixelSkew,   $xPixelSkew,
+        $pixelSizeY, $upperLeftLon, $upperLeftLat
+    ) = georeferenceTheRaster($gcpstring);
+
+    #                     not( is_between( .00011, .00033, $pixelSizeY ) )
+    #                     && not(
+    #                         is_between( .00034, .00046, $pixelSizeY ) )
+    #                     && not(
+    #                         is_between( .00056, .00060, $pixelSizeY, ) )
 
     #update the affine transform with new parameters
 
     #redraw the plate
     $main::plateSw->queue_draw;
+
+}
+
+sub saveGeoreferenceButtonClicked {
+
+    #Create a new hash from the current GCP liststore
+    my $model = $main::gcpModel;
+    my %newGcpHash;
+
+    #For each line in the GPC liststore, extract column data and save in hash
+    $model->foreach( \&gcpTest, \%newGcpHash );
+
+    #Save the hash back to disk
+    store( \%newGcpHash, $main::storedGcpHash )
+      || die "can't store to $main::storedGcpHash\n";
 
 }
 
@@ -2413,6 +2517,7 @@ sub markGoodButtonClick {
 
     updateStatus( "MANUALGOOD", $main::PDF_NAME );
 
+    #------------------------------
     #Use this section to skip to next "changed" plate
     #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
     #
@@ -2426,35 +2531,35 @@ sub markGoodButtonClick {
     #
     #     #     say @$_platesNotMarkedManually;
 
-    #     #Use this section to skip to next "unverified" plate
-    #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-    #
-    #     #BUG TODO Make length of array
-    #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-    #         $indexIntoPlatesWithNoLonLat++;
-    #     }
-    #
-    #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    #
-    #     #Get info about the airport we're currently pointing to
-    #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+    #------------------------------
+        #Use this section to skip to next "unverified" plate
+        my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+    
+        #BUG TODO Make length of array
+        if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+            $indexIntoPlatesWithNoLonLat++;
+        }
+    
+        say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+    
+        #Get info about the airport we're currently pointing to
+        my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
     #--------------------------------------
-
-    #Use this section to skip to next "bad" plate
-    my $totalPlateCount = scalar @{$_platesMarkedBad};
-
-    #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-        $indexIntoPlatesMarkedBad++;
-    }
-    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+#     #Use this section to skip to next "bad" plate
+#     my $totalPlateCount = scalar @{$_platesMarkedBad};
+# 
+#     #BUG TODO Make length of array
+#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+#         $indexIntoPlatesMarkedBad++;
+#     }
+#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
 
     #---------------------------------------
 
     #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
+        activateNewPlate($rowRef);
 
     #     say @$_platesNotMarkedManually;
 
@@ -2467,29 +2572,31 @@ sub markBadButtonClick {
     #Set status in the database
     updateStatus( "MANUALBAD", $main::PDF_NAME );
 
+    #--------------------------------------
     #Use this section to skip to next "unverified" plate
-    #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-    #
-    #     #BUG TODO Make length of array
-    #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-    #         $indexIntoPlatesWithNoLonLat++;
-    #
-    #     }
-    #
-    #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    #
-    #     #Get info about the airport we're currently pointing to
-    #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+        my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+    
+        #BUG TODO Make length of array
+        if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+            $indexIntoPlatesWithNoLonLat++;
+    
+        }
+    
+        say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+    
+        #Get info about the airport we're currently pointing to
+        my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
-    #Use this section to skip to next "bad" plate
-    my $totalPlateCount = scalar @{$_platesMarkedBad};
-
-    #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-        $indexIntoPlatesMarkedBad++;
-    }
-    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+       #--------------------------------------
+#     #Use this section to skip to next "bad" plate
+#     my $totalPlateCount = scalar @{$_platesMarkedBad};
+# 
+#     #BUG TODO Make length of array
+#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+#         $indexIntoPlatesMarkedBad++;
+#     }
+#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
 
     #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
     #
@@ -2504,7 +2611,7 @@ sub markBadButtonClick {
     #     #     say @$_platesNotMarkedManually;
 
     #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
+        activateNewPlate($rowRef);
 
     return TRUE;
 }
@@ -2594,37 +2701,6 @@ sub coordinateToDecimalCifpFormat {
     # say "Decl:$declination Deg: $deg, Min:$min, Sec:$sec";    #if $debug;
 
     return ($signedDegrees);
-}
-
-sub gcpListstoreToHash {
-
-    #create a new hash from the current GCP liststore
-    my $model = $main::gcpModel;
-    my %newGcpHash;
-
-    #For each line in the GPC liststore, extract column data and save in hash
-    $model->foreach( \&gcpTest, \%newGcpHash );
-
-    #     print Dumper \%newGcpHash;
-
-    #Create the string of GCPs for gdal_translate from the hash
-    my $gcpstring = createGcpString( \%newGcpHash );
-
-    #Call gdal_translate to georef
-    my (
-        $pixelSizeX, $yPixelSkew,   $xPixelSkew,
-        $pixelSizeY, $upperLeftLon, $upperLeftLat
-    ) = georeferenceTheRaster($gcpstring);
-
-    #                     not( is_between( .00011, .00033, $pixelSizeY ) )
-    #                     && not(
-    #                         is_between( .00034, .00046, $pixelSizeY ) )
-    #                     && not(
-    #                         is_between( .00056, .00060, $pixelSizeY, ) )
-
-    #Save the hash back to disk
-    store( \%newGcpHash, $main::storedGcpHash )
-      || die "can't store to $main::storedGcpHash\n";
 }
 
 sub gcpTest {
