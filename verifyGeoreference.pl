@@ -18,7 +18,12 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 #-------------------------------------------------------------------------------------------------------------------------------------------
 
-#BUG TODO LMS GPS approach bad!
+#Check the squareness of the "graticule"
+#Make auto-routine run only on added,changed IAPs, APDs
+#Use status area of GUI
+#Show chosen GCP coordinate
+#Have auto-apd code save/restore GCP hash
+#Start using processFaa2 database
 
 use 5.010;
 
@@ -43,6 +48,9 @@ use Gtk3 '-init';
 use Glib 'TRUE', 'FALSE';
 use List::Util qw[min max];
 use Storable;
+
+use GD;
+use GD::Polyline;
 
 # use Time::HiRes q/gettimeofday/;
 
@@ -78,19 +86,19 @@ our %statistics = ();
 use vars qw/ %opt /;
 
 #Define the valid command line options
-my $opt_string = 'cspvobma:i:';
+my $opt_string = 'va:i:';
 my $arg_num    = scalar @ARGV;
 
 #Whether to draw various features
-our $shouldDrawRunways    = 1;
-our $shouldDrawNavaids    = 1;
-our $shouldDrawNavaidsNames    = 0;
-our $shouldDrawFixes      = 0;
-our $shouldDrawFixesNames      = 0;
-our $shouldDrawObstacles  = 0;
-our $shouldDrawObstaclesHeights  = 0;
-our $shouldDrawGcps       = 1;
-our $shouldDrawGraticules = 1;
+our $shouldDrawRunways          = 1;
+our $shouldDrawNavaids          = 1;
+our $shouldDrawNavaidsNames     = 0;
+our $shouldDrawFixes            = 0;
+our $shouldDrawFixesNames       = 0;
+our $shouldDrawObstacles        = 0;
+our $shouldDrawObstaclesHeights = 0;
+our $shouldDrawGcps             = 1;
+our $shouldDrawGraticules       = 1;
 
 #We need at least one argument (the directory with plates)
 if ( $arg_num < 1 ) {
@@ -132,17 +140,18 @@ if ( $opt{i} ) {
     say "Supplied state ID: $stateId";
 }
 
-our $shouldNotOverwriteVrt      = $opt{c};
-our $shouldOutputStatistics     = $opt{s};
-our $shouldSaveMarkedPdf        = $opt{p};
-our $debug                      = $opt{v};
-our $shouldRecreateOutlineFiles = $opt{o};
-our $shouldSaveBadRatio         = $opt{b};
-our $shouldUseMultipleObstacles = $opt{m};
+# our $shouldNotOverwriteVrt      = $opt{c};
+# our $shouldOutputStatistics     = $opt{s};
+# our $shouldSaveMarkedPdf        = $opt{p};
+our $debug = $opt{v};
+
+# our $shouldRecreateOutlineFiles = $opt{o};
+# our $shouldSaveBadRatio         = $opt{b};
+# our $shouldUseMultipleObstacles = $opt{m};
 
 #database of metadata for dtpp
-my $dtppDbh =
-     DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.db", "", "", { RaiseError => 1 } )
+my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.db",
+    "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #CIFP database
@@ -182,14 +191,13 @@ our (
     $currentGcpPdfY, $currentGcpPngX, $currentGcpPngY
 );
 
+#Lat/Lon of current airport
 our ( $airportLatitudeDec, $airportLongitudeDec );
 
 #Create the UI
 my $builder = Gtk3::Builder->new();
 $builder->add_from_file('./verifyPlatesUI.glade');
 
-our $plate   = $builder->get_object('image2');
-our $plateSw = $builder->get_object('viewport1');
 our $pixbuf;
 
 #Connect our handlers
@@ -200,13 +208,22 @@ $window->set_screen( $window->get_screen() );
 $window->signal_connect( destroy => sub { Gtk3->main_quit } );
 
 #Various UI elements we populate programmmatically
+our $plate           = $builder->get_object('image2');
+our $plateSw         = $builder->get_object('viewport1');
 our $runwayBox       = $builder->get_object('scrolledwindow2');
 our $navaidBox       = $builder->get_object('scrolledwindow4');
 our $fixesBox        = $builder->get_object('scrolledwindow5');
 our $obstaclesBox    = $builder->get_object('scrolledwindow6');
 our $gcpBox          = $builder->get_object('scrolledwindow3');
 our $lonLatTextEntry = $builder->get_object('lonLatTextEntry');
+our $statusBar       = $builder->get_object('statusbar1');
+our $context_id      = $statusBar->get_context_id("Statusbar");
+our $textview1       = $builder->get_object('textview1');
+our $comboboxtext1   = $builder->get_object('comboboxtext1');
 
+# my $textviewBuffer = $textview1->get_buffer;
+# my $iter = $textviewBuffer->get_iter_at_offset (0);
+# $textviewBuffer->insert ($iter, "The text widget can display text with all kinds of nifty attributes. It also supports multiple views of the same buffer; this demo is showing the same buffer in two places.\n\n");
 $window->show_all();
 
 #Set the initial plate
@@ -263,9 +280,21 @@ sub findAirportLatitudeAndLongitude {
         #             }
     }
 
-    say
-      "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec";
-    return ( $_airportLatitudeDec, $_airportLongitudeDec );
+    if ( $_airportLatitudeDec && $_airportLongitudeDec ) {
+        say
+          "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec";
+        my $textviewBuffer = $main::textview1->get_buffer;
+        my $iter           = $textviewBuffer->get_iter_at_offset(0);
+        $textviewBuffer->insert( $iter,
+            "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec\n\n"
+        );
+
+        return ( $_airportLatitudeDec, $_airportLongitudeDec );
+    }
+
+    else {
+        return ( 0, 0 );
+    }
 }
 
 sub getPngSize {
@@ -1093,6 +1122,7 @@ sub toggleDrawingFixes {
     $main::shouldDrawFixes = !$main::shouldDrawFixes;
     $main::plateSw->queue_draw;
 }
+
 sub toggleDrawingFixesNames {
     $main::shouldDrawFixesNames = !$main::shouldDrawFixesNames;
     $main::plateSw->queue_draw;
@@ -1102,10 +1132,12 @@ sub toggleDrawingNavaids {
     $main::shouldDrawNavaids = !$main::shouldDrawNavaids;
     $main::plateSw->queue_draw;
 }
+
 sub toggleDrawingNavaidsNames {
     $main::shouldDrawNavaidsNames = !$main::shouldDrawNavaidsNames;
     $main::plateSw->queue_draw;
 }
+
 sub toggleDrawingRunways {
     $main::shouldDrawRunways = !$main::shouldDrawRunways;
     $main::plateSw->queue_draw;
@@ -1120,6 +1152,7 @@ sub toggleDrawingObstacles {
     $main::shouldDrawObstacles = !$main::shouldDrawObstacles;
     $main::plateSw->queue_draw;
 }
+
 sub toggleDrawingObstaclesHeights {
     $main::shouldDrawObstaclesHeights = !$main::shouldDrawObstaclesHeights;
     $main::plateSw->queue_draw;
@@ -1167,15 +1200,16 @@ sub cairo_draw {
                 $context->set_source_rgba( 0, 1, 1, 0.5 );
                 $context->fill;
 
-                if ($main::shouldDrawFixesNames){
-                                            # Text
-                                            $context->set_source_rgba( 255, 0, 255, 255 );
-                                            $context->select_font_face( "Sans", "normal", "normal" );
-                                            $context->set_font_size(9);
-                                            $context->move_to( $x1+5, $y1 );
-                                            $context->show_text("$text");
-                                            $context->stroke;
-                                            }
+                if ($main::shouldDrawFixesNames) {
+
+                    # Text
+                    $context->set_source_rgba( 255, 0, 255, 255 );
+                    $context->select_font_face( "Sans", "normal", "normal" );
+                    $context->set_font_size(9);
+                    $context->move_to( $x1 + 5, $y1 );
+                    $context->show_text("$text");
+                    $context->stroke;
+                }
 
             }
         }
@@ -1199,14 +1233,15 @@ sub cairo_draw {
             $context->stroke_preserve;
             $context->set_source_rgba( 0, 1, 1, 0.5 );
             $context->fill;
-if ($main::shouldDrawFixesNames){
-                                        # Text
-                                        $context->set_source_rgba( 255, 0, 255, 255 );
-                                        $context->select_font_face( "Sans", "normal", "normal" );
-                                        $context->set_font_size(9);
-                                        $context->move_to( $x1+5, $y1 );
-                                        $context->show_text("$text");
-                                        $context->stroke;
+            if ($main::shouldDrawFixesNames) {
+
+                # Text
+                $context->set_source_rgba( 255, 0, 255, 255 );
+                $context->select_font_face( "Sans", "normal", "normal" );
+                $context->set_font_size(9);
+                $context->move_to( $x1 + 5, $y1 );
+                $context->show_text("$text");
+                $context->stroke;
             }
         }
     }
@@ -1233,14 +1268,16 @@ if ($main::shouldDrawFixesNames){
                 $context->set_source_rgba( 0, 255, 0, .8 );
                 $context->fill;
 
-                 if ($main::shouldDrawNavaidsNames){
-                # Text
-                $context->set_source_rgba( 255, 0, 255, 1 );
-                $context->select_font_face( "Sans", "normal", "normal" );
-                $context->set_font_size(10);
-                $context->move_to( $x1 + 5, $y1 );
-                $context->show_text("$text");
-                $context->stroke;}
+                if ($main::shouldDrawNavaidsNames) {
+
+                    # Text
+                    $context->set_source_rgba( 255, 0, 255, 1 );
+                    $context->select_font_face( "Sans", "normal", "normal" );
+                    $context->set_font_size(10);
+                    $context->move_to( $x1 + 5, $y1 );
+                    $context->show_text("$text");
+                    $context->stroke;
+                }
             }
         }
     }
@@ -1310,14 +1347,16 @@ if ($main::shouldDrawFixesNames){
                 $context->stroke_preserve;
                 $context->set_source_rgba( 0, 1, 1, 0.2 );
                 $context->fill;
- if ($main::shouldDrawObstaclesHeights){
-                                # Text
-                                $context->set_source_rgba( 255, 0, 255, 128 );
-                                $context->select_font_face( "Sans", "normal", "normal" );
-                                $context->set_font_size(10);
-                                $context->move_to( $x1+5, $y1 );
-                                $context->show_text("$text");
-                                $context->stroke;}
+                if ($main::shouldDrawObstaclesHeights) {
+
+                    # Text
+                    $context->set_source_rgba( 255, 0, 255, 128 );
+                    $context->select_font_face( "Sans", "normal", "normal" );
+                    $context->set_font_size(10);
+                    $context->move_to( $x1 + 5, $y1 );
+                    $context->show_text("$text");
+                    $context->stroke;
+                }
             }
         }
     }
@@ -1399,6 +1438,53 @@ if ($main::shouldDrawFixesNames){
             $context->line_to( $x1, $y1 );
             $context->stroke;
 
+            #This is a very quick hack to check the squareness of the boxes drawn on map
+            my $polyline = new GD::Polyline;
+
+            #Create a square polygon
+            $polyline->addPt( $x1, $y1 );
+            $polyline->addPt( $x2, $y2 );
+            $polyline->addPt( $x3, $y3 );
+            $polyline->addPt( $x4, $y4 );
+            $polyline->addPt( $x1, $y1 );
+
+            #The anagles between the line segments
+            my @vertexAngles = $polyline->vertexAngle();
+
+            my $segment1Length = sqrt( ( $x1 - $x2 )**2 + ( $y1 - $y2 )**2 );
+            my $segment2Length = sqrt( ( $x2 - $x3 )**2 + ( $y2 - $y3 )**2 );
+            my $segment3Length = sqrt( ( $x3 - $x4 )**2 + ( $y3 - $y4 )**2 );
+            my $segment4Length = sqrt( ( $x4 - $x1 )**2 + ( $y4 - $y1 )**2 );
+
+            my $textviewBuffer = $main::textview1->get_buffer;
+            my $iter           = $textviewBuffer->get_iter_at_offset(0);
+            $textviewBuffer->insert( $iter,
+                    "Angles: "
+                  . rad2deg( $vertexAngles[1] ) . ","
+                  . rad2deg( $vertexAngles[2] ) . ","
+                  . rad2deg( $vertexAngles[3] )
+                  . "\n" );
+            $textviewBuffer->insert( $iter,
+                    "Length Diff: "
+                  . ( $segment1Length - $segment3Length ) . ","
+                  . ( $segment2Length - $segment4Length )
+                  . "\n\n" );
+
+            # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
+
+            #             #say rad2deg(@vertexAngles[0]);
+            #             say rad2deg( $vertexAngles[1] );
+            #             say rad2deg( $vertexAngles[2] );
+            #             say rad2deg( $vertexAngles[3] );
+            #
+            #             say "Segment 1 length "
+            #               . $segment1Length;
+            #             say "Segment 2 length "
+            #               . $segment2Length;
+            #             say "Segment 3 length "
+            #               . $segment3Length;
+            #             say "Segment 4 length "
+            #               . $segment4Length;
             #
             #             $context->set_source_rgba( 0, 1, 1, .9 );
             #             $context->set_line_width(2);
@@ -1433,6 +1519,7 @@ sub plateBox_click {
 
     #Called when plicking on the plate image, we'll get the X/Y of the clicked point in the image
     my ( $widget, $event ) = @_;
+
     my ( $x, $y ) = ( $event->x, $event->y );
 
     # say "x:$x y:$y";
@@ -1471,121 +1558,121 @@ sub plateBox_click {
     return TRUE;
 }
 
-sub nextPlateNotMarkedManually {
-    my ( $widget, $event ) = @_;
+# sub nextPlateNotMarkedManually {
+#     my ( $widget, $event ) = @_;
+# 
+#     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+# 
+#     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+#         $indexIntoPlatesWithNoLonLat++;
+#     }
+# 
+#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+# 
+#     #Get info about the airport we're currently pointing to
+#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+#     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+# 
+#     #Update information for the plate we're getting ready to display
+#     activateNewPlate($rowRef);
+# 
+#     return TRUE;
+# }
+# 
+# sub previousPlateNotMarkedManually {
+#     my ( $widget, $event ) = @_;
+# 
+#     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+# 
+#     if ( $indexIntoPlatesWithNoLonLat > 0 ) {
+#         $indexIntoPlatesWithNoLonLat--;
+#     }
+# 
+#     #Info about current plate
+#     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+# 
+#     #Update information for the plate we're getting ready to display
+#     activateNewPlate($rowRef);
+# 
+#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+# 
+#     return TRUE;
+# }
 
-    my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+# sub nextBadButtonClick {
+#     my ( $widget, $event ) = @_;
+# 
+#     #Get info about the airport we're currently pointing to
+#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+# 
+#     my $totalPlateCount = scalar @{$_platesMarkedBad};
+# 
+#     #Update information for the plate we're getting ready to display
+#     activateNewPlate($rowRef);
+# 
+#     #BUG TODO Make length of array
+#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+#         $indexIntoPlatesMarkedBad++;
+#     }
+# 
+#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+# 
+#     return TRUE;
+# }
+# 
+# sub previousBadButtonClick {
+#     my ( $widget, $event ) = @_;
+# 
+#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+# 
+#     #Update information for the plate we're getting ready to display
+#     activateNewPlate($rowRef);
+# 
+#     if ( $indexIntoPlatesMarkedBad > 0 ) {
+#         $indexIntoPlatesMarkedBad--;
+#     }
+#     say $indexIntoPlatesMarkedBad;
+# 
+#     return TRUE;
+# }
 
-    if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-        $indexIntoPlatesWithNoLonLat++;
-    }
-
-    say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-
-    #Get info about the airport we're currently pointing to
-    say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    return TRUE;
-}
-
-sub previousPlateNotMarkedManually {
-    my ( $widget, $event ) = @_;
-
-    my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-    say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-
-    if ( $indexIntoPlatesWithNoLonLat > 0 ) {
-        $indexIntoPlatesWithNoLonLat--;
-    }
-
-    #Info about current plate
-    my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-
-    return TRUE;
-}
-
-sub nextBadButtonClick {
-    my ( $widget, $event ) = @_;
-
-    #Get info about the airport we're currently pointing to
-    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-
-    my $totalPlateCount = scalar @{$_platesMarkedBad};
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-        $indexIntoPlatesMarkedBad++;
-    }
-
-    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-
-    return TRUE;
-}
-
-sub previousBadButtonClick {
-    my ( $widget, $event ) = @_;
-
-    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    if ( $indexIntoPlatesMarkedBad > 0 ) {
-        $indexIntoPlatesMarkedBad--;
-    }
-    say $indexIntoPlatesMarkedBad;
-
-    return TRUE;
-}
-
-sub nextChangedButtonClick {
-    my ( $widget, $event ) = @_;
-
-    #Get info about the airport we're currently pointing to
-    my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-
-    my $totalPlateCount = scalar @{$_platesMarkedChanged};
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
-        $indexIntoPlatesMarkedChanged++;
-    }
-
-    say "$indexIntoPlatesMarkedChanged / $totalPlateCount";
-
-    return TRUE;
-}
-
-sub previousChangedButtonClick {
-    my ( $widget, $event ) = @_;
-
-    my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    if ( $indexIntoPlatesMarkedChanged > 0 ) {
-        $indexIntoPlatesMarkedChanged--;
-    }
-    say $indexIntoPlatesMarkedChanged;
-
-    return TRUE;
-}
+# sub nextChangedButtonClick {
+#     my ( $widget, $event ) = @_;
+# 
+#     #Get info about the airport we're currently pointing to
+#     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+# 
+#     my $totalPlateCount = scalar @{$_platesMarkedChanged};
+# 
+#     #Update information for the plate we're getting ready to display
+#     activateNewPlate($rowRef);
+# 
+#     #BUG TODO Make length of array
+#     if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
+#         $indexIntoPlatesMarkedChanged++;
+#     }
+# 
+#     say "$indexIntoPlatesMarkedChanged / $totalPlateCount";
+# 
+#     return TRUE;
+# }
+# 
+# sub previousChangedButtonClick {
+#     my ( $widget, $event ) = @_;
+# 
+#     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+# 
+#     #Update information for the plate we're getting ready to display
+#     activateNewPlate($rowRef);
+# 
+#     if ( $indexIntoPlatesMarkedChanged > 0 ) {
+#         $indexIntoPlatesMarkedChanged--;
+#     }
+#     say $indexIntoPlatesMarkedChanged;
+# 
+#     return TRUE;
+# }
 
 sub addGcpButtonClick {
 
@@ -1598,6 +1685,10 @@ sub addGcpButtonClick {
     say " Latitude: $main::currentGcpLat";
     say " PngX: $main::currentGcpPngX";
     say " PngY: $main::currentGcpPngY";
+
+    #  my $textviewBuffer = $main::textview1->get_buffer;
+    # 	  my $iter = $textviewBuffer->get_iter_at_offset (0);
+    #           $textviewBuffer->insert ($iter, "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec\n\n");
 
     my $lstore = $main::gcpModel;
 
@@ -1646,11 +1737,10 @@ sub markNotReferenceableButtonClick {
 # }
 
 sub deleteActiveGcpDelKey {
+
     #Linked to "Del" key on treeview
     #Delete the active item in the liststore
     my ( $widget, $event ) = @_;
-
-    #   say "Almost";
 
     my $key = $event->keyval;
 
@@ -1667,7 +1757,6 @@ sub deleteActiveGcpDelKey {
         #   say $key;
         #   if ($key eq 'Delete') {
         my $sel = $main::gcpTreeview->get_selection;
-        say "There!";
         my ( $model, $iter ) = $sel->get_selected;
         return unless $iter;
         $model->remove($iter);
@@ -1696,7 +1785,16 @@ sub activateNewPlate {
         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew
     ) = @$rowRef;
 
+    $main::statusBar->push( $context_id,
+        "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME"
+    );
     say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
+
+    my $textviewBuffer = $main::textview1->get_buffer;
+    my $iter           = $textviewBuffer->get_iter_at_offset(0);
+    $textviewBuffer->insert( $iter,
+        "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME\n\n"
+    );
 
     #FQN of the PDF for this chart
     my $targetPdf = $dtppDirectory . $PDF_NAME;
@@ -1762,180 +1860,196 @@ sub activateNewPlate {
     add_columns_runways($runwayTreeview);
     $main::runwayBox->show_all();
 
-    #---------------------------------------------------------------------------------------
-    #Find navaids near the airport
-    our $navaids_from_db_hashref =
-      findNavaidsNearAirport( $main::airportLongitudeDec,
-        $main::airportLatitudeDec );
-
-    #     print Dumper($navaids_from_db_hashref);
-
-    #Testing adding liststore programmmatically to partially glade-built interface
-    # Create TreeModel
-    my $navaidModel = create_model($navaids_from_db_hashref);
-
-    # Create a TreeView
-    my $navaidTreeview = Gtk3::TreeView->new($navaidModel);
-    $navaidTreeview->set_rules_hint(TRUE);
-    $navaidTreeview->set_search_column(COLUMN_NAME);
-
-    #     $navaidTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
-
-    $navaidTreeview->get_selection->signal_connect(
-        changed => sub {
-            my ($selection) = @_;
-            my ( $model, $iter ) = $selection->get_selected;
-
-            if ($iter) {
-                $main::currentGcpName = $model->get_value( $iter, 0 );
-                $main::currentGcpLon  = $model->get_value( $iter, 2 );
-                $main::currentGcpLat  = $model->get_value( $iter, 3 );
-                $selection->get_tree_view->scroll_to_cell(
-                    $model->get_path($iter),
-                    undef, FALSE, 0.0, 0.0 );
-
-                #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
-
-            }
-        }
-    );
-
+    #Delete existing data from navaid, fixes, obstacles boxesl
     #Delete all existing children for the tab box
     foreach my $child ( $main::navaidBox->get_children ) {
         $main::navaidBox->remove($child);    # remove all the children
     }
 
-    $main::navaidBox->add($navaidTreeview);
-
-    # Add columns to TreeView
-    add_columns($navaidTreeview);
-    $main::navaidBox->show_all();
-
-    #---------------------------------------------------
-
-    #Find fixes near the airport
-    our $fixes_from_db_hashref =
-      findFixesNearAirport( $main::airportLongitudeDec,
-        $main::airportLatitudeDec );
-
-    our $fixes_from_db_iap_hashref =
-      findFixesNearAirport2( $main::airportLongitudeDec,
-        $main::airportLatitudeDec );
-
-    #     print Dumper($fixes_from_db_hashref);
-
-    #Testing adding liststore programmmatically to partially glade-built interface
-    # Create TreeModel
-    my $fixesModel = create_model($fixes_from_db_hashref);
-
-    # Create a TreeView
-    my $fixesTreeview = Gtk3::TreeView->new($fixesModel);
-    $fixesTreeview->set_rules_hint(TRUE);
-    $fixesTreeview->set_search_column(COLUMN_NAME);
-
-    #     $fixesTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
-
-    #Set up Auto-scroll to selected row
-    $fixesTreeview->get_selection->signal_connect(
-        changed => sub {
-            my ($selection) = @_;
-
-            my ( $model, $iter ) = $selection->get_selected;
-
-            if ($iter) {
-                $main::currentGcpName = $model->get_value( $iter, 0 );
-                $main::currentGcpLon  = $model->get_value( $iter, 2 );
-                $main::currentGcpLat  = $model->get_value( $iter, 3 );
-
-                #                 say $main::currentGcpName;
-                #                 say \$iter;
-                $selection->get_tree_view->scroll_to_cell(
-                    $model->get_path($iter),
-                    undef, FALSE, 0.5, 0.5 );
-
-                #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
-
-            }
-        }
-    );
-
     #Delete all existing children for the tab box
     foreach my $child ( $main::fixesBox->get_children ) {
-        $main::fixesBox->remove($child);    # remove all the children
+        $main::fixesBox->remove($child);     # remove all the children
     }
-
-    $main::fixesBox->add($fixesTreeview);
-
-    # Add columns to TreeView
-    add_columns($fixesTreeview);
-    $main::fixesBox->show_all();
-
-    #---------------------------------------------------
-    #Find obstacles near the airport
-    our $unique_obstacles_from_db_hashref =
-      findObstaclesNearAirport( $main::airportLongitudeDec,
-        $main::airportLatitudeDec );
-
-    #     print Dumper($unique_obstacles_from_db_hashref);
-
-    #Testing adding liststore programmmatically to partially glade-built interface
-    # Create TreeModel
-    my $obstaclesModel =
-      create_model_obstacles($unique_obstacles_from_db_hashref);
-
-    # Create a TreeView
-    my $obstaclesTreeview = Gtk3::TreeView->new($obstaclesModel);
-    $obstaclesTreeview->set_rules_hint(TRUE);
-    $obstaclesTreeview->set_search_column(0);
-
-    #Auto-scroll to selected row
-    $obstaclesTreeview->get_selection->signal_connect(
-        changed => sub {
-            my ($selection) = @_;
-            my ( $model, $iter ) = $selection->get_selected;
-            if ($iter) {
-                $main::currentGcpName = $model->get_value( $iter, 0 );
-                $main::currentGcpLon  = $model->get_value( $iter, 1 );
-                $main::currentGcpLat  = $model->get_value( $iter, 2 );
-                $selection->get_tree_view->scroll_to_cell(
-                    $model->get_path($iter),
-                    undef, FALSE, 0.0, 0.0 );
-
-                #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
-
-            }
-        }
-    );
 
     #Delete all existing children for the tab box
     foreach my $child ( $main::obstaclesBox->get_children ) {
         $main::obstaclesBox->remove($child);    # remove all the children
     }
 
-    $main::obstaclesBox->add($obstaclesTreeview);
+    #Don't bother trying any of these if we don't have lat/lon info
+    if ( $main::airportLongitudeDec && $main::airportLatitudeDec ) {
 
-    # Add columns to TreeView
-    add_columns_runways($obstaclesTreeview);
-    $main::obstaclesBox->show_all();
+        #---------------------------------------------------------------------------------------
+        #Find navaids near the airport
+        our $navaids_from_db_hashref =
+          findNavaidsNearAirport( $main::airportLongitudeDec,
+            $main::airportLatitudeDec );
 
-    #     #Find GPS waypoints near the airport
-    #     our $gpswaypoints_from_db_hashref =
-    #       findGpsWaypointsNearAirport( $main::airportLongitudeDec,
-    #         $main::airportLatitudeDec );
-    #     print Dumper($gpswaypoints_from_db_hashref);
+        #     print Dumper($navaids_from_db_hashref);
+
+        #Testing adding liststore programmmatically to partially glade-built interface
+        # Create TreeModel
+        my $navaidModel = create_model($navaids_from_db_hashref);
+
+        # Create a TreeView
+        my $navaidTreeview = Gtk3::TreeView->new($navaidModel);
+        $navaidTreeview->set_rules_hint(TRUE);
+        $navaidTreeview->set_search_column(COLUMN_NAME);
+
+        #     $navaidTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
+
+        #Connect a signal to scroll to selected row (eg as you type_
+        $navaidTreeview->get_selection->signal_connect(
+            changed => sub {
+                my ($selection) = @_;
+                my ( $model, $iter ) = $selection->get_selected;
+
+                if ($iter) {
+                    $main::currentGcpName = $model->get_value( $iter, 0 );
+                    $main::currentGcpLon  = $model->get_value( $iter, 2 );
+                    $main::currentGcpLat  = $model->get_value( $iter, 3 );
+                    $selection->get_tree_view->scroll_to_cell(
+                        $model->get_path($iter),
+                        undef, FALSE, 0.0, 0.0 );
+                }
+            }
+        );
+
+        $main::navaidBox->add($navaidTreeview);
+
+        # Add columns to TreeView
+        add_columns($navaidTreeview);
+        $main::navaidBox->show_all();
+
+        #---------------------------------------------------
+
+        #Find fixes near the airport
+        our $fixes_from_db_hashref =
+          findFixesNearAirport( $main::airportLongitudeDec,
+            $main::airportLatitudeDec );
+
+        our $fixes_from_db_iap_hashref =
+          findFixesNearAirport2( $main::airportLongitudeDec,
+            $main::airportLatitudeDec );
+
+        #     print Dumper($fixes_from_db_hashref);
+
+        #Testing adding liststore programmmatically to partially glade-built interface
+        # Create TreeModel
+        my $fixesModel = create_model($fixes_from_db_hashref);
+
+        # Create a TreeView
+        my $fixesTreeview = Gtk3::TreeView->new($fixesModel);
+        $fixesTreeview->set_rules_hint(TRUE);
+        $fixesTreeview->set_search_column(COLUMN_NAME);
+
+        #     $fixesTreeview->signal_connect( row_activated => sub { Gtk3->main_quit } );
+
+        #Set up Auto-scroll to selected row
+        $fixesTreeview->get_selection->signal_connect(
+            changed => sub {
+                my ($selection) = @_;
+
+                my ( $model, $iter ) = $selection->get_selected;
+
+                if ($iter) {
+                    $main::currentGcpName = $model->get_value( $iter, 0 );
+                    $main::currentGcpLon  = $model->get_value( $iter, 2 );
+                    $main::currentGcpLat  = $model->get_value( $iter, 3 );
+
+                    #                 say $main::currentGcpName;
+                    #                 say \$iter;
+                    $selection->get_tree_view->scroll_to_cell(
+                        $model->get_path($iter),
+                        undef, FALSE, 0.5, 0.5 );
+
+                    #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
+
+                }
+            }
+        );
+
+        $main::fixesBox->add($fixesTreeview);
+
+        # Add columns to TreeView
+        add_columns($fixesTreeview);
+        $main::fixesBox->show_all();
+
+        #---------------------------------------------------
+        #Find obstacles near the airport
+        our $unique_obstacles_from_db_hashref =
+          findObstaclesNearAirport( $main::airportLongitudeDec,
+            $main::airportLatitudeDec );
+
+        #     print Dumper($unique_obstacles_from_db_hashref);
+
+        #Testing adding liststore programmmatically to partially glade-built interface
+        # Create TreeModel
+        my $obstaclesModel =
+          create_model_obstacles($unique_obstacles_from_db_hashref);
+
+        # Create a TreeView
+        my $obstaclesTreeview = Gtk3::TreeView->new($obstaclesModel);
+        $obstaclesTreeview->set_rules_hint(TRUE);
+        $obstaclesTreeview->set_search_column(0);
+
+        #Auto-scroll to selected row
+        $obstaclesTreeview->get_selection->signal_connect(
+            changed => sub {
+                my ($selection) = @_;
+                my ( $model, $iter ) = $selection->get_selected;
+                if ($iter) {
+                    $main::currentGcpName = $model->get_value( $iter, 0 );
+                    $main::currentGcpLon  = $model->get_value( $iter, 1 );
+                    $main::currentGcpLat  = $model->get_value( $iter, 2 );
+                    $selection->get_tree_view->scroll_to_cell(
+                        $model->get_path($iter),
+                        undef, FALSE, 0.0, 0.0 );
+
+                    #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
+
+                }
+            }
+        );
+
+        $main::obstaclesBox->add($obstaclesTreeview);
+
+        # Add columns to TreeView
+        add_columns_runways($obstaclesTreeview);
+        $main::obstaclesBox->show_all();
+
+        #     #Find GPS waypoints near the airport
+        #     our $gpswaypoints_from_db_hashref =
+        #       findGpsWaypointsNearAirport( $main::airportLongitudeDec,
+        #         $main::airportLatitudeDec );
+        #     print Dumper($gpswaypoints_from_db_hashref);
+    }
 
     #--------------------------------------------------------------------------
-    #Populate the GCP box from stored GCP hash
+    #Populate the GCP box from stored GCP hash if it exists
     our $gcp_from_db_hashref;
     if ( -e $storedGcpHash ) {
+        $main::statusBar->push( $context_id,
+            "Loading existing hash table $storedGcpHash" );
         say "Loading existing hash table $storedGcpHash";
+        my $textviewBuffer = $main::textview1->get_buffer;
+        my $iter           = $textviewBuffer->get_iter_at_offset(0);
+        $textviewBuffer->insert( $iter,
+            "Loading existing hash table $storedGcpHash\n\n" );
+
         $gcp_from_db_hashref = retrieve($storedGcpHash);
 
         #         print Dumper($gcp_from_db_hashref);
 
     }
     else {
+        $main::statusBar->push( $context_id,
+            "No stored GCP hash, creating an empty one" );
         say "No stored GCP hash, creating an empty one";
+        my $textviewBuffer = $main::textview1->get_buffer;
+        my $iter           = $textviewBuffer->get_iter_at_offset(0);
+        $textviewBuffer->insert( $iter,
+            "No stored GCP hash, creating an empty one\n\n" );
         my %gcpHash;
         $gcp_from_db_hashref = \%gcpHash;
     }
@@ -2008,32 +2122,39 @@ sub activateNewPlate {
     my $horizontalScaleFactor = $originalImageWidth / $scaledImageWidth;
     my $verticalScaleFactor   = $originalImageHeight / $scaledImageHeight;
 
-    #adjust the horizontal and vertical scale factors per the ratio of the image to the actual window
-    $xMed       = $xMed * $horizontalScaleFactor;
-    $xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
-
-    $yMed       = $yMed * $verticalScaleFactor;
-    $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
-
-    say "Affine parameters calculated from existing GCP hash";
-    say " pixelSizeX->$xMed";
-    say " yPixelSkew->$yPixelSkew";
-    say " xPixelSkew->$xPixelSkew";
-    say " pixelSizeY->$yMed";
-    say " upperLeftLon->$upperLeftLon";
-    say " upperLeftLat->$upperLeftLat";
-
-    #Set up the affine transformations
-    #y sizes have to be negative
-    if ( $yMed > 0 ) {
-        say "Converting $yMed to negative";
-        $yMed = -($yMed);
-    }
-
     our ( $AffineTransform, $invertedAffineTransform );
 
     #Make sure our basic parameters are defined before trying to create the transforms
     if ( $xMed && $yMed && $upperLeftLon && $upperLeftLat ) {
+
+        #adjust the horizontal and vertical scale factors per the ratio of the image to the actual window
+        $xMed       = $xMed * $horizontalScaleFactor;
+        $xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
+
+        $yMed       = $yMed * $verticalScaleFactor;
+        $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
+
+        say "Affine parameters calculated from existing GCP hash";
+        say " pixelSizeX->$xMed";
+        say " yPixelSkew->$yPixelSkew";
+        say " xPixelSkew->$xPixelSkew";
+        say " pixelSizeY->$yMed";
+        say " upperLeftLon->$upperLeftLon";
+        say " upperLeftLat->$upperLeftLat";
+        my $textviewBuffer = $main::textview1->get_buffer;
+        my $iter           = $textviewBuffer->get_iter_at_offset(0);
+        $textviewBuffer->insert( $iter,
+            "Affine parameters calculated from existing GCP hash\npixelSizeX->$xMed\nyPixelSkew->$yPixelSkew\nxPixelSkew->$xPixelSkew\npixelSizeY->$yMed\nupperLeftLon->$upperLeftLon\nupperLeftLat->$upperLeftLat\n\n"
+        );
+
+        #Set up the affine transformations
+        #y sizes have to be negative
+        if ( $yMed > 0 ) {
+            say "Converting $yMed to negative";
+            $yMed = -($yMed);
+        }
+
+        #Create the new transform
         $AffineTransform = Geometry::AffineTransform->new(
             m11 => $xMed,
             m12 => $yPixelSkew,
@@ -2042,9 +2163,12 @@ sub activateNewPlate {
             tx  => $upperLeftLon,
             ty  => $upperLeftLat
         );
+
+        #and its inverse
         $invertedAffineTransform = $AffineTransform->clone()->invert();
     }
     else {
+        #Otherwise make sure transforms undefined
         $AffineTransform         = undef;
         $invertedAffineTransform = undef;
     }
@@ -2065,7 +2189,13 @@ sub load_image {
 }
 
 sub scale_pixbuf {
-    my ( $pixbuf, $parent ) = @_;
+    my ( $pixbuf, $parent ) = validate_pos(
+        @_,
+        { type => HASHREF },
+        { type => HASHREF }
+
+    );
+
     my $max_w  = $parent->get_allocation()->{width};
     my $max_h  = $parent->get_allocation()->{height};
     my $pixb_w = $pixbuf->get_width();
@@ -2085,19 +2215,14 @@ sub scale_pixbuf {
 }
 
 sub add_columns {
+    my ($treeview) = validate_pos(
+        @_,
+        { type => HASHREF },
+
+    );
 
     #Add columns to our treeview
 
-    my $treeview = shift;
-
-    #     my $model    = $treeview->get_model();
-
-    #     # Column for fixed toggles
-    #     my $renderer = Gtk3::CellRendererToggle->new;
-    #     $renderer->signal_connect(
-    #         toggled => \&fixed_toggled,
-    #         $model
-    #     );
     my $renderer = Gtk3::CellRendererText->new;
 
     my $column =
@@ -2380,6 +2505,7 @@ sub georeferenceButtonClicked {
         $pixelSizeY, $upperLeftLon, $upperLeftLat
     ) = georeferenceTheRaster($gcpstring);
 
+    #BUG TODO Do we want to do any basic error checking here?
     #                     not( is_between( .00011, .00033, $pixelSizeY ) )
     #                     && not(
     #                         is_between( .00034, .00046, $pixelSizeY ) )
@@ -2406,15 +2532,16 @@ sub saveGeoreferenceButtonClicked {
     store( \%newGcpHash, $main::storedGcpHash )
       || die "can't store to $main::storedGcpHash\n";
 
+    say "Saved GCP hash to disk";
+
 }
 
 sub lonLatButtonClicked {
+
+    #Take the text of the lon/lat entry box and parse it to decimal representation
     my $text = $main::lonLatTextEntry->get_text;
     my ( $lonDecimal, $latDecimal );
 
-    # say"wheee!";
-    # say $text;
-    #BUG TODO Change to named captures...
     $text =~
       m/(?<lonDegrees>\d{2,})-(?<lonMinutes>\d\d\.?\d?)(?<lonDeclination>[E|W]),(?<latDegrees>\d{2,})-(?<latMinutes>\d\d\.?\d?)(?<latDeclination>[N|S])/ix;
 
@@ -2455,7 +2582,14 @@ sub lonLatButtonClicked {
 
 sub coordinateToDecimal2 {
 
-    my ( $deg, $min, $sec, $declination ) = @_;
+    my ( $deg, $min, $sec, $declination ) = validate_pos(
+        @_,
+        { type => SCALAR },
+        { type => SCALAR },
+        { type => SCALAR }
+    );
+
+    #     my ( $deg, $min, $sec, $declination ) = @_;
 
     my $signeddegrees;
 
@@ -2502,6 +2636,10 @@ sub updateStatus {
     my $update_dtpp_geo_record =
       "UPDATE dtppGeo " . "SET " . "status = ? " . "WHERE " . "PDF_NAME = ?";
 
+    my $textviewBuffer = $main::textview1->get_buffer;
+    my $iter           = $textviewBuffer->get_iter_at_offset(0);
+    $textviewBuffer->insert( $iter, " $_status -> $_PDF_NAME d\n\n" );
+
     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
     $dtppSth->bind_param( 1, $_status );
@@ -2515,55 +2653,223 @@ sub updateStatus {
 sub markGoodButtonClick {
     my ( $widget, $event ) = @_;
 
+    #Update the status of current plate in database
     updateStatus( "MANUALGOOD", $main::PDF_NAME );
 
-    #------------------------------
-    #Use this section to skip to next "changed" plate
-    #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-    #
-    #     #Update information for the plate we're getting ready to display
-    #     activateNewPlate($rowRef);
-    #
-    #     if ( $indexIntoPlatesMarkedChanged > 0 ) {
-    #         $indexIntoPlatesMarkedChanged--;
-    #     }
-    #     say $indexIntoPlatesMarkedChanged;
-    #
-    #     #     say @$_platesNotMarkedManually;
+    #Get the index of which plate we want to advance to on marking
+    my $comboIndex = $main::comboboxtext1->get_active;
+    my $rowRef;
+      given ($comboIndex) {
+        when (/0/) {
 
-    #------------------------------
-        #Use this section to skip to next "unverified" plate
-        my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-    
-        #BUG TODO Make length of array
-        if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-            $indexIntoPlatesWithNoLonLat++;
+            #------------------------------
+            #Use this section to skip to next "unverified" plate
+            my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+                $indexIntoPlatesWithNoLonLat++;
+            }
+      
+           
+
+            #Get info about the airport we're currently pointing to
+            $rowRef =
+              ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+               say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+               
+             say "Next non-Manual";  
         }
-    
-        say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    
-        #Get info about the airport we're currently pointing to
-        my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+        when (/1/) {
 
-    #--------------------------------------
-#     #Use this section to skip to next "bad" plate
-#     my $totalPlateCount = scalar @{$_platesMarkedBad};
-# 
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesMarkedBad++;
-#     }
-#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+            #        ------------------------------
+            #     Use this section to skip to next "changed" plate
+         
+	    my $totalPlateCount = scalar @{$_platesMarkedChanged};
+
+            if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
+                $indexIntoPlatesMarkedChanged++;
+            }
+               $rowRef =
+              ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+              
+            say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
+
+	    say "Next added/changed";
+
+        }
+        when (/2/) {
+
+            #--------------------------------------
+            #Use this section to skip to next "bad" plate
+            my $totalPlateCount = scalar @{$_platesMarkedBad};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+                $indexIntoPlatesMarkedBad += 1;
+            }
+             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+            say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+            say "Next bad";
+
+        }
+    }
 
     #---------------------------------------
 
     #Update information for the plate we're getting ready to display
-        activateNewPlate($rowRef);
+    activateNewPlate($rowRef);
 
     #     say @$_platesNotMarkedManually;
 
     return TRUE;
+}
+
+sub nextButtonClick {
+ my ( $widget, $event ) = @_;
+ 
+     #Get the index of which plate we want to advance to on marking
+    my $comboIndex = $main::comboboxtext1->get_active;
+    say $comboIndex;
+    my $rowRef;
+      given ($comboIndex) {
+        when (/0/) {
+
+            #------------------------------
+            #Use this section to skip to next "unverified" plate
+            my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+                $indexIntoPlatesWithNoLonLat++;
+            }
+      
+           
+
+            #Get info about the airport we're currently pointing to
+            $rowRef =
+              ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+               say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+               
+             say "Next non-Manual";  
+        }
+        when (/1/) {
+
+            #        ------------------------------
+            #     Use this section to skip to next "changed" plate
+         
+	    my $totalPlateCount = scalar @{$_platesMarkedChanged};
+
+            if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
+                $indexIntoPlatesMarkedChanged++;
+            }
+               $rowRef =
+              ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+              
+            say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
+
+	    say "Next added/changed";
+
+        }
+        when (/2/) {
+
+            #--------------------------------------
+            #Use this section to skip to next "bad" plate
+            my $totalPlateCount = scalar @{$_platesMarkedBad};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+                $indexIntoPlatesMarkedBad += 1;
+            }
+             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+            say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+            say "Next bad";
+
+        }
+    }
+
+    #---------------------------------------
+
+    #Update information for the plate we're getting ready to display
+    activateNewPlate($rowRef);
+
+    #     say @$_platesNotMarkedManually;
+
+    return TRUE;
+ 
+}
+
+sub previousButtonClick {
+ my ( $widget, $event ) = @_;
+ 
+     #Get the index of which plate we want to advance to on marking
+    my $comboIndex = $main::comboboxtext1->get_active;
+    say $comboIndex;
+    my $rowRef;
+      given ($comboIndex) {
+        when (/0/) {
+
+            #------------------------------
+            #Use this section to skip to next "unverified" plate
+            my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoPlatesWithNoLonLat  > 0 ) {
+		  $indexIntoPlatesWithNoLonLat--;
+                
+            }
+      
+           
+
+            #Get info about the airport we're currently pointing to
+            $rowRef =
+              ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+               say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+               
+             say "Next non-Manual";  
+        }
+        when (/1/) {
+
+            #        ------------------------------
+            #     Use this section to skip to next "changed" plate
+         
+	    my $totalPlateCount = scalar @{$_platesMarkedChanged};
+
+            if ( $indexIntoPlatesMarkedChanged  > 0 ) {
+		  $indexIntoPlatesMarkedChanged--;
+            }
+               $rowRef =
+              ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+              
+            say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
+
+	    say "Next added/changed";
+
+        }
+        when (/2/) {
+
+            #--------------------------------------
+            #Use this section to skip to next "bad" plate
+            my $totalPlateCount = scalar @{$_platesMarkedBad};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoPlatesMarkedBad > 0 ) {
+		  $indexIntoPlatesMarkedBad--;
+            }
+             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+            say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+            say "Next bad";
+
+        }
+    }
+
+    #---------------------------------------
+
+    #Update information for the plate we're getting ready to display
+    activateNewPlate($rowRef);
+
+    return TRUE;
+ 
 }
 
 sub markBadButtonClick {
@@ -2572,33 +2878,33 @@ sub markBadButtonClick {
     #Set status in the database
     updateStatus( "MANUALBAD", $main::PDF_NAME );
 
-    #--------------------------------------
-    #Use this section to skip to next "unverified" plate
-        my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-    
-        #BUG TODO Make length of array
-        if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-            $indexIntoPlatesWithNoLonLat++;
-    
-        }
-    
-        say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    
-        #Get info about the airport we're currently pointing to
-        my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
+    #     #--------------------------------------
+    #     #Use this section to skip to next "unverified" plate
+    #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
+    #
+    #     #BUG TODO Make length of array
+    #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
+    #         $indexIntoPlatesWithNoLonLat++;
+    #
+    #     }
+    #
+    #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+    #
+    #     #Get info about the airport we're currently pointing to
+    #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
 
-       #--------------------------------------
-#     #Use this section to skip to next "bad" plate
-#     my $totalPlateCount = scalar @{$_platesMarkedBad};
-# 
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesMarkedBad++;
-#     }
-#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+    #     --------------------------------------
+    #Use this section to skip to next "bad" plate
+    my $totalPlateCount = scalar @{$_platesMarkedBad};
 
-    #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+    #BUG TODO Make length of array
+    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
+        $indexIntoPlatesMarkedBad += 1;
+    }
+    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
+
+    #         my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
     #
     #     #Update information for the plate we're getting ready to display
     #     activateNewPlate($rowRef);
@@ -2611,7 +2917,7 @@ sub markBadButtonClick {
     #     #     say @$_platesNotMarkedManually;
 
     #Update information for the plate we're getting ready to display
-        activateNewPlate($rowRef);
+    activateNewPlate($rowRef);
 
     return TRUE;
 }
@@ -2753,8 +3059,8 @@ sub georeferenceTheRaster {
     my ($gcpstring) = validate_pos( @_, { type => SCALAR }, );
 
     # #Try to georeference
-    # You may be able to create the world files but you will need to know the pixel resolution and calculate the skew. Your world file should be named exactly the same as the image, but with a different exstention (.wld or .jpgw) and have the following lines:
-    #
+
+    #World file format
     #     pixel resolution * cos(rotation angle)
     #     -pixel resolution * sin(rotation angle)
     #     -pixel resolution * sin(rotation angle)

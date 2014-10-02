@@ -50,9 +50,27 @@ sub main {
     # create a .wld file from database
     # link ./byAirportWorldFile/AirportCode/procedureName.png -> ./dtpp/chartcode.png
 
+    my $arg_num = scalar @ARGV;
+
+    #We need at least one argument (the name of the PDF to process)
+    if ( $arg_num < 1 ) {
+        say "Specify cycle";
+        say "eg: $0 1410";
+        exit(1);
+    }
+
+    my $cycle = shift @ARGV;
+   
+
+    say "Cycle: $cycle";
+   
+
+    #Connect to our databases
+    my $dbFile = "./dtpp-$cycle.db";
+      
     #database of metadata for dtpp
-    my $dtppDbh =
-      DBI->connect( "dbi:SQLite:dbname=./dtpp.db", "", "", { RaiseError => 1 } )
+    my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=$dbFile",
+        "", "", { RaiseError => 1 } )
       or croak $DBI::errstr;
 
     #     my (
@@ -111,8 +129,8 @@ sub main {
     say "Processing $_rows charts";
     my $completedCount = 0;
 
-    my $inputDir  = "./dtpp/";
-    my $outputDir = "./byAirportWorldFile/";
+    my $inputDir  = "./dtpp-$cycle/";
+    my $outputDir = "./byAirportWorldFile-$cycle/";
 
     #Process each plate returned by our query
     foreach my $_row (@$_allSqlQueryResults) {
@@ -230,7 +248,7 @@ sub main {
             #             }
         }
         else {
-            say "No .png for $FAA_CODE";
+            say "No .png ($pngName) for $FAA_CODE";
         }
         ++$completedCount;
 
