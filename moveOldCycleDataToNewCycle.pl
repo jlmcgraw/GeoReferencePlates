@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 # Copyright (C) 2014  Jesse McGraw (jlmcgraw@gmail.com)
+# Copy georef data from a previous cycle to a new one
 #
 #--------------------------------------------------------------------------------------------------------------------------------------------
 # This program is free software: you can redistribute it and/or modify
@@ -141,7 +142,7 @@ sub main {
         say "Clearing status on row: $rowCount..."
           if ( $rowCount % 1000 == 0 );
 
-        my $status = "MONKEYBUTT";
+        my $status = "ADDEDCHANGED";
 
         # #         say
         #           "$PDF_NAME,$status";

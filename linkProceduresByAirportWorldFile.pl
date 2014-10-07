@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+# Given a database of charts and georef data, create a directory of IAP and APD .PNGs and
+# associated world files
+#
 # Copyright (C) 2013  Jesse McGraw (jlmcgraw@gmail.com)
 #
 #--------------------------------------------------------------------------------------------------------------------------------------------

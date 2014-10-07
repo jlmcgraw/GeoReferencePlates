@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 
 # Verify the georeferencing of plates
+# This is a terrible, but functional, GUI for georeferencing IAP and APD files
+
+
 # Copyright (C) 2014  Jesse McGraw (jlmcgraw@gmail.com)
 #
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -187,8 +190,9 @@ my $_platesMarkedChanged         = chartsMarkedChanged();
 my $indexIntoPlatesMarkedChanged = 0;
 
 our (
-    $currentGcpName, $currentGcpLon,  $currentGcpLat, $currentGcpPdfX,
-    $currentGcpPdfY, $currentGcpPngX, $currentGcpPngY
+    $currentGcpName, $currentGcpLon,     $currentGcpLat,
+    $currentGcpPdfX, $currentGcpPdfY,    $currentGcpPngX,
+    $currentGcpPngY, $currentGcpPixbufX, $currentGcpPixbufY
 );
 
 #Lat/Lon of current airport
@@ -860,21 +864,9 @@ sub findPlatesNotMarkedManually {
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
-        DG.STATUS LIKE '%MONKEY%'
-        --        AND
-        --DG.STATUS NOT LIKE '%MANUAL%'
+        DG.STATUS LIKE '%ADDEDCHANGED%'
           AND
         DG.STATUS NOT LIKE '%NOGEOREF%'
---          AND
---        (CAST (DG.xPixelSkew as FLOAT) != '0'
---          OR
---          CAST (DG.yPixelSkew as FLOAT) != '0')
---          and D.MILITARY_USE = 'M'
---        CAST (DG.upperLeftLon AS FLOAT) = '0'
---          AND
---        CAST (DG.xScaleAvgSize as FLOAT) > 1
---          AND
---        Difference  > .08
       ORDER BY
         D.FAA_CODE ASC
 ;"
@@ -988,8 +980,8 @@ sub findPlatesMarkedBad {
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
         -- BUG TODO: Civilian charts only for now
-	  AND
-        D.MILITARY_USE != 'M'
+        --  AND
+        -- D.MILITARY_USE != 'M'
 --          AND
 --        CAST (DG.yScaleAvgSize AS FLOAT) > 1
 --          AND
@@ -1167,24 +1159,58 @@ sub cairo_draw {
     my ( $widget, $context, $ref_status ) = @_;
 
     #Immediate exit if no inverse transform defined
-    if ( !$main::invertedAffineTransform ) {
-        return FALSE;
-    }
-    my $runwayHashRef  = $main::runwaysFromDatabaseHashref;
-    my $navaidsHashRef = $main::navaids_from_db_hashref;
+    if ( $main::invertedAffineTransform ) {
 
-    #     my $fixHashRef       = $main::fixes_from_db_hashref;
-    my $gcpHashRef = $main::gcp_from_db_hashref;
+        my $runwayHashRef  = $main::runwaysFromDatabaseHashref;
+        my $navaidsHashRef = $main::navaids_from_db_hashref;
 
-    #     my $obstaclesHashRef = $main::unique_obstacles_from_db_hashref;
+        #     my $fixHashRef       = $main::fixes_from_db_hashref;
+        my $gcpHashRef = $main::gcp_from_db_hashref;
 
-    #Draw fixes
-    if ($shouldDrawFixes) {
-        foreach my $key ( keys $main::fixes_from_db_hashref ) {
+        #     my $obstaclesHashRef = $main::unique_obstacles_from_db_hashref;
 
-            my $lat  = $main::fixes_from_db_hashref->{$key}{"Lat"};
-            my $lon  = $main::fixes_from_db_hashref->{$key}{"Lon"};
-            my $text = $main::fixes_from_db_hashref->{$key}{"Name"};
+        #Draw fixes
+        if ($shouldDrawFixes) {
+            foreach my $key ( keys $main::fixes_from_db_hashref ) {
+
+                my $lat  = $main::fixes_from_db_hashref->{$key}{"Lat"};
+                my $lon  = $main::fixes_from_db_hashref->{$key}{"Lon"};
+                my $text = $main::fixes_from_db_hashref->{$key}{"Name"};
+
+                # 		    say "$latLE, $lonLE, $latHE, $lonHE";
+                #             my $y1 = latitudeToPixel($lat);
+                #             my $x1 = longitudeToPixel($lon);
+                my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
+                if ( $x1 && $y1 ) {
+
+                    # Circle with border - transparent
+                    $context->set_source_rgba( 0, 0, 1, 0.5 );
+                    $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
+                    $context->set_line_width(2);
+                    $context->stroke_preserve;
+                    $context->set_source_rgba( 0, 1, 1, 0.5 );
+                    $context->fill;
+
+                    if ($main::shouldDrawFixesNames) {
+
+                        # Text
+                        $context->set_source_rgba( 255, 0, 255, 255 );
+                        $context->select_font_face( "Sans", "normal",
+                            "normal" );
+                        $context->set_font_size(9);
+                        $context->move_to( $x1 + 5, $y1 );
+                        $context->show_text("$text");
+                        $context->stroke;
+                    }
+
+                }
+            }
+        }
+        foreach my $key ( keys $main::fixes_from_db_iap_hashref ) {
+
+            my $lat  = $main::fixes_from_db_iap_hashref->{$key}{"Lat"};
+            my $lon  = $main::fixes_from_db_iap_hashref->{$key}{"Lon"};
+            my $text = $main::fixes_from_db_iap_hashref->{$key}{"Name"};
 
             # 		    say "$latLE, $lonLE, $latHE, $lonHE";
             #             my $y1 = latitudeToPixel($lat);
@@ -1199,7 +1225,6 @@ sub cairo_draw {
                 $context->stroke_preserve;
                 $context->set_source_rgba( 0, 1, 1, 0.5 );
                 $context->fill;
-
                 if ($main::shouldDrawFixesNames) {
 
                     # Text
@@ -1210,290 +1235,283 @@ sub cairo_draw {
                     $context->show_text("$text");
                     $context->stroke;
                 }
-
             }
         }
-    }
-    foreach my $key ( keys $main::fixes_from_db_iap_hashref ) {
 
-        my $lat  = $main::fixes_from_db_iap_hashref->{$key}{"Lat"};
-        my $lon  = $main::fixes_from_db_iap_hashref->{$key}{"Lon"};
-        my $text = $main::fixes_from_db_iap_hashref->{$key}{"Name"};
+        #Draw navaids
+        if ($shouldDrawNavaids) {
+            foreach my $key ( keys $navaidsHashRef ) {
 
-        # 		    say "$latLE, $lonLE, $latHE, $lonHE";
-        #             my $y1 = latitudeToPixel($lat);
-        #             my $x1 = longitudeToPixel($lon);
-        my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
-        if ( $x1 && $y1 ) {
+                my $lat  = $navaidsHashRef->{$key}{"Lat"};
+                my $lon  = $navaidsHashRef->{$key}{"Lon"};
+                my $text = $navaidsHashRef->{$key}{"Name"};
 
-            # Circle with border - transparent
-            $context->set_source_rgba( 0, 0, 1, 0.5 );
-            $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
-            $context->set_line_width(2);
-            $context->stroke_preserve;
-            $context->set_source_rgba( 0, 1, 1, 0.5 );
-            $context->fill;
-            if ($main::shouldDrawFixesNames) {
+                # 		    say "$latLE, $lonLE, $latHE, $lonHE";
+                #             my $y1 = latitudeToPixel($lat);
+                #             my $x1 = longitudeToPixel($lon);
+                my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
+                if ( $x1 && $y1 ) {
 
-                # Text
-                $context->set_source_rgba( 255, 0, 255, 255 );
-                $context->select_font_face( "Sans", "normal", "normal" );
-                $context->set_font_size(9);
-                $context->move_to( $x1 + 5, $y1 );
-                $context->show_text("$text");
-                $context->stroke;
-            }
-        }
-    }
+                    # Circle with border - transparent
+                    $context->set_source_rgba( 0, 255, 0, .8 );
+                    $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
+                    $context->set_line_width(2);
+                    $context->stroke_preserve;
+                    $context->set_source_rgba( 0, 255, 0, .8 );
+                    $context->fill;
 
-    #Draw navaids
-    if ($shouldDrawNavaids) {
-        foreach my $key ( keys $navaidsHashRef ) {
+                    if ($main::shouldDrawNavaidsNames) {
 
-            my $lat  = $navaidsHashRef->{$key}{"Lat"};
-            my $lon  = $navaidsHashRef->{$key}{"Lon"};
-            my $text = $navaidsHashRef->{$key}{"Name"};
-
-            # 		    say "$latLE, $lonLE, $latHE, $lonHE";
-            #             my $y1 = latitudeToPixel($lat);
-            #             my $x1 = longitudeToPixel($lon);
-            my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
-            if ( $x1 && $y1 ) {
-
-                # Circle with border - transparent
-                $context->set_source_rgba( 0, 255, 0, .8 );
-                $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
-                $context->set_line_width(2);
-                $context->stroke_preserve;
-                $context->set_source_rgba( 0, 255, 0, .8 );
-                $context->fill;
-
-                if ($main::shouldDrawNavaidsNames) {
-
-                    # Text
-                    $context->set_source_rgba( 255, 0, 255, 1 );
-                    $context->select_font_face( "Sans", "normal", "normal" );
-                    $context->set_font_size(10);
-                    $context->move_to( $x1 + 5, $y1 );
-                    $context->show_text("$text");
-                    $context->stroke;
+                        # Text
+                        $context->set_source_rgba( 255, 0, 255, 1 );
+                        $context->select_font_face( "Sans", "normal",
+                            "normal" );
+                        $context->set_font_size(10);
+                        $context->move_to( $x1 + 5, $y1 );
+                        $context->show_text("$text");
+                        $context->stroke;
+                    }
                 }
             }
         }
-    }
 
-    # # 		# Line
-    # 		$context->set_source_rgba(0, 255, 0, 0.5);
-    # 		$context->set_line_width(30);
-    # 		$context->move_to(50, 50);
-    #  		$context->line_to(550, 350);
-    #  		$context->stroke;
+        # # 		# Line
+        # 		$context->set_source_rgba(0, 255, 0, 0.5);
+        # 		$context->set_line_width(30);
+        # 		$context->move_to(50, 50);
+        #  		$context->line_to(550, 350);
+        #  		$context->stroke;
 
-    #Draw GCPs
-    if ( $shouldDrawGcps && $gcpHashRef ) {
-        foreach my $key ( sort keys $gcpHashRef ) {
+        #Draw GCPs
+        if ( $shouldDrawGcps && $gcpHashRef ) {
+            foreach my $key ( sort keys $gcpHashRef ) {
 
-            my $lat  = $gcpHashRef->{$key}{"lat"};
-            my $lon  = $gcpHashRef->{$key}{"lon"};
-            my $text = $gcpHashRef->{$key}{$key};
+                my $lat  = $gcpHashRef->{$key}{"lat"};
+                my $lon  = $gcpHashRef->{$key}{"lon"};
+                my $text = $gcpHashRef->{$key}{$key};
 
-            # 		    say "$latLE, $lonLE, $latHE, $lonHE";
-            #             my $y1 = latitudeToPixel($lat);
-            #             my $x1 = longitudeToPixel($lon);
-            my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
-            if ( $x1 && $y1 ) {
+                # 		    say "$latLE, $lonLE, $latHE, $lonHE";
+                #             my $y1 = latitudeToPixel($lat);
+                #             my $x1 = longitudeToPixel($lon);
+                my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
+                if ( $x1 && $y1 ) {
 
-                # Circle with border - transparent
-                $context->set_source_rgba( 0, 255, 0, 64 );
-                $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
-                $context->set_line_width(2);
-                $context->stroke_preserve;
-                $context->set_source_rgba( 0, 255, 0, 64 );
-                $context->fill;
+                    # Circle with border - transparent
+                    $context->set_source_rgba( 0, 255, 0, 64 );
+                    $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
+                    $context->set_line_width(2);
+                    $context->stroke_preserve;
+                    $context->set_source_rgba( 0, 255, 0, 64 );
+                    $context->fill;
 
-                #                 # Text
-                #                 $context->set_source_rgba( 255, 0, 255, 128 );
-                #                 $context->select_font_face( "Sans", "normal", "normal" );
-                #                 $context->set_font_size(10);
-                #                 $context->move_to( $x1+5, $y1 );
-                #                 $context->show_text("$text");
-                #                 $context->stroke;
-            }
-        }
-    }
-
-    #Draw Obstacles?
-    if ($shouldDrawObstacles) {
-        foreach my $key ( keys $main::unique_obstacles_from_db_hashref ) {
-
-            # print Dumper $obstaclesHashRef;
-            my $lat  = $main::unique_obstacles_from_db_hashref->{$key}{"Lat"};
-            my $lon  = $main::unique_obstacles_from_db_hashref->{$key}{"Lon"};
-            my $text = $main::unique_obstacles_from_db_hashref->{$key}{"Name"};
-
-            #non-unique obstacles have lon/lat both equal to 0
-            next if ( $lon == 0 && $lat == 0 );
-
-            # 		    say "$latLE, $lonLE, $latHE, $lonHE";
-            #             my $y1 = latitudeToPixel($lat);
-            #             my $x1 = longitudeToPixel($lon);
-            my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
-            if ( $x1 && $y1 ) {
-
-                # Circle with border - transparent
-                $context->set_source_rgba( 0, 1, 1, 0.2 );
-                $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
-                $context->set_line_width(2);
-                $context->stroke_preserve;
-                $context->set_source_rgba( 0, 1, 1, 0.2 );
-                $context->fill;
-                if ($main::shouldDrawObstaclesHeights) {
-
-                    # Text
-                    $context->set_source_rgba( 255, 0, 255, 128 );
-                    $context->select_font_face( "Sans", "normal", "normal" );
-                    $context->set_font_size(10);
-                    $context->move_to( $x1 + 5, $y1 );
-                    $context->show_text("$text");
-                    $context->stroke;
+                    #                 # Text
+                    #                 $context->set_source_rgba( 255, 0, 255, 128 );
+                    #                 $context->select_font_face( "Sans", "normal", "normal" );
+                    #                 $context->set_font_size(10);
+                    #                 $context->move_to( $x1+5, $y1 );
+                    #                 $context->show_text("$text");
+                    #                 $context->stroke;
                 }
             }
         }
-    }
-    if ($shouldDrawRunways) {
 
-        #Draw the runways
-        foreach my $key ( sort keys $runwayHashRef ) {
+        #Draw Obstacles?
+        if ($shouldDrawObstacles) {
+            foreach my $key ( keys $main::unique_obstacles_from_db_hashref ) {
 
-            my $latLE = $runwayHashRef->{$key}{"LELatitude"};
-            my $lonLE = $runwayHashRef->{$key}{"LELongitude"};
-            my $latHE = $runwayHashRef->{$key}{"HELatitude"};
-            my $lonHE = $runwayHashRef->{$key}{"HELongitude"};
+                # print Dumper $obstaclesHashRef;
+                my $lat =
+                  $main::unique_obstacles_from_db_hashref->{$key}{"Lat"};
+                my $lon =
+                  $main::unique_obstacles_from_db_hashref->{$key}{"Lon"};
+                my $text =
+                  $main::unique_obstacles_from_db_hashref->{$key}{"Name"};
 
-            # 		    say "$latLE, $lonLE, $latHE, $lonHE";
-            #             my $y1 = latitudeToPixel($latLE);
-            #             my $x1 = longitudeToPixel($lonLE);
-            #
-            #             my $y2 = latitudeToPixel($latHE);
-            #             my $x2 = longitudeToPixel($lonHE);
+                #non-unique obstacles have lon/lat both equal to 0
+                next if ( $lon == 0 && $lat == 0 );
 
-            #             my ($x1, $y1, $x2, $y2) = $main::invertedAffineTransform->transform($lonLE, $latLE, $lonHE, $latHE);
-            #             say "Wheee!";
-            my ( $x1, $y1 ) = wgs84ToPixelBuf( $lonLE, $latLE );
-            my ( $x2, $y2 ) = wgs84ToPixelBuf( $lonHE, $latHE );
+                # 		    say "$latLE, $lonLE, $latHE, $lonHE";
+                #             my $y1 = latitudeToPixel($lat);
+                #             my $x1 = longitudeToPixel($lon);
+                my ( $x1, $y1 ) = wgs84ToPixelBuf( $lon, $lat );
+                if ( $x1 && $y1 ) {
 
-            #             say "$lonLE -> $x1";
-            #             say "$latLE -> $y1";
-            #             say "$lonHE -> $x2";
-            #             say "$latHE -> $y2";
+                    # Circle with border - transparent
+                    $context->set_source_rgba( 0, 1, 1, 0.2 );
+                    $context->arc( $x1, $y1, 2, 0, 3.1415 * 2 );
+                    $context->set_line_width(2);
+                    $context->stroke_preserve;
+                    $context->set_source_rgba( 0, 1, 1, 0.2 );
+                    $context->fill;
+                    if ($main::shouldDrawObstaclesHeights) {
 
-            # 		  say "$x1, $y1, $x2, $y2";
+                        # Text
+                        $context->set_source_rgba( 255, 0, 255, 128 );
+                        $context->select_font_face( "Sans", "normal",
+                            "normal" );
+                        $context->set_font_size(10);
+                        $context->move_to( $x1 + 5, $y1 );
+                        $context->show_text("$text");
+                        $context->stroke;
+                    }
+                }
+            }
+        }
 
-            # Line
-            if ( $x1 && $y1 && $x2 && $y2 ) {
-                $context->set_source_rgba( 1, 0, 0, .9 );
+        if ($shouldDrawGraticules) {
+
+            #Draw some squares, if they aren't square then something's wrong with transform
+            #     my $radius = .5;
+
+            foreach my $radius ( .125, .25, .375, .5 ) {
+                my ( $latRadius, $lonRadius ) =
+                  radiusGivenLatitude( $radius, $main::airportLatitudeDec );
+
+                my ( $x1, $y1 ) = wgs84ToPixelBuf(
+                    $main::airportLongitudeDec - $lonRadius,
+                    $main::airportLatitudeDec - $latRadius
+                );
+                my ( $x2, $y2 ) = wgs84ToPixelBuf(
+                    $main::airportLongitudeDec - $lonRadius,
+                    $main::airportLatitudeDec + $latRadius
+                );
+                my ( $x3, $y3 ) = wgs84ToPixelBuf(
+                    $main::airportLongitudeDec + $lonRadius,
+                    $main::airportLatitudeDec + $latRadius
+                );
+                my ( $x4, $y4 ) = wgs84ToPixelBuf(
+                    $main::airportLongitudeDec + $lonRadius,
+                    $main::airportLatitudeDec - $latRadius
+                );
+
+                # 	    say "$lonRadius $latRadius $x1 $y1 $x2 $y2";
+
+                $context->set_source_rgba( 0, 0, 1, .5 );
                 $context->set_line_width(2);
                 $context->move_to( $x1, $y1 );
                 $context->line_to( $x2, $y2 );
+                $context->line_to( $x3, $y3 );
+                $context->line_to( $x4, $y4 );
+                $context->line_to( $x1, $y1 );
                 $context->stroke;
-            }
 
+                #This is a very quick hack to check the squareness of the boxes drawn on map
+                my $polyline = new GD::Polyline;
+
+                #Create a square polygon
+                $polyline->addPt( $x1, $y1 );
+                $polyline->addPt( $x2, $y2 );
+                $polyline->addPt( $x3, $y3 );
+                $polyline->addPt( $x4, $y4 );
+                $polyline->addPt( $x1, $y1 );
+
+                #The anagles between the line segments
+                my @vertexAngles = $polyline->vertexAngle();
+
+                my $segment1Length =
+                  sqrt( ( $x1 - $x2 )**2 + ( $y1 - $y2 )**2 );
+                my $segment2Length =
+                  sqrt( ( $x2 - $x3 )**2 + ( $y2 - $y3 )**2 );
+                my $segment3Length =
+                  sqrt( ( $x3 - $x4 )**2 + ( $y3 - $y4 )**2 );
+                my $segment4Length =
+                  sqrt( ( $x4 - $x1 )**2 + ( $y4 - $y1 )**2 );
+
+                my $textviewBuffer = $main::textview1->get_buffer;
+                my $iter           = $textviewBuffer->get_iter_at_offset(0);
+                $textviewBuffer->insert( $iter,
+                        "Angles: "
+                      . rad2deg( $vertexAngles[1] ) . ","
+                      . rad2deg( $vertexAngles[2] ) . ","
+                      . rad2deg( $vertexAngles[3] )
+                      . "\n" );
+                $textviewBuffer->insert( $iter,
+                        "Length Diff: "
+                      . ( $segment1Length - $segment3Length ) . ","
+                      . ( $segment2Length - $segment4Length )
+                      . "\n\n" );
+
+                # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
+
+                #             #say rad2deg(@vertexAngles[0]);
+                #             say rad2deg( $vertexAngles[1] );
+                #             say rad2deg( $vertexAngles[2] );
+                #             say rad2deg( $vertexAngles[3] );
+                #
+                #             say "Segment 1 length "
+                #               . $segment1Length;
+                #             say "Segment 2 length "
+                #               . $segment2Length;
+                #             say "Segment 3 length "
+                #               . $segment3Length;
+                #             say "Segment 4 length "
+                #               . $segment4Length;
+                #
+                #             $context->set_source_rgba( 0, 1, 1, .9 );
+                #             $context->set_line_width(2);
+                #             $context->move_to( $x2, $y2 );
+                #             $context->line_to( $x3, $y3 );
+                #
+                #
+                #             $context->stroke;
+            }
+        }
+
+        if ($shouldDrawRunways) {
+
+            #Draw the runways
+            foreach my $key ( sort keys $runwayHashRef ) {
+
+                my $latLE = $runwayHashRef->{$key}{"LELatitude"};
+                my $lonLE = $runwayHashRef->{$key}{"LELongitude"};
+                my $latHE = $runwayHashRef->{$key}{"HELatitude"};
+                my $lonHE = $runwayHashRef->{$key}{"HELongitude"};
+
+                # 		    say "$latLE, $lonLE, $latHE, $lonHE";
+                #             my $y1 = latitudeToPixel($latLE);
+                #             my $x1 = longitudeToPixel($lonLE);
+                #
+                #             my $y2 = latitudeToPixel($latHE);
+                #             my $x2 = longitudeToPixel($lonHE);
+
+                #             my ($x1, $y1, $x2, $y2) = $main::invertedAffineTransform->transform($lonLE, $latLE, $lonHE, $latHE);
+                #             say "Wheee!";
+                my ( $x1, $y1 ) = wgs84ToPixelBuf( $lonLE, $latLE );
+                my ( $x2, $y2 ) = wgs84ToPixelBuf( $lonHE, $latHE );
+
+                #             say "$lonLE -> $x1";
+                #             say "$latLE -> $y1";
+                #             say "$lonHE -> $x2";
+                #             say "$latHE -> $y2";
+
+                # 		  say "$x1, $y1, $x2, $y2";
+
+                # Line
+                if ( $x1 && $y1 && $x2 && $y2 ) {
+                    $context->set_source_rgba( 1, 0, 0, .9 );
+                    $context->set_line_width(2);
+                    $context->move_to( $x1, $y1 );
+                    $context->line_to( $x2, $y2 );
+                    $context->stroke;
+                }
+
+            }
         }
     }
 
-    if ($shouldDrawGraticules) {
+    #    say "$main::currentGcpPixbufX && $main::currentGcpPixbufY";
+    if ( $main::currentGcpPixbufX && $main::currentGcpPixbufY ) {
+        say "Drawing GCP at $main::currentGcpPixbufX, $main::currentGcpPixbufY";
 
-        #Draw some squares, if they aren't square then something's wrong with transform
-        #     my $radius = .5;
-
-        foreach my $radius ( .125, .25, .375, .5 ) {
-            my ( $latRadius, $lonRadius ) =
-              radiusGivenLatitude( $radius, $main::airportLatitudeDec );
-
-            my ( $x1, $y1 ) = wgs84ToPixelBuf(
-                $main::airportLongitudeDec - $lonRadius,
-                $main::airportLatitudeDec - $latRadius
-            );
-            my ( $x2, $y2 ) = wgs84ToPixelBuf(
-                $main::airportLongitudeDec - $lonRadius,
-                $main::airportLatitudeDec + $latRadius
-            );
-            my ( $x3, $y3 ) = wgs84ToPixelBuf(
-                $main::airportLongitudeDec + $lonRadius,
-                $main::airportLatitudeDec + $latRadius
-            );
-            my ( $x4, $y4 ) = wgs84ToPixelBuf(
-                $main::airportLongitudeDec + $lonRadius,
-                $main::airportLatitudeDec - $latRadius
-            );
-
-            # 	    say "$lonRadius $latRadius $x1 $y1 $x2 $y2";
-
-            $context->set_source_rgba( 0, 0, 1, .5 );
-            $context->set_line_width(2);
-            $context->move_to( $x1, $y1 );
-            $context->line_to( $x2, $y2 );
-            $context->line_to( $x3, $y3 );
-            $context->line_to( $x4, $y4 );
-            $context->line_to( $x1, $y1 );
-            $context->stroke;
-
-            #This is a very quick hack to check the squareness of the boxes drawn on map
-            my $polyline = new GD::Polyline;
-
-            #Create a square polygon
-            $polyline->addPt( $x1, $y1 );
-            $polyline->addPt( $x2, $y2 );
-            $polyline->addPt( $x3, $y3 );
-            $polyline->addPt( $x4, $y4 );
-            $polyline->addPt( $x1, $y1 );
-
-            #The anagles between the line segments
-            my @vertexAngles = $polyline->vertexAngle();
-
-            my $segment1Length = sqrt( ( $x1 - $x2 )**2 + ( $y1 - $y2 )**2 );
-            my $segment2Length = sqrt( ( $x2 - $x3 )**2 + ( $y2 - $y3 )**2 );
-            my $segment3Length = sqrt( ( $x3 - $x4 )**2 + ( $y3 - $y4 )**2 );
-            my $segment4Length = sqrt( ( $x4 - $x1 )**2 + ( $y4 - $y1 )**2 );
-
-            my $textviewBuffer = $main::textview1->get_buffer;
-            my $iter           = $textviewBuffer->get_iter_at_offset(0);
-            $textviewBuffer->insert( $iter,
-                    "Angles: "
-                  . rad2deg( $vertexAngles[1] ) . ","
-                  . rad2deg( $vertexAngles[2] ) . ","
-                  . rad2deg( $vertexAngles[3] )
-                  . "\n" );
-            $textviewBuffer->insert( $iter,
-                    "Length Diff: "
-                  . ( $segment1Length - $segment3Length ) . ","
-                  . ( $segment2Length - $segment4Length )
-                  . "\n\n" );
-
-            # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
-
-            #             #say rad2deg(@vertexAngles[0]);
-            #             say rad2deg( $vertexAngles[1] );
-            #             say rad2deg( $vertexAngles[2] );
-            #             say rad2deg( $vertexAngles[3] );
-            #
-            #             say "Segment 1 length "
-            #               . $segment1Length;
-            #             say "Segment 2 length "
-            #               . $segment2Length;
-            #             say "Segment 3 length "
-            #               . $segment3Length;
-            #             say "Segment 4 length "
-            #               . $segment4Length;
-            #
-            #             $context->set_source_rgba( 0, 1, 1, .9 );
-            #             $context->set_line_width(2);
-            #             $context->move_to( $x2, $y2 );
-            #             $context->line_to( $x3, $y3 );
-            #
-            #
-            #             $context->stroke;
-        }
+        #Draw the current GCP point
+        # Circle with border - transparent
+        $context->set_source_rgba( 255, 255, 0, 64 );
+        $context->arc( $main::currentGcpPixbufX, $main::currentGcpPixbufY, 2,
+            0, 3.1415 * 2 );
+        $context->set_line_width(2);
+        $context->stroke_preserve;
+        $context->set_source_rgba( 255, 255, 0, 64 );
+        $context->fill;
     }
 
     # Text
@@ -1522,7 +1540,10 @@ sub plateBox_click {
 
     my ( $x, $y ) = ( $event->x, $event->y );
 
-    # say "x:$x y:$y";
+    #     say "x:$x y:$y";
+    $main::currentGcpPixbufX = $x;
+    $main::currentGcpPixbufY = $y;
+
     # If the image is smaller than the window, we need to
     # translate these window coords into the image coords.
     # Get the allocated size of the image first.
@@ -1544,6 +1565,7 @@ sub plateBox_click {
 
     $y -= ( $max_h - $pixb_h ) / 2;
 
+    #Scale the clicked location into PNG coordinates
     $main::currentGcpPngX = $x * $horizontalScaleFactor;
     $main::currentGcpPngY = $y * $verticalScaleFactor;
 
@@ -1555,122 +1577,124 @@ sub plateBox_click {
     #
     #     #     say "$horizontalScaleFactor, $verticalScaleFactor";
 
+    #queue a redrawing of the plate
+    $main::plateSw->queue_draw;
     return TRUE;
 }
 
 # sub nextPlateNotMarkedManually {
 #     my ( $widget, $event ) = @_;
-# 
+#
 #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-# 
+#
 #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
 #         $indexIntoPlatesWithNoLonLat++;
 #     }
-# 
+#
 #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-# 
+#
 #     #Get info about the airport we're currently pointing to
 #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-# 
+#
 #     #Update information for the plate we're getting ready to display
 #     activateNewPlate($rowRef);
-# 
+#
 #     return TRUE;
 # }
-# 
+#
 # sub previousPlateNotMarkedManually {
 #     my ( $widget, $event ) = @_;
-# 
+#
 #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
 #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-# 
+#
 #     if ( $indexIntoPlatesWithNoLonLat > 0 ) {
 #         $indexIntoPlatesWithNoLonLat--;
 #     }
-# 
+#
 #     #Info about current plate
 #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-# 
+#
 #     #Update information for the plate we're getting ready to display
 #     activateNewPlate($rowRef);
-# 
+#
 #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-# 
+#
 #     return TRUE;
 # }
 
 # sub nextBadButtonClick {
 #     my ( $widget, $event ) = @_;
-# 
+#
 #     #Get info about the airport we're currently pointing to
 #     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-# 
+#
 #     my $totalPlateCount = scalar @{$_platesMarkedBad};
-# 
+#
 #     #Update information for the plate we're getting ready to display
 #     activateNewPlate($rowRef);
-# 
+#
 #     #BUG TODO Make length of array
 #     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
 #         $indexIntoPlatesMarkedBad++;
 #     }
-# 
+#
 #     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-# 
+#
 #     return TRUE;
 # }
-# 
+#
 # sub previousBadButtonClick {
 #     my ( $widget, $event ) = @_;
-# 
+#
 #     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-# 
+#
 #     #Update information for the plate we're getting ready to display
 #     activateNewPlate($rowRef);
-# 
+#
 #     if ( $indexIntoPlatesMarkedBad > 0 ) {
 #         $indexIntoPlatesMarkedBad--;
 #     }
 #     say $indexIntoPlatesMarkedBad;
-# 
+#
 #     return TRUE;
 # }
 
 # sub nextChangedButtonClick {
 #     my ( $widget, $event ) = @_;
-# 
+#
 #     #Get info about the airport we're currently pointing to
 #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-# 
+#
 #     my $totalPlateCount = scalar @{$_platesMarkedChanged};
-# 
+#
 #     #Update information for the plate we're getting ready to display
 #     activateNewPlate($rowRef);
-# 
+#
 #     #BUG TODO Make length of array
 #     if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
 #         $indexIntoPlatesMarkedChanged++;
 #     }
-# 
+#
 #     say "$indexIntoPlatesMarkedChanged / $totalPlateCount";
-# 
+#
 #     return TRUE;
 # }
-# 
+#
 # sub previousChangedButtonClick {
 #     my ( $widget, $event ) = @_;
-# 
+#
 #     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-# 
+#
 #     #Update information for the plate we're getting ready to display
 #     activateNewPlate($rowRef);
-# 
+#
 #     if ( $indexIntoPlatesMarkedChanged > 0 ) {
 #         $indexIntoPlatesMarkedChanged--;
 #     }
 #     say $indexIntoPlatesMarkedChanged;
-# 
+#
 #     return TRUE;
 # }
 
@@ -2519,13 +2543,13 @@ sub georeferenceButtonClicked {
 
 }
 
-sub saveGeoreferenceButtonClicked {
+sub saveGroundControlPoints {
 
     #Create a new hash from the current GCP liststore
     my $model = $main::gcpModel;
     my %newGcpHash;
 
-    #For each line in the GPC liststore, extract column data and save in hash
+    #For each line in the GCP liststore, extract column data and save in hash
     $model->foreach( \&gcpTest, \%newGcpHash );
 
     #Save the hash back to disk
@@ -2533,10 +2557,18 @@ sub saveGeoreferenceButtonClicked {
       || die "can't store to $main::storedGcpHash\n";
 
     say "Saved GCP hash to disk";
+    return;
+}
+
+sub saveGeoreferenceButtonClicked {
+    my ( $widget, $event ) = @_;
+    saveGroundControlPoints();
+    return;
 
 }
 
 sub lonLatButtonClicked {
+    my ( $widget, $event ) = @_;
 
     #Take the text of the lon/lat entry box and parse it to decimal representation
     my $text = $main::lonLatTextEntry->get_text;
@@ -2650,16 +2682,12 @@ sub updateStatus {
     return;
 }
 
-sub markGoodButtonClick {
-    my ( $widget, $event ) = @_;
-
-    #Update the status of current plate in database
-    updateStatus( "MANUALGOOD", $main::PDF_NAME );
+sub activateNextPlate {
 
     #Get the index of which plate we want to advance to on marking
     my $comboIndex = $main::comboboxtext1->get_active;
     my $rowRef;
-      given ($comboIndex) {
+    given ($comboIndex) {
         when (/0/) {
 
             #------------------------------
@@ -2670,32 +2698,29 @@ sub markGoodButtonClick {
             if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
                 $indexIntoPlatesWithNoLonLat++;
             }
-      
-           
 
             #Get info about the airport we're currently pointing to
             $rowRef =
               ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-               say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-               
-             say "Next non-Manual";  
+            say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+
+            say "Next non-Manual";
         }
         when (/1/) {
 
             #        ------------------------------
             #     Use this section to skip to next "changed" plate
-         
-	    my $totalPlateCount = scalar @{$_platesMarkedChanged};
+
+            my $totalPlateCount = scalar @{$_platesMarkedChanged};
 
             if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
                 $indexIntoPlatesMarkedChanged++;
             }
-               $rowRef =
-              ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-              
+            $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+
             say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
 
-	    say "Next added/changed";
+            say "Next added/changed";
 
         }
         when (/2/) {
@@ -2708,7 +2733,7 @@ sub markGoodButtonClick {
             if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
                 $indexIntoPlatesMarkedBad += 1;
             }
-             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+            $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
             say "$indexIntoPlatesMarkedBad / $totalPlateCount";
             say "Next bad";
 
@@ -2719,6 +2744,16 @@ sub markGoodButtonClick {
 
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
+
+}
+
+sub markGoodButtonClick {
+    my ( $widget, $event ) = @_;
+
+    #Update the status of current plate in database
+    updateStatus( "MANUALGOOD", $main::PDF_NAME );
+    saveGroundControlPoints();
+    activateNextPlate();
 
     #     say @$_platesNotMarkedManually;
 
@@ -2726,87 +2761,20 @@ sub markGoodButtonClick {
 }
 
 sub nextButtonClick {
- my ( $widget, $event ) = @_;
- 
-     #Get the index of which plate we want to advance to on marking
-    my $comboIndex = $main::comboboxtext1->get_active;
-    say $comboIndex;
-    my $rowRef;
-      given ($comboIndex) {
-        when (/0/) {
+    my ( $widget, $event ) = @_;
 
-            #------------------------------
-            #Use this section to skip to next "unverified" plate
-            my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-
-            #BUG TODO Make length of array
-            if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-                $indexIntoPlatesWithNoLonLat++;
-            }
-      
-           
-
-            #Get info about the airport we're currently pointing to
-            $rowRef =
-              ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-               say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-               
-             say "Next non-Manual";  
-        }
-        when (/1/) {
-
-            #        ------------------------------
-            #     Use this section to skip to next "changed" plate
-         
-	    my $totalPlateCount = scalar @{$_platesMarkedChanged};
-
-            if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
-                $indexIntoPlatesMarkedChanged++;
-            }
-               $rowRef =
-              ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-              
-            say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
-
-	    say "Next added/changed";
-
-        }
-        when (/2/) {
-
-            #--------------------------------------
-            #Use this section to skip to next "bad" plate
-            my $totalPlateCount = scalar @{$_platesMarkedBad};
-
-            #BUG TODO Make length of array
-            if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-                $indexIntoPlatesMarkedBad += 1;
-            }
-             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-            say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-            say "Next bad";
-
-        }
-    }
-
-    #---------------------------------------
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
-    #     say @$_platesNotMarkedManually;
-
+    activateNextPlate();
     return TRUE;
- 
+
 }
 
-sub previousButtonClick {
- my ( $widget, $event ) = @_;
- 
-     #Get the index of which plate we want to advance to on marking
+sub activatePreviousPlate {
+
+    #Get the index of which plate we want to advance to on marking
     my $comboIndex = $main::comboboxtext1->get_active;
     say $comboIndex;
     my $rowRef;
-      given ($comboIndex) {
+    given ($comboIndex) {
         when (/0/) {
 
             #------------------------------
@@ -2814,36 +2782,33 @@ sub previousButtonClick {
             my $totalPlateCount = scalar @{$_platesNotMarkedManually};
 
             #BUG TODO Make length of array
-            if ( $indexIntoPlatesWithNoLonLat  > 0 ) {
-		  $indexIntoPlatesWithNoLonLat--;
-                
+            if ( $indexIntoPlatesWithNoLonLat > 0 ) {
+                $indexIntoPlatesWithNoLonLat--;
+
             }
-      
-           
 
             #Get info about the airport we're currently pointing to
             $rowRef =
               ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-               say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-               
-             say "Next non-Manual";  
+            say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
+
+            say "Next non-Manual";
         }
         when (/1/) {
 
             #        ------------------------------
             #     Use this section to skip to next "changed" plate
-         
-	    my $totalPlateCount = scalar @{$_platesMarkedChanged};
 
-            if ( $indexIntoPlatesMarkedChanged  > 0 ) {
-		  $indexIntoPlatesMarkedChanged--;
+            my $totalPlateCount = scalar @{$_platesMarkedChanged};
+
+            if ( $indexIntoPlatesMarkedChanged > 0 ) {
+                $indexIntoPlatesMarkedChanged--;
             }
-               $rowRef =
-              ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-              
+            $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
+
             say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
 
-	    say "Next added/changed";
+            say "Next added/changed";
 
         }
         when (/2/) {
@@ -2854,9 +2819,9 @@ sub previousButtonClick {
 
             #BUG TODO Make length of array
             if ( $indexIntoPlatesMarkedBad > 0 ) {
-		  $indexIntoPlatesMarkedBad--;
+                $indexIntoPlatesMarkedBad--;
             }
-             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
+            $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
             say "$indexIntoPlatesMarkedBad / $totalPlateCount";
             say "Next bad";
 
@@ -2864,12 +2829,13 @@ sub previousButtonClick {
     }
 
     #---------------------------------------
+}
 
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
+sub previousButtonClick {
+    my ( $widget, $event ) = @_;
+    activatePreviousPlate();
     return TRUE;
- 
+
 }
 
 sub markBadButtonClick {
@@ -2877,48 +2843,8 @@ sub markBadButtonClick {
 
     #Set status in the database
     updateStatus( "MANUALBAD", $main::PDF_NAME );
-
-    #     #--------------------------------------
-    #     #Use this section to skip to next "unverified" plate
-    #     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-    #
-    #     #BUG TODO Make length of array
-    #     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-    #         $indexIntoPlatesWithNoLonLat++;
-    #
-    #     }
-    #
-    #     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-    #
-    #     #Get info about the airport we're currently pointing to
-    #     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-
-    #     --------------------------------------
-    #Use this section to skip to next "bad" plate
-    my $totalPlateCount = scalar @{$_platesMarkedBad};
-
-    #BUG TODO Make length of array
-    if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-        $indexIntoPlatesMarkedBad += 1;
-    }
-    my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-    say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-
-    #         my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-    #
-    #     #Update information for the plate we're getting ready to display
-    #     activateNewPlate($rowRef);
-    #
-    #     if ( $indexIntoPlatesMarkedChanged > 0 ) {
-    #         $indexIntoPlatesMarkedChanged--;
-    #     }
-    #     say $indexIntoPlatesMarkedChanged;
-    #
-    #     #     say @$_platesNotMarkedManually;
-
-    #Update information for the plate we're getting ready to display
-    activateNewPlate($rowRef);
-
+    saveGroundControlPoints();
+    activateNextPlate();
     return TRUE;
 }
 
@@ -3002,9 +2928,6 @@ sub coordinateToDecimalCifpFormat {
     if ( ( $declination eq "S" ) || ( $declination eq "W" ) ) {
         $signedDegrees = -($signedDegrees);
     }
-
-    # say "Coordinate: $coordinate to $signedDegrees";           #if $debug;
-    # say "Decl:$declination Deg: $deg, Min:$min, Sec:$sec";    #if $debug;
 
     return ($signedDegrees);
 }

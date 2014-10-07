@@ -1,10 +1,7 @@
 #!/usr/bin/perl
 
+# Given the XML metafile for dtpp data, download charts and create a database
 #/*
-# * FlightIntel for Pilots
-# *
-# * Copyright 2012 Nadeem Hasan <nhasan@nadmm.com>
-# *
 # * This program is free software: you can redistribute it and/or modify
 # * it under the terms of the GNU General Public License as published by
 # * the Free Software Foundation, either version 3 of the License, or
@@ -20,6 +17,11 @@
 # */
 #
 #Modified 2014 Jesse McGraw (<lmcgraw@gmail.com>
+# started from:
+# * FlightIntel for Pilots
+# *
+# * Copyright 2012 Nadeem Hasan <nhasan@nadmm.com>
+# *
 
 use 5.010;
 
