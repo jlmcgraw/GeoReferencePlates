@@ -75,6 +75,7 @@ sub main {
             $xPixelSkew, $yPixelSkew, $status )
           = @$_row;
         state $rowCount = 0;
+
         #say which row we're on every 1000 rows
         say "Copying row: $rowCount..."
           if ( $rowCount % 1000 == 0 );

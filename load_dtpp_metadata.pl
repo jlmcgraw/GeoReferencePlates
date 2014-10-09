@@ -37,7 +37,8 @@ use File::Basename;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use Carp;
-# 
+
+#
 my @links = ();
 
 my $arg_num = scalar @ARGV;
@@ -338,7 +339,7 @@ sub record {
     my $copter_use    = $record->child_text( 0, "copter" );
 
     ++$count;
-    
+
     say "\rLoading # $count...";
 
     #TPP_VOLUME
@@ -436,14 +437,15 @@ sub record {
         #Save the link in an array for downloading in parallel
         push @links,
           [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
-# 
-#         my $status = getstore(
-#             "$chart_url_base" . "$pdf_name",
-#             "$dtppDownloadDir" . "$pdf_name"
-#         );
-#         die "Error $status on $pdf_name" unless is_success($status);
-        
-                my $status;
+
+        #
+        #         my $status = getstore(
+        #             "$chart_url_base" . "$pdf_name",
+        #             "$dtppDownloadDir" . "$pdf_name"
+        #         );
+        #         die "Error $status on $pdf_name" unless is_success($status);
+
+        my $status;
 
         #         $status = getstore(
         #             "$chart_url_base" . "$pdf_name",
@@ -476,7 +478,6 @@ sub record {
     }
 
     $twig->purge;
- 
 
     return 1;
 }

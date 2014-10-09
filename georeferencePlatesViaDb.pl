@@ -22,7 +22,7 @@
 #-----------------------------------
 #-Relies on icons being drawn very specific ways
 #    It won't work if these ever change
-#-Relies on actual text being in PDF.  
+#-Relies on actual text being in PDF.
 #    It seems that most, if not all, military plates have no text in them
 #    We may be able to get around this with tesseract OCR but that will take some work
 #
@@ -143,13 +143,13 @@ if ( $opt{i} ) {
     say "Supplied state ID: $stateId";
 }
 
-our $shouldNotOverwriteVrt      = $opt{c};
-our $shouldOutputStatistics     = $opt{s};
-our $shouldSaveMarkedPdf        = $opt{p};
-our $debug                      = $opt{v};
-our $shouldRecreateOutlineFiles = $opt{o};
-our $shouldSaveBadRatio         = $opt{b};
-our $shouldUseMultipleObstacles = $opt{m};
+our $shouldNotOverwriteVrt           = $opt{c};
+our $shouldOutputStatistics          = $opt{s};
+our $shouldSaveMarkedPdf             = $opt{p};
+our $debug                           = $opt{v};
+our $shouldRecreateOutlineFiles      = $opt{o};
+our $shouldSaveBadRatio              = $opt{b};
+our $shouldUseMultipleObstacles      = $opt{m};
 our $shouldOnlyProcessAddedOrChanged = $opt{n};
 
 #database of metadata for dtpp
@@ -175,7 +175,7 @@ our (
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
-my $selectStatement =  "SELECT  
+my $selectStatement = "SELECT  
       D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
       D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
       D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
@@ -194,9 +194,9 @@ my $selectStatement =  "SELECT
       D.STATE_ID LIKE  '$stateId'
       ";
 
-      #Alter SQL query if  we only want to do added/changed charts
+#Alter SQL query if  we only want to do added/changed charts
 if ($shouldOnlyProcessAddedOrChanged) {
-$selectStatement =  "SELECT  
+    $selectStatement = "SELECT  
       D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
       D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
       D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
@@ -220,8 +220,9 @@ $selectStatement =  "SELECT
       D.USER_ACTION = 'C'
       )
       ";
-      
+
 }
+
 #Query the dtpp database for desired charts
 my $dtppSth = $dtppDbh->prepare($selectStatement);
 $dtppSth->execute();
@@ -240,11 +241,11 @@ foreach my $_row (@$_allSqlQueryResults) {
         $MILITARY_USE, $COPTER_USE,  $STATE_ID
     ) = @$_row;
 
-      say
+    say
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
     #Execute the main loop for this plate
-    doAPlate(); #PDF_NAME, $dtppDirectory
+    doAPlate();    #PDF_NAME, $dtppDirectory
     ++$completedCount;
     say "$completedCount" . "/" . "$_rows";
 }
@@ -258,21 +259,23 @@ $dtppDbh->disconnect();
 $dbh->disconnect();
 
 exit;
+
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #SUBROUTINES
 #------------------------------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------
 #The main loop
 sub doAPlate {
-#     #Validate and set input parameters to this function
-#     my ( $_airportTextboxHashReference, $_lineHashReference, $_upperYCutoff ) =
-#       validate_pos(
-#         @_,
-#         { type => HASHREF },
-#         { type => HASHREF },
-#         { type => SCALAR },
-#       );
-      
+
+    #     #Validate and set input parameters to this function
+    #     my ( $_airportTextboxHashReference, $_lineHashReference, $_upperYCutoff ) =
+    #       validate_pos(
+    #         @_,
+    #         { type => HASHREF },
+    #         { type => HASHREF },
+    #         { type => SCALAR },
+    #       );
+
     #Zero out the stats hash
     %statistics = (
         '$airportLatitude'                 => "0",
@@ -307,12 +310,11 @@ sub doAPlate {
         '$yPixelSkew'                      => "0",
         '$status'                          => "0"
     );
+
     #FQN of the PDF for this chart
     our $targetPdf = $dtppDirectory . $PDF_NAME;
 
     my $retval;
-
-  
 
     #Pull out the various filename components of the input file from the command line
     our ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
@@ -337,14 +339,14 @@ sub doAPlate {
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
     our $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $targetvrt         = $dir . $targetVrtFile . ".vrt";
-    our $targetVrtFile2 = "warped" . $targetVrtFile;
-    our $targetvrt2       = $dir . $targetVrtFile2 . ".vrt";
-    our $targetStatistics = "./statistics.csv";
+    our $targetVrtFile2    = "warped" . $targetVrtFile;
+    our $targetvrt2        = $dir . $targetVrtFile2 . ".vrt";
+    our $targetStatistics  = "./statistics.csv";
 
     #Say what our input PDF and output VRT are
     say $targetPdf;
     say $targetvrt;
-    
+
     if ($debug) {
         say "Directory: " . $dir;
         say "File:      " . $filename;
@@ -380,9 +382,9 @@ sub doAPlate {
     $statistics{'$pdftotext'} = scalar(@pdftotext);
 
     if ( scalar(@pdftotext) < 5 ) {
-    say "Not enough pdftotext output for $targetPdf";
-    writeStatistics() if $shouldOutputStatistics;
-    return(1);
+        say "Not enough pdftotext output for $targetPdf";
+        writeStatistics() if $shouldOutputStatistics;
+        return (1);
     }
 
     #Abort if the chart says it's not to scale
@@ -390,7 +392,7 @@ sub doAPlate {
         $line =~ s/\s//gx;
         if ( $line =~ m/chartnott/i ) {
             say "$targetPdf not to scale, can't georeference";
-              $statistics{'$status'} = "AUTOBAD";
+            $statistics{'$status'} = "AUTOBAD";
             writeStatistics() if $shouldOutputStatistics;
             return (1);
         }
@@ -464,9 +466,9 @@ sub doAPlate {
     our %runwaysFromDatabase        = ();
     our %runwaysToDraw              = ();
     our @validRunwaySlopes          = ();
-    our %gcps = ();
-    
-       #Don't do anything PDF related unless we've asked to create one on the command line
+    our %gcps                       = ();
+
+    #Don't do anything PDF related unless we've asked to create one on the command line
 
     our ( $pdf, $page );
 
@@ -477,380 +479,387 @@ sub doAPlate {
         $page = $pdf->openpage(1);
 
     }
-    
-    if (! -e $storedGcpHash) {
-    #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
-    #(airportId,%runwaysFromDatabase,runwaysToDraw)
-    findRunwaysInDatabase();
 
-    # say "runwaysFromDatabase";
-    # print Dumper ( \%runwaysFromDatabase );
-    # say "";
+    if ( !-e $storedGcpHash ) {
 
-    # #Get number of objects/streams in targetPdf
-    our $objectstreams = getNumberOfStreams(); #(targetPdf)
+        #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
+        #(airportId,%runwaysFromDatabase,runwaysToDraw)
+        findRunwaysInDatabase();
 
-    # #Loop through each of the streams in the PDF and find all of the icons we're interested in
-    findAllIcons(); #(objectstreams,$targetPdf
+        # say "runwaysFromDatabase";
+        # print Dumper ( \%runwaysFromDatabase );
+        # say "";
 
-    # my $rawPdf = returnRawPdf();
-    # # findIlsIcons( \%icons, $_output );
-    # findObstacleIcons($$rawPdf);
-    # findFixIcons($$rawPdf);
+        # #Get number of objects/streams in targetPdf
+        our $objectstreams = getNumberOfStreams();    #(targetPdf)
 
-    # # findGpsWaypointIcons($_output);
-    # findGpsWaypointIcons($$rawPdf);
-    # findNavaidIcons($$rawPdf);
+        # #Loop through each of the streams in the PDF and find all of the icons we're interested in
+        findAllIcons();                               #(objectstreams,$targetPdf
 
-    # #findFinalApproachFixIcons($_output);
-    # #findVisualDescentPointIcons($_output);
-    # findHorizontalAndVerticalLines($$rawPdf);
-    # findInsetBoxes($$rawPdf);
-    # findLargeBoxes($$rawPdf);
-    # findInsetCircles($$rawPdf);
-    # findNotToScaleIndicator($$rawPdf);
+        # my $rawPdf = returnRawPdf();
+        # # findIlsIcons( \%icons, $_output );
+        # findObstacleIcons($$rawPdf);
+        # findFixIcons($$rawPdf);
 
-    #Find navaids near the airport
-    our %navaids_from_db = ();
-    findNavaidsNearAirport();
+        # # findGpsWaypointIcons($_output);
+        # findGpsWaypointIcons($$rawPdf);
+        # findNavaidIcons($$rawPdf);
 
-    #A list of valid navaid names around the airport
-    our @validNavaidNames = keys %navaids_from_db;    
-    our $validNavaidNames = join( " ", @validNavaidNames );
+        # #findFinalApproachFixIcons($_output);
+        # #findVisualDescentPointIcons($_output);
+        # findHorizontalAndVerticalLines($$rawPdf);
+        # findInsetBoxes($$rawPdf);
+        # findLargeBoxes($$rawPdf);
+        # findInsetCircles($$rawPdf);
+        # findNotToScaleIndicator($$rawPdf);
 
-    #Find all of the text boxes in the PDF
-    our @pdfToTextBbox     = ();
-    our %fixTextboxes      = ();
-    our %obstacleTextBoxes = ();
-    our %vorTextboxes      = ();
-    
-    findAllTextboxes();
+        #Find navaids near the airport
+        our %navaids_from_db = ();
+        findNavaidsNearAirport();
 
-    #----------------------------------------------------------------------------------------------------------
-    #Modify the PDF
- 
+        #A list of valid navaid names around the airport
+        our @validNavaidNames = keys %navaids_from_db;
+        our $validNavaidNames = join( " ", @validNavaidNames );
 
-    our ( $pdfOutlines,  $pageOutlines );
-    our ( $lowerYCutoff, $upperYCutoff );
+        #Find all of the text boxes in the PDF
+        our @pdfToTextBbox     = ();
+        our %fixTextboxes      = ();
+        our %obstacleTextBoxes = ();
+        our %vorTextboxes      = ();
 
-    #Don't recreate the outlines PDF if it already exists unless the user specifically wants to
-    if ( !-e $outputPdfOutlines || $shouldRecreateOutlineFiles ) {
-        createOutlinesPdf();
-    }
+        findAllTextboxes();
 
-    #---------------------------------------------------
-    #Convert the outlines PDF to a PNG
-    our ( $image, $perlMagickStatus );
-    $image = Image::Magick->new;
+        #----------------------------------------------------------------------------------------------------------
+        #Modify the PDF
 
-    #Either create or load the masking file for determining which portions of the image to use for GCPs
-    processMaskingFile();
+        our ( $pdfOutlines,  $pageOutlines );
+        our ( $lowerYCutoff, $upperYCutoff );
 
-    #Using the created mask file, eliminate icons and textboxes from further consideration
-    removeIconsAndTextboxesInMaskedAreas( "Obstacle Icon", \%obstacleIcons );
-    removeIconsAndTextboxesInMaskedAreas( "Obstacle TextBox",
-        \%obstacleTextBoxes );
-    removeIconsAndTextboxesInMaskedAreas( "Fix Icon",       \%fixIcons );
-    removeIconsAndTextboxesInMaskedAreas( "Fix TextBox",    \%fixTextboxes );
-    removeIconsAndTextboxesInMaskedAreas( "Navaid Icon",    \%navaidIcons );
-    removeIconsAndTextboxesInMaskedAreas( "Navaid TextBox", \%vorTextboxes );
-    removeIconsAndTextboxesInMaskedAreas( "GPS Icon",     \%gpsWaypointIcons );
-    removeIconsAndTextboxesInMaskedAreas( "Runway Lines", \%runwayIcons );
+        #Don't recreate the outlines PDF if it already exists unless the user specifically wants to
+        if ( !-e $outputPdfOutlines || $shouldRecreateOutlineFiles ) {
+            createOutlinesPdf();
+        }
 
-    if ($debug) {
-        say "runwayIcons";
-        print Dumper ( \%runwayIcons );
-        say "runwaysFromDatabase";
-        print Dumper ( \%runwaysFromDatabase );
-    }
+        #---------------------------------------------------
+        #Convert the outlines PDF to a PNG
+        our ( $image, $perlMagickStatus );
+        $image = Image::Magick->new;
 
-    #Draw boxes around the icons and textboxes we've found so far
-    outlineEverythingWeFound() if $shouldSaveMarkedPdf;
+        #Either create or load the masking file for determining which portions of the image to use for GCPs
+        processMaskingFile();
 
-    #------------------------------------------------------------------------------------------------------------------------------------------
-    #Runways
-    our %matchedRunIconsToDatabase = ();
+        #Using the created mask file, eliminate icons and textboxes from further consideration
+        removeIconsAndTextboxesInMaskedAreas( "Obstacle Icon",
+            \%obstacleIcons );
+        removeIconsAndTextboxesInMaskedAreas( "Obstacle TextBox",
+            \%obstacleTextBoxes );
+        removeIconsAndTextboxesInMaskedAreas( "Fix Icon",    \%fixIcons );
+        removeIconsAndTextboxesInMaskedAreas( "Fix TextBox", \%fixTextboxes );
+        removeIconsAndTextboxesInMaskedAreas( "Navaid Icon", \%navaidIcons );
+        removeIconsAndTextboxesInMaskedAreas( "Navaid TextBox",
+            \%vorTextboxes );
+        removeIconsAndTextboxesInMaskedAreas( "GPS Icon", \%gpsWaypointIcons );
+        removeIconsAndTextboxesInMaskedAreas( "Runway Lines", \%runwayIcons );
 
-    #If we have the same number of icons as unique runways
-    #if ( scalar keys %runwayIcons == scalar keys %runwaysFromDatabase ) {
-    foreach my $key ( keys %runwayIcons ) {
-        foreach my $key2 ( keys %runwaysFromDatabase ) {
+        if ($debug) {
+            say "runwayIcons";
+            print Dumper ( \%runwayIcons );
+            say "runwaysFromDatabase";
+            print Dumper ( \%runwaysFromDatabase );
+        }
 
-            #Find an icon and database entry that match slopes
-            #Margin of error here is +- 2 degrees,
-            #TODO: Narrow this as much as possible
-            if (
-                abs(
-                    $runwayIcons{$key}{Slope} -
-                      $runwaysFromDatabase{$key2}{Slope}
-                ) <= 2
-              )
-            {
-                my $x  = $runwayIcons{$key}{"X"};
-                my $y  = $runwayIcons{$key}{"Y"};
-                my $x2 = $runwayIcons{$key}{"X2"};
-                my $y2 = $runwayIcons{$key}{"Y2"};
+        #Draw boxes around the icons and textboxes we've found so far
+        outlineEverythingWeFound() if $shouldSaveMarkedPdf;
 
-                my $HEHeading   = $runwaysFromDatabase{$key2}{HEHeading};
-                my $HELatitude  = $runwaysFromDatabase{$key2}{HELatitude};
-                my $HELongitude = $runwaysFromDatabase{$key2}{HELongitude};
-                my $LEHeading   = $runwaysFromDatabase{$key2}{LEHeading};
-                my $LELatitude  = $runwaysFromDatabase{$key2}{LELatitude};
-                my $LELongitude = $runwaysFromDatabase{$key2}{LELongitude};
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        #Runways
+        our %matchedRunIconsToDatabase = ();
 
-                #If the line matches the LEHeading vector
+        #If we have the same number of icons as unique runways
+        #if ( scalar keys %runwayIcons == scalar keys %runwaysFromDatabase ) {
+        foreach my $key ( keys %runwayIcons ) {
+            foreach my $key2 ( keys %runwaysFromDatabase ) {
+
+                #Find an icon and database entry that match slopes
+                #Margin of error here is +- 2 degrees,
+                #TODO: Narrow this as much as possible
                 if (
                     abs(
-                        $runwayIcons{$key}{TrueHeading} -
-                          $runwaysFromDatabase{$key2}{LEHeading}
-                    ) <= 1
+                        $runwayIcons{$key}{Slope} -
+                          $runwaysFromDatabase{$key2}{Slope}
+                    ) <= 2
                   )
                 {
-                    #TODO: Simplify these two choices more
-                    say "Matched LE" if $debug;
+                    my $x  = $runwayIcons{$key}{"X"};
+                    my $y  = $runwayIcons{$key}{"Y"};
+                    my $x2 = $runwayIcons{$key}{"X2"};
+                    my $y2 = $runwayIcons{$key}{"Y2"};
 
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} =
-                      $x;
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} =
-                      $y;
+                    my $HEHeading   = $runwaysFromDatabase{$key2}{HEHeading};
+                    my $HELatitude  = $runwaysFromDatabase{$key2}{HELatitude};
+                    my $HELongitude = $runwaysFromDatabase{$key2}{HELongitude};
+                    my $LEHeading   = $runwaysFromDatabase{$key2}{LEHeading};
+                    my $LELatitude  = $runwaysFromDatabase{$key2}{LELatitude};
+                    my $LELongitude = $runwaysFromDatabase{$key2}{LELongitude};
 
-                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} =
-                      $x2;
-                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} =
-                      $y2;
+                    #If the line matches the LEHeading vector
+                    if (
+                        abs(
+                            $runwayIcons{$key}{TrueHeading} -
+                              $runwaysFromDatabase{$key2}{LEHeading}
+                        ) <= 1
+                      )
+                    {
+                        #TODO: Simplify these two choices more
+                        say "Matched LE" if $debug;
 
+                        $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"}
+                          = $x;
+                        $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"}
+                          = $y;
+
+                        $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"}
+                          = $x2;
+                        $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"}
+                          = $y2;
+
+                    }
+                    else {
+                        #It has to match the HEHeading vector
+                        #Line starts from the High End (HE()
+                        say "Matched HE" if $debug;
+                        $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"}
+                          = $x2;
+                        $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"}
+                          = $y2;
+
+                        $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"}
+                          = $x;
+                        $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"}
+                          = $y;
+
+                    }
+                    $matchedRunIconsToDatabase{$LEHeading}{"Lon"} =
+                      $LELongitude;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
+                      "Runway" . $LEHeading;
+                    $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
+
+                    $matchedRunIconsToDatabase{$HEHeading}{"Lon"} =
+                      $HELongitude;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
+                      "Runway" . $HEHeading;
+                    $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
                 }
-                else {
-                    #It has to match the HEHeading vector
-                    #Line starts from the High End (HE()
-                    say "Matched HE" if $debug;
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceX"} =
-                      $x2;
-                    $matchedRunIconsToDatabase{$LEHeading}{"GeoreferenceY"} =
-                      $y2;
-
-                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceX"} =
-                      $x;
-                    $matchedRunIconsToDatabase{$HEHeading}{"GeoreferenceY"} =
-                      $y;
-
-                }
-                $matchedRunIconsToDatabase{$LEHeading}{"Lon"} = $LELongitude;
-                $matchedRunIconsToDatabase{$LEHeading}{"Lat"} = $LELatitude;
-                $matchedRunIconsToDatabase{$LEHeading}{"Text"} =
-                  "Runway" . $LEHeading;
-                $matchedRunIconsToDatabase{$LEHeading}{"Name"} = $key2;
-
-                $matchedRunIconsToDatabase{$HEHeading}{"Lon"} = $HELongitude;
-                $matchedRunIconsToDatabase{$HEHeading}{"Lat"} = $HELatitude;
-                $matchedRunIconsToDatabase{$HEHeading}{"Text"} =
-                  "Runway" . $HEHeading;
-                $matchedRunIconsToDatabase{$HEHeading}{"Name"} = $key2;
             }
         }
-    }
 
-    if ($debug) {
-        say "matchedRunIconsToDatabase";
-        print Dumper ( \%matchedRunIconsToDatabase );
-    }
+        if ($debug) {
+            say "matchedRunIconsToDatabase";
+            print Dumper ( \%matchedRunIconsToDatabase );
+        }
 
-    #----------------------------------------------------------------------------------------------------------------------------------
-    #Everything to do with obstacles
-    #Get a list of unique potential obstacle heights from the pdftotext array
-    #my @obstacle_heights = findObstacleHeightTexts(@pdftotext);
-    our @obstacle_heights = testfindObstacleHeightTexts(@pdfToTextBbox);
+        #----------------------------------------------------------------------------------------------------------------------------------
+        #Everything to do with obstacles
+        #Get a list of unique potential obstacle heights from the pdftotext array
+        #my @obstacle_heights = findObstacleHeightTexts(@pdftotext);
+        our @obstacle_heights = testfindObstacleHeightTexts(@pdfToTextBbox);
 
-    #Find all obstacles within our defined distance from the airport that have a height in the list of potential obstacleTextBoxes and are unique
-    our %unique_obstacles_from_db = ();
-    our $unique_obstacles_from_dbCount;
-    findObstaclesNearAirport( \%unique_obstacles_from_db );
+        #Find all obstacles within our defined distance from the airport that have a height in the list of potential obstacleTextBoxes and are unique
+        our %unique_obstacles_from_db = ();
+        our $unique_obstacles_from_dbCount;
+        findObstaclesNearAirport( \%unique_obstacles_from_db );
 
-    #Try to find closest obstacleTextBox center to each obstacleIcon center and then do the reverse
-    findClosestBToA( \%obstacleIcons,     \%obstacleTextBoxes );
-    findClosestBToA( \%obstacleTextBoxes, \%obstacleIcons, );
+        #Try to find closest obstacleTextBox center to each obstacleIcon center and then do the reverse
+        findClosestBToA( \%obstacleIcons,     \%obstacleTextBoxes );
+        findClosestBToA( \%obstacleTextBoxes, \%obstacleIcons, );
 
-    #Make sure there is a bi-directional match between icon and textbox
-    #Returns a reference to a hash which combines info from icon, textbox and database
-    my $matchedObstacleIconsToTextBoxes =
-      joinIconTextboxAndDatabaseHashes( \%obstacleIcons, \%obstacleTextBoxes,
-        \%unique_obstacles_from_db );
+        #Make sure there is a bi-directional match between icon and textbox
+        #Returns a reference to a hash which combines info from icon, textbox and database
+        my $matchedObstacleIconsToTextBoxes =
+          joinIconTextboxAndDatabaseHashes( \%obstacleIcons,
+            \%obstacleTextBoxes, \%unique_obstacles_from_db );
 
-    if ($debug) {
-        say "matchedObstacleIconsToTextBoxes";
-        print Dumper ($matchedObstacleIconsToTextBoxes);
-    }
+        if ($debug) {
+            say "matchedObstacleIconsToTextBoxes";
+            print Dumper ($matchedObstacleIconsToTextBoxes);
+        }
 
-    #Draw a line from obstacle icon to matched text boxes
-    if ($shouldSaveMarkedPdf) {
-        drawLineFromEachIconToMatchedTextBox( \%obstacleIcons,
-            \%obstacleTextBoxes );
-        outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb();
-    }
+        #Draw a line from obstacle icon to matched text boxes
+        if ($shouldSaveMarkedPdf) {
+            drawLineFromEachIconToMatchedTextBox( \%obstacleIcons,
+                \%obstacleTextBoxes );
+            outlineObstacleTextboxIfTheNumberExistsInUniqueObstaclesInDb();
+        }
 
-    #------------------------------------------------------------------------------------------------------------------------------------------
-    #Everything to do with fixes
-    #
-    #Find fixes near the airport
-    #Updates %fixes_from_db
-    our %fixes_from_db = ();
-    findFixesNearAirport();
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        #Everything to do with fixes
+        #
+        #Find fixes near the airport
+        #Updates %fixes_from_db
+        our %fixes_from_db = ();
+        findFixesNearAirport();
 
-    #Orange outline fixTextboxes that have a valid fix name in them
-    outlineValidFixTextBoxes() if $shouldSaveMarkedPdf;
+        #Orange outline fixTextboxes that have a valid fix name in them
+        outlineValidFixTextBoxes() if $shouldSaveMarkedPdf;
 
-    #Delete an icon if the not-to-scale squiggly is too close to it
-    findClosestSquigglyToA( \%fixIcons, \%notToScaleIndicator );
+        #Delete an icon if the not-to-scale squiggly is too close to it
+        findClosestSquigglyToA( \%fixIcons, \%notToScaleIndicator );
 
-    #Try to find closest TextBox center to each Icon center
-    #and then do the reverse
-    findClosestBToA( \%fixIcons,     \%fixTextboxes );
-    findClosestBToA( \%fixTextboxes, \%fixIcons, );
+        #Try to find closest TextBox center to each Icon center
+        #and then do the reverse
+        findClosestBToA( \%fixIcons,     \%fixTextboxes );
+        findClosestBToA( \%fixTextboxes, \%fixIcons, );
 
-    #Make sure there is a bi-directional match between icon and textbox
-    #Returns a reference to a hash of matched pairs
-    my $matchedFixIconsToTextBoxes =
-      joinIconTextboxAndDatabaseHashes( \%fixIcons, \%fixTextboxes,
-        \%fixes_from_db );
+        #Make sure there is a bi-directional match between icon and textbox
+        #Returns a reference to a hash of matched pairs
+        my $matchedFixIconsToTextBoxes =
+          joinIconTextboxAndDatabaseHashes( \%fixIcons, \%fixTextboxes,
+            \%fixes_from_db );
 
-    if ($debug) {
+        if ($debug) {
 
-        say "matchedFixIconsToTextBoxes";
-        print Dumper ($matchedFixIconsToTextBoxes);
-        say "";
+            say "matchedFixIconsToTextBoxes";
+            print Dumper ($matchedFixIconsToTextBoxes);
+            say "";
 
-        # say "fix icons";
-        # print Dumper ( \%fixIcons );
-        # say "";
-        # say "fixTextboxes";
-        # print Dumper ( \%fixTextboxes );
-        # say "";
-    }
+            # say "fix icons";
+            # print Dumper ( \%fixIcons );
+            # say "";
+            # say "fixTextboxes";
+            # print Dumper ( \%fixTextboxes );
+            # say "";
+        }
 
-    #Indicate which textbox we matched to
-    drawLineFromEachIconToMatchedTextBox( \%fixIcons, \%fixTextboxes )
-      if $shouldSaveMarkedPdf;
+        #Indicate which textbox we matched to
+        drawLineFromEachIconToMatchedTextBox( \%fixIcons, \%fixTextboxes )
+          if $shouldSaveMarkedPdf;
 
-    #---------------------------------------------------------------------------------------------------------------------------------------
-    #Everything to do with GPS waypoints
-    #
-    #Find GPS waypoints near the airport
-    our %gpswaypoints_from_db = ();
-    findGpsWaypointsNearAirport();
+        #---------------------------------------------------------------------------------------------------------------------------------------
+        #Everything to do with GPS waypoints
+        #
+        #Find GPS waypoints near the airport
+        our %gpswaypoints_from_db = ();
+        findGpsWaypointsNearAirport();
 
-    #Orange outline fixTextboxes that have a valid GPS waypoint name in them
-    outlineValidGpsWaypointTextBoxes() if $shouldSaveMarkedPdf;
+        #Orange outline fixTextboxes that have a valid GPS waypoint name in them
+        outlineValidGpsWaypointTextBoxes() if $shouldSaveMarkedPdf;
 
-    #Delete an icon if the not-to-scale squiggly is too close to it
-    say
-      'findClosestSquigglyToA( \%gpsWaypointIcons,     \%notToScaleIndicator )'
-      if $debug;
-    findClosestSquigglyToA( \%gpsWaypointIcons, \%notToScaleIndicator );
+        #Delete an icon if the not-to-scale squiggly is too close to it
+        say
+          'findClosestSquigglyToA( \%gpsWaypointIcons,     \%notToScaleIndicator )'
+          if $debug;
+        findClosestSquigglyToA( \%gpsWaypointIcons, \%notToScaleIndicator );
 
-    #Try to find closest TextBox center to each Icon center and then do the reverse
-    say 'findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes )' if $debug;
-    findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes );
+        #Try to find closest TextBox center to each Icon center and then do the reverse
+        say 'findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes )' if $debug;
+        findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes );
 
-    say 'findClosestBToA( \%fixTextboxes,     \%gpsWaypointIcons )' if $debug;
-    findClosestBToA( \%fixTextboxes, \%gpsWaypointIcons );
+        say 'findClosestBToA( \%fixTextboxes,     \%gpsWaypointIcons )'
+          if $debug;
+        findClosestBToA( \%fixTextboxes, \%gpsWaypointIcons );
 
-    say 'my $matchedGpsWaypointIconsToTextBoxes =
+        say 'my $matchedGpsWaypointIconsToTextBoxes =
   joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
     \%gpswaypoints_from_db )' if $debug;
 
-    my $matchedGpsWaypointIconsToTextBoxes =
-      joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
-        \%gpswaypoints_from_db );
+        my $matchedGpsWaypointIconsToTextBoxes =
+          joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
+            \%gpswaypoints_from_db );
 
-    if ($debug) {
+        if ($debug) {
 
-        # say "gpswaypoints_from_db";
-        # print Dumper ( \%gpswaypoints_from_db );
-        say "";
-        say "matchedGpsWaypointIconsToTextBoxes";
-        print Dumper ($matchedGpsWaypointIconsToTextBoxes);
-        say "";
+            # say "gpswaypoints_from_db";
+            # print Dumper ( \%gpswaypoints_from_db );
+            say "";
+            say "matchedGpsWaypointIconsToTextBoxes";
+            print Dumper ($matchedGpsWaypointIconsToTextBoxes);
+            say "";
 
-        # say "fixTextboxes";
-        # print Dumper ( \%fixTextboxes );
-        # say "";
+            # say "fixTextboxes";
+            # print Dumper ( \%fixTextboxes );
+            # say "";
+        }
+
+        drawLineFromEachIconToMatchedTextBox( \%gpsWaypointIcons,
+            \%fixTextboxes )
+          if $shouldSaveMarkedPdf;
+
+        #---------------------------------------------------------------------------------------------------------------------------------------
+        #Everything to do with navaids
+        #
+
+        #Orange outline navaid textboxes that have a valid navaid name in them
+        outlineValidNavaidTextBoxes() if $shouldSaveMarkedPdf;
+
+        #Delete an icon if the not-to-scale squiggly is too close to it
+        findClosestSquigglyToA( \%navaidIcons, \%notToScaleIndicator );
+
+        #Try to find closest TextBox center to each Icon center and then do the reverse
+        say 'findClosestBToA( \%navaidIcons,  \%vorTextboxes )' if $debug;
+        findClosestBToA( \%navaidIcons, \%vorTextboxes );
+        say 'findClosestBToA( \%vorTextboxes, \%navaidIcons )' if $debug;
+        findClosestBToA( \%vorTextboxes, \%navaidIcons );
+
+        say
+          'joinIconTextboxAndDatabaseHashes( \%navaidIcons, \%vorTextboxes, \%navaids_from_db )'
+          if $debug;
+        my $matchedNavaidIconsToTextBoxes =
+          joinIconTextboxAndDatabaseHashes( \%navaidIcons, \%vorTextboxes,
+            \%navaids_from_db );
+
+        #navaids_from_db should now only have navaids that are mentioned on the PDF
+        if ($debug) {
+            say "";
+            say "matchedNavaidIconsToTextBoxes";
+            print Dumper ($matchedNavaidIconsToTextBoxes);
+            say "";
+
+            # say "navaids_from_db";
+            # print Dumper ( \%navaids_from_db );
+            # say "";
+            # say "Navaid icons";
+            # print Dumper ( \%navaidIcons );
+            # say "";
+        }
+
+        #Draw a line from icon to closest text box
+        drawLineFromEachIconToMatchedTextBox( \%navaidIcons, \%vorTextboxes )
+          if $shouldSaveMarkedPdf;
+
+        #---------------------------------------------------------------------------------------------------------------------------------------------------
+        #Create the combined hash of Ground Control Points
+
+        #Add Runway endpoints to Ground Control Points hash
+        addCombinedHashToGroundControlPoints( "runway",
+            \%matchedRunIconsToDatabase );
+
+        #Add Obstacles to Ground Control Points hash
+        addCombinedHashToGroundControlPoints( "obstacle",
+            $matchedObstacleIconsToTextBoxes );
+
+        #Add Fixes to Ground Control Points hash
+        addCombinedHashToGroundControlPoints( "fix",
+            $matchedFixIconsToTextBoxes );
+
+        #Add Navaids to Ground Control Points hash
+        addCombinedHashToGroundControlPoints( "navaid",
+            $matchedNavaidIconsToTextBoxes );
+
+        #Add GPS waypoints to Ground Control Points hash
+        addCombinedHashToGroundControlPoints( "gps",
+            $matchedGpsWaypointIconsToTextBoxes );
     }
+    else {
+        say "Loading existing hash table $storedGcpHash";
+        my $gcpHashref = retrieve($storedGcpHash);
 
-    drawLineFromEachIconToMatchedTextBox( \%gpsWaypointIcons, \%fixTextboxes )
-      if $shouldSaveMarkedPdf;
+        #Copy to GCP hash
+        %gcps = %{$gcpHashref};
 
-    #---------------------------------------------------------------------------------------------------------------------------------------
-    #Everything to do with navaids
-    #
-
-    #Orange outline navaid textboxes that have a valid navaid name in them
-    outlineValidNavaidTextBoxes() if $shouldSaveMarkedPdf;
-
-    #Delete an icon if the not-to-scale squiggly is too close to it
-    findClosestSquigglyToA( \%navaidIcons, \%notToScaleIndicator );
-
-    #Try to find closest TextBox center to each Icon center and then do the reverse
-    say 'findClosestBToA( \%navaidIcons,  \%vorTextboxes )' if $debug;
-    findClosestBToA( \%navaidIcons, \%vorTextboxes );
-    say 'findClosestBToA( \%vorTextboxes, \%navaidIcons )' if $debug;
-    findClosestBToA( \%vorTextboxes, \%navaidIcons );
-
-    say
-      'joinIconTextboxAndDatabaseHashes( \%navaidIcons, \%vorTextboxes, \%navaids_from_db )'
-      if $debug;
-    my $matchedNavaidIconsToTextBoxes =
-      joinIconTextboxAndDatabaseHashes( \%navaidIcons, \%vorTextboxes,
-        \%navaids_from_db );
-
-    #navaids_from_db should now only have navaids that are mentioned on the PDF
-    if ($debug) {
-        say "";
-        say "matchedNavaidIconsToTextBoxes";
-        print Dumper ($matchedNavaidIconsToTextBoxes);
-        say "";
-
-        # say "navaids_from_db";
-        # print Dumper ( \%navaids_from_db );
-        # say "";
-        # say "Navaid icons";
-        # print Dumper ( \%navaidIcons );
-        # say "";
     }
-
-    #Draw a line from icon to closest text box
-    drawLineFromEachIconToMatchedTextBox( \%navaidIcons, \%vorTextboxes )
-      if $shouldSaveMarkedPdf;
-
-    #---------------------------------------------------------------------------------------------------------------------------------------------------
-    #Create the combined hash of Ground Control Points
-
-
-    #Add Runway endpoints to Ground Control Points hash
-    addCombinedHashToGroundControlPoints( "runway",
-        \%matchedRunIconsToDatabase );
-
-    #Add Obstacles to Ground Control Points hash
-    addCombinedHashToGroundControlPoints( "obstacle",
-        $matchedObstacleIconsToTextBoxes );
-
-    #Add Fixes to Ground Control Points hash
-    addCombinedHashToGroundControlPoints( "fix", $matchedFixIconsToTextBoxes );
-
-    #Add Navaids to Ground Control Points hash
-    addCombinedHashToGroundControlPoints( "navaid",
-        $matchedNavaidIconsToTextBoxes );
-
-    #Add GPS waypoints to Ground Control Points hash
-    addCombinedHashToGroundControlPoints( "gps",
-        $matchedGpsWaypointIconsToTextBoxes );
-}
-else {
-    say "Loading existing hash table $storedGcpHash";
-    my $gcpHashref = retrieve( $storedGcpHash );
-    #Copy to GCP hash
-    %gcps = %{$gcpHashref};
-    
-}
     if ($debug) {
         say "";
         say "Combined Ground Control Points";
@@ -899,7 +908,7 @@ else {
           "xScaleAvgSize: $statistics{'$xScaleAvgSize'}, yScaleAvgSize: $statistics{'$yScaleAvgSize'}";
 
         #touch($touchFile);
-        
+
         $statistics{'$status'} = "AUTOBAD";
         writeStatistics() if $shouldOutputStatistics;
         return (1);
@@ -950,11 +959,12 @@ else {
         #Count of entries in this array
         my $yScaleAvgSize = 0 + @yScaleAvg;
 
-        say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize" if $debug;
-        
+        say "xScaleAvgSize: $xScaleAvgSize, yScaleAvgSize: $yScaleAvgSize"
+          if $debug;
+
         #These are expected to be negative for affine transform
-        if ($yMedian > 0 ) {$yMedian = -($yMedian);}
-        if ($yAvg > 0 ) {$yAvg = -($yAvg);}
+        if ( $yMedian > 0 ) { $yMedian = -($yMedian); }
+        if ( $yAvg > 0 )    { $yAvg    = -($yAvg); }
 
         #Save statistics
         $statistics{'$xAvg'}          = $xAvg;
@@ -964,14 +974,14 @@ else {
         $statistics{'$yMedian'}       = $yMedian;
         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
         $statistics{'$lonLatRatio'}   = $lonLatRatio;
-        
+
     }
     else {
         say
           "No points actually added to the scale arrays for $targetPdf, can't georeference";
 
         say "Touching $touchFile";
-	$statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         open( my $fh, ">", "$touchFile" )
           or die "cannot open > $touchFile: $!";
         close($fh);
@@ -991,7 +1001,6 @@ else {
 
     return;
 }
-
 
 sub findObstacleHeightTexts {
 
@@ -3402,7 +3411,7 @@ sub calculateRoughRealWorldExtentsOfRaster {
                     say
                       "Bad longitudeToLatitudeRatio: $longitudeToLatitudeRatio, expected $targetLonLatRatio.  Pair $key - $key2"
                       if $debug;
-                       $statistics{'$status'} = "AUTOBAD";
+                    $statistics{'$status'} = "AUTOBAD";
                 }
             }
 
@@ -3502,9 +3511,9 @@ sub georeferenceTheRaster {
         say
           "Bad lonLatRatio $main::lonLatRatio, expected $targetLonLatRatio, Difference: "
           . abs( $main::lonLatRatio - $targetLonLatRatio );
-          
-       $statistics{'$status'} = "AUTOBAD";
-        
+
+        $statistics{'$status'} = "AUTOBAD";
+
         if ($shouldSaveBadRatio) {
             $main::targetvrt = $main::targetVrtBadRatio;
 
@@ -3540,67 +3549,67 @@ sub georeferenceTheRaster {
     my $retval = $? >> 8;
 
     if ( $retval != 0 ) {
-     $statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         croak
           "Error executing gdal_translate.  Is it installed? Return code was $retval";
     }
     say $gdal_translateoutput if $debug;
 
     #---------
-# # # # #Comment this section out to get back to working setup
-# # # # 		my $gdal_translateCommand =
-# # # # 	      "gdal_translate -q -of VRT -strict -a_srs EPSG:4326 $main::gcpstring '$main::targetpng'  '$main::targetvrt'";
-# # # # 	    if ($debug) {
-# # # # 		say $gdal_translateCommand;
-# # # # 		say "";
-# # # # 	    }
-# # # # 
-# # # # 	    #Run gdal_translate
-# # # # 
-# # # # 	    my $gdal_translateoutput = qx($gdal_translateCommand);
-# # # # 
-# # # # 	    my $retval = $? >> 8;
-# # # # 
-# # # # 	    if ( $retval != 0 ) {
-# # # # 		carp
-# # # # 		  "Error executing gdal_translate.  Is it installed? Return code was $retval";
-# # # # 		++$main::failCount;
-# # # # 		  $statistics{'$status'} = "AUTOBAD";
-# # # # 		touchFile($main::failFile);
-# # # # 
-# # # # 		# say "Touching $main::failFile";
-# # # # 		# open( my $fh, ">", "$main::failFile" )
-# # # # 		# or die "cannot open > $main::failFile $!";
-# # # # 		# close($fh);
-# # # # 		return (1);
-# # # # 	    }
-# # # # 	    say $gdal_translateoutput if $debug;
-# # # # 	    #Run gdalwarp
-# # # # 
-# # # # 	    my $gdalwarpCommand =
-# # # # 	      "gdalwarp -q -of VRT -t_srs EPSG:4326 -order 1 -overwrite -refine_gcps .1  '$main::targetvrt'  '$main::targetvrt2'";
-# # # # 	    
-# # # # 	    if ($debug) {
-# # # # 		say $gdalwarpCommand;
-# # # # 		say "";
-# # # # 	    }
-# # # # 
-# # # # 	    my $gdalwarpCommandOutput = qx($gdalwarpCommand);
-# # # # 
-# # # # 	    $retval = $? >> 8;
-# # # # 	    
-# # # # 	#     if ( $retval != 0 ) {
-# # # # 	#         carp
-# # # # 	#           "Error executing gdalwarp.  Is it installed? Return code was $retval";
-# # # # 	#         ++$main::failCount;
-# # # # 	#         touchFile($main::failFile);
-# # # # 	#         $statistics{'$status'} = "AUTOBAD";
-# # # # 	#         return (1);
-# # # # 	#     }
-# # # # 
-# # # # 	    say "$retval: $gdalwarpCommandOutput";
-# # # #     #---------
-    
+    # # # # #Comment this section out to get back to working setup
+    # # # # 		my $gdal_translateCommand =
+    # # # # 	      "gdal_translate -q -of VRT -strict -a_srs EPSG:4326 $main::gcpstring '$main::targetpng'  '$main::targetvrt'";
+    # # # # 	    if ($debug) {
+    # # # # 		say $gdal_translateCommand;
+    # # # # 		say "";
+    # # # # 	    }
+    # # # #
+    # # # # 	    #Run gdal_translate
+    # # # #
+    # # # # 	    my $gdal_translateoutput = qx($gdal_translateCommand);
+    # # # #
+    # # # # 	    my $retval = $? >> 8;
+    # # # #
+    # # # # 	    if ( $retval != 0 ) {
+    # # # # 		carp
+    # # # # 		  "Error executing gdal_translate.  Is it installed? Return code was $retval";
+    # # # # 		++$main::failCount;
+    # # # # 		  $statistics{'$status'} = "AUTOBAD";
+    # # # # 		touchFile($main::failFile);
+    # # # #
+    # # # # 		# say "Touching $main::failFile";
+    # # # # 		# open( my $fh, ">", "$main::failFile" )
+    # # # # 		# or die "cannot open > $main::failFile $!";
+    # # # # 		# close($fh);
+    # # # # 		return (1);
+    # # # # 	    }
+    # # # # 	    say $gdal_translateoutput if $debug;
+    # # # # 	    #Run gdalwarp
+    # # # #
+    # # # # 	    my $gdalwarpCommand =
+    # # # # 	      "gdalwarp -q -of VRT -t_srs EPSG:4326 -order 1 -overwrite -refine_gcps .1  '$main::targetvrt'  '$main::targetvrt2'";
+    # # # #
+    # # # # 	    if ($debug) {
+    # # # # 		say $gdalwarpCommand;
+    # # # # 		say "";
+    # # # # 	    }
+    # # # #
+    # # # # 	    my $gdalwarpCommandOutput = qx($gdalwarpCommand);
+    # # # #
+    # # # # 	    $retval = $? >> 8;
+    # # # #
+    # # # # 	#     if ( $retval != 0 ) {
+    # # # # 	#         carp
+    # # # # 	#           "Error executing gdalwarp.  Is it installed? Return code was $retval";
+    # # # # 	#         ++$main::failCount;
+    # # # # 	#         touchFile($main::failFile);
+    # # # # 	#         $statistics{'$status'} = "AUTOBAD";
+    # # # # 	#         return (1);
+    # # # # 	#     }
+    # # # #
+    # # # # 	    say "$retval: $gdalwarpCommandOutput";
+    # # # #     #---------
+
     # my $gdalwarpoutput;
     # $gdalwarpoutput =
     # qx(gdalwarp -t_srs "+proj=latlong +ellps=WGS84 +datum=WGS84 +no_defs" -dstalpha -order 1  -overwrite  -r bilinear $targetvrt $targettif);
@@ -3673,8 +3682,7 @@ sub writeStatistics {
 
     #Update the georef table
     my $update_dtpp_geo_record =
-        "UPDATE dtppGeo " 
-      . "SET "
+        "UPDATE dtppGeo " . "SET "
       . "airportLatitude = ?, "
       . "horizontalAndVerticalLinesCount = ?, "
       . "gcpCount = ?, "
@@ -3705,7 +3713,7 @@ sub writeStatistics {
       . "isPortraitOrientation = ?, "
       . "xPixelSkew = ?, "
       . "yPixelSkew = ?,"
-      . "status = ?"      
+      . "status = ?"
       . "WHERE "
       . "PDF_NAME = ?";
 
@@ -3742,7 +3750,7 @@ sub writeStatistics {
     $dtppSth->bind_param( 29, $statistics{'$xPixelSkew'} );
     $dtppSth->bind_param( 30, $statistics{'$yPixelSkew'} );
     $dtppSth->bind_param( 31, $statistics{'$status'} );
-    $dtppSth->bind_param( 32, $PDF_NAME ); 
+    $dtppSth->bind_param( 32, $PDF_NAME );
 
     $dtppSth->execute();
 
@@ -4078,7 +4086,7 @@ sub addCombinedHashToGroundControlPoints {
 
         }
     }
-    store (\%main::gcps, $main::storedGcpHash);
+    store( \%main::gcps, $main::storedGcpHash );
     return;
 }
 

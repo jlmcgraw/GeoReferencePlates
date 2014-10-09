@@ -3,7 +3,6 @@
 # Verify the georeferencing of plates
 # This is a terrible, but functional, GUI for georeferencing IAP and APD files
 
-
 # Copyright (C) 2014  Jesse McGraw (jlmcgraw@gmail.com)
 #
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -1161,7 +1160,7 @@ sub cairo_draw {
     my ( $widget, $context, $ref_status ) = @_;
 
     #Immediate exit if no inverse transform defined
-    if ( $main::invertedAffineTransform ) {
+    if ($main::invertedAffineTransform) {
 
         my $runwayHashRef  = $main::runwaysFromDatabaseHashref;
         my $navaidsHashRef = $main::navaids_from_db_hashref;
@@ -1421,16 +1420,22 @@ sub cairo_draw {
 
                 my $textviewBuffer = $main::textview1->get_buffer;
                 my $iter           = $textviewBuffer->get_iter_at_offset(0);
-                $textviewBuffer->insert( $iter,
-                        "Angles: "
+                $textviewBuffer->insert(
+                    $iter,
+                    "Angles: "
                       . rad2deg( $vertexAngles[1] ) . ","
                       . rad2deg( $vertexAngles[2] ) . ","
-                      . rad2deg( $vertexAngles[3] )
-                      . " " 
+                      . rad2deg( $vertexAngles[3] ) . " "
                       . "Length Diff: "
-                      . ( ($segment1Length - $segment2Length)/$segment1Length ) . ","
-                      . ( ($segment3Length - $segment4Length)/$segment3Length )
-                      . "\n");
+                      . (
+                        ( $segment1Length - $segment2Length ) / $segment1Length
+                      )
+                      . ","
+                      . (
+                        ( $segment3Length - $segment4Length ) / $segment3Length
+                      )
+                      . "\n"
+                );
 
                 # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
 
@@ -1502,7 +1507,8 @@ sub cairo_draw {
 
     #    say "$main::currentGcpPixbufX && $main::currentGcpPixbufY";
     if ( $main::currentGcpPixbufX && $main::currentGcpPixbufY ) {
-#         say "Drawing GCP at $main::currentGcpPixbufX, $main::currentGcpPixbufY";
+
+        #         say "Drawing GCP at $main::currentGcpPixbufX, $main::currentGcpPixbufY";
 
         #Draw the current GCP point
         # Circle with border - transparent

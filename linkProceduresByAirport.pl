@@ -127,13 +127,15 @@ sub main {
 
             if ( $CHART_CODE eq "APD" ) {
                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
-# 		say $targetvrt;
+
+                # 		say $targetvrt;
                 if ( -e "$targetvrt"
                     && !-e "./byAirport/$FAA_CODE/warped-$targetVrtFile.vrt" )
                 {
                     link( "$targetvrt",
                         "./byAirport/$FAA_CODE/warped-$targetVrtFile.vrt" );
-#                     say $targetvrt;
+
+                    #                     say $targetvrt;
                 }
             }
         }

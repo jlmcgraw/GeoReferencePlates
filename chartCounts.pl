@@ -97,6 +97,7 @@ $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount            = $dtppSth->rows;
 say "\t$iapCount Military";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Military Airport diagrams w/ good ratio
 $dtppSth = $dtppDbh->prepare(
@@ -128,7 +129,7 @@ say "\t\t$iapCount with good ratio";
 # say "\t\t$_FAA_CODE,$_PDF_NAME";
 # }
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Military Airport diagrams w/ no text 
+#Query the dtpp database for  count of Military Airport diagrams w/ no text
 $dtppSth = $dtppDbh->prepare(
     "SELECT D.FAA_CODE,D.PDF_NAME,DG.pdftotext
       FROM dtpp as D 
@@ -154,7 +155,7 @@ say "\t\t$iapCount with not enough text";
 # say "\t\t$_FAA_CODE,$_PDF_NAME";
 # }
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Military Airport diagrams w/ no GCPs 
+#Query the dtpp database for  count of Military Airport diagrams w/ no GCPs
 $dtppSth = $dtppDbh->prepare(
     "SELECT D.FAA_CODE,D.PDF_NAME,DG.gcpCount
       FROM dtpp as D 
@@ -230,7 +231,7 @@ say "\t\t$iapCount with good ratio";
 # say "\t\t$_FAA_CODE,$_PDF_NAME";
 # }
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Airport diagrams w/ no text 
+#Query the dtpp database for  count of Airport diagrams w/ no text
 $dtppSth = $dtppDbh->prepare(
     "SELECT D.FAA_CODE,D.PDF_NAME,DG.pdftotext
       FROM dtpp as D 
@@ -256,7 +257,7 @@ say "\t\t$iapCount with not enough text";
 # say "\t\t$_FAA_CODE,$_PDF_NAME";
 # }
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#Query the dtpp database for  count of Airport diagrams w/ no GCPs 
+#Query the dtpp database for  count of Airport diagrams w/ no GCPs
 $dtppSth = $dtppDbh->prepare(
     "SELECT D.FAA_CODE,D.PDF_NAME,DG.gcpCount
       FROM dtpp as D 
@@ -316,6 +317,7 @@ $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount            = $dtppSth->rows;
 say "\t$iapCount Civilian IAP charts";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts
 $dtppSth = $dtppDbh->prepare(
@@ -337,6 +339,7 @@ $dtppSth->execute();
 $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
 $iapCount            = $dtppSth->rows;
 say "\t$iapCount Civilian IAP charts w/text";
+
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #Query the dtpp database for  count of Civilian IAP charts with good ratio
 $dtppSth = $dtppDbh->prepare(

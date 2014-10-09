@@ -262,13 +262,12 @@ sub doAPlate {
     # our $targetvrt         = $dir . $filename . ".vrt";
     our $targetVrtFile =
       $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
-    
+
     # convert spaces, ., and slashes to dash
     $targetVrtFile =~ s/[ \s | \/ | \\ | \. ]/-/xg;
-    
+
     our $targetVrtFile2 = "warped" . $targetVrtFile;
 
-  
     our $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
     our $noPointsFile      = $dir . "noPoints-" . $targetVrtFile . ".vrt";
     our $failFile          = $dir . "fail-" . $targetVrtFile . ".vrt";
@@ -319,7 +318,7 @@ sub doAPlate {
         ++$main::noTextCount;
 
         say "Not enough pdftotext output for $targetPdf";
-          $statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         writeStatistics() if $shouldOutputStatistics;
         touchFile($main::noTextFile);
 
@@ -513,7 +512,7 @@ sub doAPlate {
         touchFile($noPointsFile);
 
         ++$main::noPointsCount;
-          $statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
@@ -1807,16 +1806,15 @@ sub intersectLines {
 sub georeferenceTheRaster {
 
     # #Try to georeference
-# You may be able to create the world files but you will need to know the pixel resolution and calculate the skew. Your world file should be named exactly the same as the image, but with a different exstention (.wld or .jpgw) and have the following lines:
-# 
-#     pixel resolution * cos(rotation angle)
-#     -pixel resolution * sin(rotation angle)
-#     -pixel resolution * sin(rotation angle)
-#     -pixel resolution * cos(rotation angle)
-#     upper left x
-#     upper left y
+    # You may be able to create the world files but you will need to know the pixel resolution and calculate the skew. Your world file should be named exactly the same as the image, but with a different exstention (.wld or .jpgw) and have the following lines:
+    #
+    #     pixel resolution * cos(rotation angle)
+    #     -pixel resolution * sin(rotation angle)
+    #     -pixel resolution * sin(rotation angle)
+    #     -pixel resolution * cos(rotation angle)
+    #     upper left x
+    #     upper left y
 
-    
     my $gdal_translateCommand =
       "gdal_translate -q -of VRT -strict -a_srs EPSG:4326 $main::gcpstring '$main::targetpng'  '$main::targetvrt'";
     if ($debug) {
@@ -1834,7 +1832,7 @@ sub georeferenceTheRaster {
         carp
           "Error executing gdal_translate.  Is it installed? Return code was $retval";
         ++$main::failCount;
-          $statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         touchFile($main::failFile);
 
         # say "Touching $main::failFile";
@@ -1884,7 +1882,7 @@ sub georeferenceTheRaster {
     if ( $retval != 0 ) {
         carp
           "Error executing gdalinfo.  Is it installed? Return code was $retval";
-          $statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         return;
     }
     say $gdalinfoCommandOutput if $debug;
@@ -1895,8 +1893,8 @@ sub georeferenceTheRaster {
         $lowerRightLon, $lowerRightLat, $lonLatRatio
     ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
 
-   #---------------------
-  my $gdalinfoCommand = "gcps2wld.py '$main::targetvrt'";
+    #---------------------
+    my $gdalinfoCommand = "gcps2wld.py '$main::targetvrt'";
     if ($debug) {
         say $gdalinfoCommand;
         say "";
@@ -1909,16 +1907,18 @@ sub georeferenceTheRaster {
     if ( $retval != 0 ) {
         carp
           "Error executing gdalinfo.  Is it installed? Return code was $retval";
-          $statistics{'$status'} = "AUTOBAD";
+        $statistics{'$status'} = "AUTOBAD";
         return;
     }
     say $gdalinfoCommandOutput if $debug;
-my ($xPixelSkew, $yPixelSkew);
-    #Extract georeference info from gdalinfo output
-     ($pixelSizeX,    $pixelSizeY,   $xPixelSkew, $yPixelSkew, $upperLeftLon, $upperLeftLat
-        
-    ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput); 
+    my ( $xPixelSkew, $yPixelSkew );
 
+    #Extract georeference info from gdalinfo output
+    (
+        $pixelSizeX, $pixelSizeY, $xPixelSkew, $yPixelSkew, $upperLeftLon,
+        $upperLeftLat
+
+    ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput);
 
     #Save the info for writing out
     $statistics{'$yMedian'}       = $pixelSizeY;
@@ -1928,8 +1928,8 @@ my ($xPixelSkew, $yPixelSkew);
     $statistics{'$upperLeftLat'}  = $upperLeftLat;
     $statistics{'$lowerRightLon'} = $lowerRightLon;
     $statistics{'$lowerRightLat'} = $lowerRightLat;
-    $statistics{'$yPixelSkew'}       = $yPixelSkew;
-    $statistics{'$xPixelSkew'}       = $xPixelSkew;
+    $statistics{'$yPixelSkew'}    = $yPixelSkew;
+    $statistics{'$xPixelSkew'}    = $xPixelSkew;
 
     my $lonDiff = $upperLeftLon - $lowerRightLon;
     my $latDiff = $upperLeftLat - $lowerRightLat;
@@ -1953,14 +1953,13 @@ my ($xPixelSkew, $yPixelSkew);
     # portrait
     # y = 0.00091147x2 - 0.03659641x + 2.03248188
 
- 
     $statistics{'$isPortraitOrientation'} = $main::isPortraitOrientation;
 
     #Check that the latLon ratio fo the image seems valid
     if ($main::isPortraitOrientation) {
         my $targetLonLatRatioPortrait =
           targetLonLatRatioPortrait($main::airportLatitudeDec);
-         $statistics{'$targetLonLatRatio'} = $targetLonLatRatioPortrait;
+        $statistics{'$targetLonLatRatio'} = $targetLonLatRatioPortrait;
         unless ( abs( $lonLatRatio - $targetLonLatRatioPortrait ) < .1 ) {
             say
               "Bad portrait lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioPortrait";
@@ -1973,8 +1972,8 @@ my ($xPixelSkew, $yPixelSkew);
         #valid landscape ratios are different}
         my $targetLonLatRatioLandscape =
           targetLonLatRatioLandscape($main::airportLatitudeDec);
-    $statistics{'$targetLonLatRatio'} = $targetLonLatRatioLandscape;
-    
+        $statistics{'$targetLonLatRatio'} = $targetLonLatRatioLandscape;
+
         unless ( abs( $lonLatRatio - $targetLonLatRatioLandscape ) < .12 ) {
             say
               "Bad landscape lonLatRatio, georeference failed: Calculated: $lonLatRatio, expected: $targetLonLatRatioLandscape";
@@ -2069,7 +2068,8 @@ sub extractGeoreferenceInfo {
     $lonLatRatio = abs( ( $upperLeftLon - $lowerRightLon ) /
           ( $upperLeftLat - $lowerRightLat ) );
 
-     say      "$pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio";
+    say
+      "$pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, $lowerRightLon, $lowerRightLat, $lonLatRatio";
     return (
         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
         $lowerRightLon, $lowerRightLat, $lonLatRatio
@@ -2081,27 +2081,32 @@ sub extractGeoreferenceInfoGcps2Wld {
     #Pull relevant information out of gdalinfo command
     my ($_output) = @_;
     my (
-        $pixelSizeX,   $yPixelSkew,  $xPixelSkew, $pixelSizeY,  $upperLeftLon, $upperLeftLat
-        
-    )= split (/\n/, $_output);
-    
-say '$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew';
-say "$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew";
-#     return (
-#         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
-#         $xPixelSkew, $yPixelSkew
-#     );
-      return (
-        
-       $pixelSizeX,    $pixelSizeY,   $xPixelSkew, $yPixelSkew, $upperLeftLon, $upperLeftLat
+        $pixelSizeX, $yPixelSkew, $xPixelSkew, $pixelSizeY, $upperLeftLon,
+        $upperLeftLat
+
+    ) = split( /\n/, $_output );
+
+    say
+      '$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew';
+    say
+      "$pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,  $xPixelSkew, $yPixelSkew";
+
+    #     return (
+    #         $pixelSizeX,    $pixelSizeY,    $upperLeftLon, $upperLeftLat,
+    #         $xPixelSkew, $yPixelSkew
+    #     );
+    return (
+
+        $pixelSizeX, $pixelSizeY, $xPixelSkew, $yPixelSkew, $upperLeftLon,
+        $upperLeftLat
     );
 }
+
 sub writeStatistics {
 
     #Update the georef table
     my $update_dtpp_geo_record =
-        "UPDATE dtppGeo " 
-      . "SET "
+        "UPDATE dtppGeo " . "SET "
       . "airportLatitude = ?, "
       . "horizontalAndVerticalLinesCount = ?, "
       . "gcpCount = ?, "

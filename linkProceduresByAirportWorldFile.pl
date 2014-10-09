@@ -63,17 +63,15 @@ sub main {
     }
 
     my $cycle = shift @ARGV;
-   
 
     say "Cycle: $cycle";
-   
 
     #Connect to our databases
     my $dbFile = "./dtpp-$cycle.db";
-      
+
     #database of metadata for dtpp
-    my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=$dbFile",
-        "", "", { RaiseError => 1 } )
+    my $dtppDbh =
+      DBI->connect( "dbi:SQLite:dbname=$dbFile", "", "", { RaiseError => 1 } )
       or croak $DBI::errstr;
 
     #     my (
@@ -166,10 +164,10 @@ sub main {
             make_path("$outputDir");
         }
 
-                #Make the airport directory if it doesn't already exist
-                if ( !-e "$outputDir" . "$FAA_CODE/" ) {
-                    make_path( "$outputDir" . "$FAA_CODE/" );
-                }
+        #Make the airport directory if it doesn't already exist
+        if ( !-e "$outputDir" . "$FAA_CODE/" ) {
+            make_path( "$outputDir" . "$FAA_CODE/" );
+        }
         my ($chartBasename) = $PDF_NAME =~ m/(\w+)\.PDF/i;
         my $pngName         = $chartBasename . '.png';
         my $worldFileName   = $chartBasename . '.wld';
