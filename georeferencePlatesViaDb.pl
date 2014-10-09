@@ -150,6 +150,7 @@ our $debug                      = $opt{v};
 our $shouldRecreateOutlineFiles = $opt{o};
 our $shouldSaveBadRatio         = $opt{b};
 our $shouldUseMultipleObstacles = $opt{m};
+our $shouldOnlyProcessAddedOrChanged = $opt{n};
 
 #database of metadata for dtpp
 my $dtppDbh =
@@ -174,32 +175,55 @@ our (
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
-#Query the dtpp database for charts
-my $dtppSth = $dtppDbh->prepare(
-    "SELECT  
+my $selectStatement =  "SELECT  
       D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
       D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
       D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
       DG.STATUS
     FROM 
-      dtpp as D 
+      dtpp AS D 
     JOIN 
-      dtppGeo as DG 
+      dtppGeo AS DG 
     ON 
       D.PDF_NAME=DG.PDF_NAME
     WHERE  
-      -- BUG TODO Testing only selecting non-good plates
-      -- DG.STATUS NOT LIKE '%GOOD%' 
-      -- AND
-      --D.MILITARY_USE != 'M' 
-      --AND
       D.CHART_CODE = 'IAP' 
-      AND 
+        AND 
       D.FAA_CODE LIKE  '$airportId' 
-      AND
+        AND
       D.STATE_ID LIKE  '$stateId'
-      "
-);
+      ";
+
+      #Alter SQL query if  we only want to do added/changed charts
+if ($shouldOnlyProcessAddedOrChanged) {
+$selectStatement =  "SELECT  
+      D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
+      D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
+      D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
+      DG.STATUS
+    FROM 
+      dtpp AS D 
+    JOIN 
+      dtppGeo AS DG 
+    ON 
+      D.PDF_NAME=DG.PDF_NAME
+    WHERE  
+      D.CHART_CODE = 'IAP' 
+        AND 
+      D.FAA_CODE LIKE  '$airportId' 
+        AND
+      D.STATE_ID LIKE  '$stateId'
+       AND
+      (
+      D.USER_ACTION = 'A'
+      OR
+      D.USER_ACTION = 'C'
+      )
+      ";
+      
+}
+#Query the dtpp database for desired charts
+my $dtppSth = $dtppDbh->prepare($selectStatement);
 $dtppSth->execute();
 
 my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
@@ -216,8 +240,7 @@ foreach my $_row (@$_allSqlQueryResults) {
         $MILITARY_USE, $COPTER_USE,  $STATE_ID
     ) = @$_row;
 
-    # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
-    say
+      say
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
     #Execute the main loop for this plate

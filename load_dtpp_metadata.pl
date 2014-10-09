@@ -36,7 +36,8 @@ use Params::Validate qw(:all);
 use File::Basename;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
-
+use Carp;
+# 
 my @links = ();
 
 my $arg_num = scalar @ARGV;
@@ -55,42 +56,44 @@ my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile-$cycle.xml";
 #Where to download DTPPs to
 my $dtppDownloadDir = "$BASE_DIR/dtpp-$cycle/";
 
-        if ( !-e "$dtppDownloadDir"  ) {
-            make_path( "$dtppDownloadDir");
-        }
-        
+#Make the download directory if it doesn't already exist
+if ( !-e "$dtppDownloadDir" ) {
+    make_path("$dtppDownloadDir");
+}
+
 die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 
 #URL of the DTPP catalog
 # my $dtpp_url =
-  # "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
-my $dtpp_url =
-  "https://nfdc.faa.gov/webContent/dtpp/current.xml";
-  
+# "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
+my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
+
 #Where to download DTPPs from
 my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
 my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
 
 my %countHash;
 
-if(! -e $TPP_METADATA_FILE) {
-print "Downloading the d-TPP metafile: ".$dtpp_url."...";
-# my $ret = 200;
-my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
-  if ( $ret != 200 )
-  {
-  die "Unable to download d-TPP metadata.";
-  }
-  print "done\n";
-  }
-else 
-{say "Using existing $TPP_METADATA_FILE";}
+if ( -e $TPP_METADATA_FILE ) {
+    say "Using existing local metafile: $TPP_METADATA_FILE";
+}
+else {
+    print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
+
+    # my $ret = 200;
+    my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
+    if ( $ret != 200 ) {
+        die "Unable to download d-TPP metadata.";
+    }
+    print "done\n";
+
+}
 
 #The name of our database
 my $dbfile = "$BASE_DIR/dtpp-$cycle.db";
 my $dbh = DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "" );
 
-$dbh->do("PRAGMA page_size=4096");
+# $dbh->do("PRAGMA page_size=4096");
 $dbh->do("PRAGMA synchronous=OFF");
 
 my $create_metadata_table  = "CREATE TABLE android_metadata ( locale TEXT );";
@@ -218,11 +221,7 @@ my $create_dtpp_geo_table_sql = <<'END_SQL';
 END_SQL
 
 my $insert_dtppGeo_record =
-  "INSERT INTO dtppGeo (" 
-  . "PDF_NAME" 
-  . ") VALUES (" 
-  . "?" 
-  . ")";
+  "INSERT INTO dtppGeo (" . "PDF_NAME" . ") VALUES (" . "?" . ")";
 
 $dbh->do("DROP TABLE IF EXISTS dtpp");
 $dbh->do($create_dtpp_table);
@@ -279,7 +278,7 @@ say "$deletedCount charts deleted";
 say "$changedCount charts changed";
 say "$addedCount charts changed";
 
-print Dumper (\%countHash);
+print Dumper ( \%countHash );
 exit;
 
 my $from_date;
@@ -288,7 +287,6 @@ my $volume;
 my $state_id;
 my $faa_code;
 my $military_use;
-
 
 sub digital_tpp {
     my ( $twig, $dtpp ) = @_;
@@ -339,7 +337,9 @@ sub record {
     my $faanfd18_code = $record->child_text( 0, "faanfd18" );
     my $copter_use    = $record->child_text( 0, "copter" );
 
-    print "\rLoading # $count...";
+    ++$count;
+    
+    say "\rLoading # $count...";
 
     #TPP_VOLUME
     $sth_dtpp->bind_param( 1, $volume );
@@ -357,6 +357,8 @@ sub record {
     $sth_dtpp->bind_param( 5, $chart_name );
 
     #USER_ACTION
+    #Remove spaces from user_action
+    $user_action =~ s/\s+//g;
     $sth_dtpp->bind_param( 6, $user_action );
 
     #PDF_NAME
@@ -381,18 +383,17 @@ sub record {
 
     #Keep a tally of chart types and actions
     $countHash{$chart_code}{$user_action}++;
-    
+
     #We're only going to download IAPs or APDs, though all charts will be put in DB
-if (! ($chart_code eq "APD" || $chart_code eq "IAP" ))
-{return;}
+    if ( !( $chart_code eq "APD" || $chart_code eq "IAP" ) ) { return; }
 
     if ( $user_action =~ /D/i ) {
         say "Deleting old " . "$dtppDownloadDir" . "$pdf_name";
         deleteStaleFiles($pdf_name);
         ++$deletedCount;
     }
-   if ( $user_action =~ /A/i ) {
-        say "Added " . "$dtppDownloadDir" . "$pdf_name";      
+    if ( $user_action =~ /A/i ) {
+        say "Added " . "$dtppDownloadDir" . "$pdf_name";
         ++$addedCount;
     }
     if ( $user_action =~ /C/i ) {
@@ -400,18 +401,30 @@ if (! ($chart_code eq "APD" || $chart_code eq "IAP" ))
           . "$pdf_name" . " -> "
           . "$dtppDownloadDir"
           . "$pdf_name";
+
         #Delete old files
-# #         deleteStaleFiles($pdf_name);
-#         #Get the new one
-#              my $status = getstore(
-#             "$chart_url_base" . "$pdf_name",
-#             "$dtppDownloadDir" . "$pdf_name"
-#         );
-#         die "Error $status on $pdf_name" unless is_success($status);
-	++$downloadedCount;
+        deleteStaleFiles($pdf_name);
+
+        #Get the new one
+        my $status;
+
+        #         $status = getstore(
+        #             "$chart_url_base" . "$pdf_name",
+        #             "$dtppDownloadDir" . "$pdf_name"
+        #         );
+        #         die "Error $status on $pdf_name" unless is_success($status);
+        #
+        until ( is_success($status) ) {
+            $status = getstore(
+                "$chart_url_base" . "$pdf_name",
+                "$dtppDownloadDir" . "$pdf_name"
+            );
+        }
+
+        ++$downloadedCount;
         ++$changedCount;
     }
-    
+
     #If the pdf doesn't exist locally fetch it
     if ( !-e ( "$dtppDownloadDir" . "$pdf_name" ) ) {
 
@@ -423,31 +436,47 @@ if (! ($chart_code eq "APD" || $chart_code eq "IAP" ))
         #Save the link in an array for downloading in parallel
         push @links,
           [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
- 
+# 
+#         my $status = getstore(
+#             "$chart_url_base" . "$pdf_name",
+#             "$dtppDownloadDir" . "$pdf_name"
+#         );
+#         die "Error $status on $pdf_name" unless is_success($status);
+        
+                my $status;
 
-        my $status = getstore(
-            "$chart_url_base" . "$pdf_name",
-            "$dtppDownloadDir" . "$pdf_name"
-        );
-        die "Error $status on $pdf_name" unless is_success($status);
+        #         $status = getstore(
+        #             "$chart_url_base" . "$pdf_name",
+        #             "$dtppDownloadDir" . "$pdf_name"
+        #         );
+        #         die "Error $status on $pdf_name" unless is_success($status);
+        #
+        until ( is_success($status) ) {
+            $status = getstore(
+                "$chart_url_base" . "$pdf_name",
+                "$dtppDownloadDir" . "$pdf_name"
+            );
+        }
         ++$downloadedCount;
     }
+
     #FQN of the PDF for this chart
     my $targetPdf = $dtppDownloadDir . $pdf_name;
 
     #Pull out the various filename components of the input file from the command line
     my ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
 
-    my $targetPng     = $dtppDownloadDir . $filename . ".png";
+    my $targetPng = $dtppDownloadDir . $filename . ".png";
 
-    if (($chart_code eq "APD" || $chart_code eq "IAP" ) && ! -e $targetPng) {
-    #Convert the PDF to a PNG if one doesn't already exist
-    say "$targetPdf -> $targetPng";
-    convertPdfToPng( $targetPdf, $targetPng );
+    if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) && !-e $targetPng ) {
+
+        #Convert the PDF to a PNG if one doesn't already exist
+        say "Create PNG: $targetPdf -> $targetPng";
+        convertPdfToPng( $targetPdf, $targetPng );
     }
-    
+
     $twig->purge;
-    ++$count;
+ 
 
     return 1;
 }
@@ -474,6 +503,7 @@ sub deleteStaleFiles {
         say "Deleting " . $dtppDownloadDir . $pdf_name;
         unlink( "$dtppDownloadDir" . "$pdf_name" );
     }
+
     #delete the old .png
     if ( -e ( "$dtppDownloadDir" . "$pdf_name" . "png" ) ) {
         say "Deleting " . $dtppDownloadDir . $pdf_name . "png";
@@ -485,6 +515,7 @@ sub deleteStaleFiles {
         say "Deleting " . $dtppDownloadDir . "outlines-" . $pdf_name_lower;
         unlink( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower );
     }
+
     #delete the outlines .png
     if ( -e ( "$dtppDownloadDir" . "outlines-" . $pdf_name_lower . ".png" ) ) {
         say "Deleting $dtppDownloadDir"
@@ -497,13 +528,14 @@ sub deleteStaleFiles {
 }
 
 sub convertPdfToPng {
-#DPI of the output PNG
-my $pngDpi = 300;
+
     #Validate and set input parameters to this function
     my ( $targetPdf, $targetpng ) =
       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
 
-    #---------------------------------------------------
+    #DPI of the output PNG
+    my $pngDpi = 300;
+
     #Convert the PDF to a PNG
     my $pdfToPpmOutput;
     if ( -e $targetpng ) {
@@ -512,6 +544,7 @@ my $pngDpi = 300;
     $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetpng);
 
     my $retval = $? >> 8;
-#     die "Error from pdftoppm.   Return code is $retval" if $retval != 0;
-    return;
+
+    carp "Error from pdftoppm.   Return code is $retval" if $retval != 0;
+    return $retval;
 }

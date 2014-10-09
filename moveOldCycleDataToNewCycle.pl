@@ -75,6 +75,7 @@ sub main {
             $xPixelSkew, $yPixelSkew, $status )
           = @$_row;
         state $rowCount = 0;
+        #say which row we're on every 1000 rows
         say "Copying row: $rowCount..."
           if ( $rowCount % 1000 == 0 );
 
@@ -114,7 +115,7 @@ sub main {
 
         my $storedGcpHash = "gcp-" . $filename . "-hash.txt";
 
-        #Copy existing GCP hash to new directory
+        #Copy existing stored GCP hash to new directory
         if ( -e "./dtpp-$oldCycle/$storedGcpHash" ) {
 
             copy(
@@ -132,10 +133,10 @@ sub main {
 
     $newDbh->begin_work();
 
-    #Set status to blank if chart was added or changed
+    #Get a list of all charts that with status added or changed
     my $newDataArrayRef = getNewChangedAndAddedCharts($newDbh);
 
-    #For each PDF listed as changed or Added set its status to blank
+    #For each PDF listed as changed or Added set its georef status
     foreach my $_row (@$newDataArrayRef) {
         my ( $PDF_NAME, ) = @$_row;
         state $rowCount = 0;

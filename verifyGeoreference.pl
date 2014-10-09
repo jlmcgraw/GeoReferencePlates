@@ -1049,6 +1049,8 @@ sub chartsMarkedChanged {
         STATE_ID LIKE  '$main::stateId'   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
+              AND
+        DG.STATUS LIKE '%ADDEDCHANGED%'
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
         -- AND
@@ -1424,12 +1426,11 @@ sub cairo_draw {
                       . rad2deg( $vertexAngles[1] ) . ","
                       . rad2deg( $vertexAngles[2] ) . ","
                       . rad2deg( $vertexAngles[3] )
-                      . "\n" );
-                $textviewBuffer->insert( $iter,
-                        "Length Diff: "
-                      . ( $segment1Length - $segment3Length ) . ","
-                      . ( $segment2Length - $segment4Length )
-                      . "\n\n" );
+                      . " " 
+                      . "Length Diff: "
+                      . ( ($segment1Length - $segment2Length)/$segment1Length ) . ","
+                      . ( ($segment3Length - $segment4Length)/$segment3Length )
+                      . "\n");
 
                 # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
 
@@ -1501,11 +1502,11 @@ sub cairo_draw {
 
     #    say "$main::currentGcpPixbufX && $main::currentGcpPixbufY";
     if ( $main::currentGcpPixbufX && $main::currentGcpPixbufY ) {
-        say "Drawing GCP at $main::currentGcpPixbufX, $main::currentGcpPixbufY";
+#         say "Drawing GCP at $main::currentGcpPixbufX, $main::currentGcpPixbufY";
 
         #Draw the current GCP point
         # Circle with border - transparent
-        $context->set_source_rgba( 255, 255, 0, 64 );
+        $context->set_source_rgba( 255, 128, 0, 64 );
         $context->arc( $main::currentGcpPixbufX, $main::currentGcpPixbufY, 2,
             0, 3.1415 * 2 );
         $context->set_line_width(2);
@@ -2618,6 +2619,7 @@ sub coordinateToDecimal2 {
         @_,
         { type => SCALAR },
         { type => SCALAR },
+        { type => SCALAR },
         { type => SCALAR }
     );
 
@@ -2671,7 +2673,7 @@ sub updateStatus {
     my $textviewBuffer = $main::textview1->get_buffer;
     my $iter           = $textviewBuffer->get_iter_at_offset(0);
     $textviewBuffer->insert( $iter, " $_status -> $_PDF_NAME d\n\n" );
-
+    $main::textview1->scroll_to_iter( $iter, .5, TRUE, 0.5, 0.5 );
     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
     $dtppSth->bind_param( 1, $_status );
