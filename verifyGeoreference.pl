@@ -166,10 +166,14 @@ my $cifpDbh =
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect( "dbi:SQLite:dbname=./locationinfo.db",
+# $dbh = DBI->connect( "dbi:SQLite:dbname=./locationinfo.db",
+#     "", "", { RaiseError => 1 } )
+#   or croak $DBI::errstr;
+
+our  $dbh2 = DBI->connect( "dbi:SQLite:dbname=./56day.db",
     "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
-
+  
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
@@ -241,11 +245,65 @@ $dtppDbh->disconnect();
 
 #Close the locations database
 # $sth->finish();
-$dbh->disconnect();
+$dbh2->disconnect();
 
 exit;
 
-sub findAirportLatitudeAndLongitude {
+# sub findAirportLatitudeAndLongitude {
+# 
+#     #Returns the lat/lon of the airport for the plate we're working on
+# 
+#     #Validate and set input parameters to this function
+#     my ($FAA_CODE) = validate_pos( @_, { type => SCALAR }, );
+# 
+#     my $_airportLatitudeDec;
+#     my $_airportLongitudeDec;
+# 
+#     #Query the database for airport
+#     my $sth = $dbh->prepare(
+#         "SELECT  
+# 	    FaaID, Latitude, Longitude, Name  
+#          FROM 
+# 	    airports  
+#          WHERE
+# 	    FaaID = '$FAA_CODE'"
+#     );
+#     $sth->execute();
+# 
+#     my $_allSqlQueryResults = $sth->fetchall_arrayref();
+# 
+#     foreach my $_row (@$_allSqlQueryResults) {
+#         my ( $airportFaaId, $airportname );
+#         (
+#             $airportFaaId, $_airportLatitudeDec, $_airportLongitudeDec,
+#             $airportname
+#         ) = @$_row;
+# 
+#         #             if ($debug) {
+#         #                 say "Airport ID: $airportFaaId";
+#         #                 say "Airport Latitude: $_airportLatitudeDec";
+#         #                 say "Airport Longitude: $_airportLongitudeDec";
+#         #                 say "Airport Name: $airportname";
+#         #             }
+#     }
+# 
+#     if ( $_airportLatitudeDec && $_airportLongitudeDec ) {
+#         say
+#           "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec";
+#         my $textviewBuffer = $main::textview1->get_buffer;
+#         my $iter           = $textviewBuffer->get_iter_at_offset(0);
+#         $textviewBuffer->insert( $iter,
+#             "FAA_CODE: $FAA_CODE -> Lon:$_airportLongitudeDec Lat:$_airportLatitudeDec\n\n"
+#         );
+# 
+#         return ( $_airportLatitudeDec, $_airportLongitudeDec );
+#     }
+# 
+#     else {
+#         return ( 0, 0 );
+#     }
+# }
+sub findAirportLatitudeAndLongitude2 {
 
     #Returns the lat/lon of the airport for the plate we're working on
 
@@ -256,13 +314,18 @@ sub findAirportLatitudeAndLongitude {
     my $_airportLongitudeDec;
 
     #Query the database for airport
-    my $sth = $dbh->prepare(
-        "SELECT  
-	    FaaID, Latitude, Longitude, Name  
-         FROM 
-	    airports  
+    my $sth = $main::dbh2->prepare(
+        "
+        select
+        location_identifier
+	,apt_latitude
+	,apt_longitude
+	,official_facility_name
+
+      from apt_apt
          WHERE
-	    FaaID = '$FAA_CODE'"
+	    location_identifier = '$FAA_CODE'
+	    "
     );
     $sth->execute();
 
@@ -270,6 +333,7 @@ sub findAirportLatitudeAndLongitude {
 
     foreach my $_row (@$_allSqlQueryResults) {
         my ( $airportFaaId, $airportname );
+        
         (
             $airportFaaId, $_airportLatitudeDec, $_airportLongitudeDec,
             $airportname
@@ -299,7 +363,6 @@ sub findAirportLatitudeAndLongitude {
         return ( 0, 0 );
     }
 }
-
 sub getPngSize {
 
     #Calculate the raster size ourselves
@@ -337,36 +400,92 @@ sub getPngSize {
 
 }
 
-sub findObstaclesNearAirport {
-
+# sub findObstaclesNearAirport {
+# 
+#     #Validate and set input parameters to this function
+#     my ( $airportLongitude, $airportLatitude ) =
+#       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+# 
+#     # my $radius     = ".2";
+#     my $minimumAgl = "0";
+# 
+#     #How far away from the airport to look for feature
+#     my $radiusNm = 20;
+# 
+#     #Calculate radius for the airport's latitude
+#     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
+#       radiusGivenLatitude( $radiusNm, $airportLatitude );
+# 
+#     #Query the database for obstacles of $heightmsl within our $radius
+#     my $dtppSth = $dbh->prepare(
+#         "SELECT *
+#             FROM obstacles
+#             WHERE
+#             (HeightAgl > $minimumAgl)
+#             and
+#             (Latitude >  $airportLatitude - $radiusDegreesLatitude )
+#             and
+#             (Latitude < $airportLatitude + $radiusDegreesLatitude )
+#             and
+#             (Longitude >  $airportLongitude - $radiusDegreesLongitude )
+#             and
+#             (Longitude < $airportLongitude + $radiusDegreesLongitude )"
+#     );
+#     $dtppSth->execute();
+# 
+#     my %unique_obstacles_from_db;
+# 
+#     my $all = $dtppSth->fetchall_arrayref();
+# 
+#     foreach my $_row (@$all) {
+#         my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
+#         if ( exists $unique_obstacles_from_db{$heightmsl} ) {
+# 
+#             #This is a duplicate obstacle
+#             $lat = $lon = 0;
+#         }
+# 
+#         #Populate variables from our database lookup
+# 
+#         $unique_obstacles_from_db{$heightmsl}{"Name"} = $heightmsl;
+#         $unique_obstacles_from_db{$heightmsl}{"Lat"}  = $lat;
+#         $unique_obstacles_from_db{$heightmsl}{"Lon"}  = $lon;
+# 
+#     }
+# 
+#     return ( \%unique_obstacles_from_db );
+# }
+sub findObstaclesNearAirport2 {
+    
     #Validate and set input parameters to this function
     my ( $airportLongitude, $airportLatitude ) =
       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
 
-    # my $radius     = ".2";
-    my $minimumAgl = "0";
+#     # my $radius     = ".2";
+#     my $minimumAgl = "0";
 
     #How far away from the airport to look for feature
-    my $radiusNm = 20;
+    my $radiusNm = 30;
 
     #Calculate radius for the airport's latitude
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-    #Query the database for obstacles of $heightmsl within our $radius
-    my $dtppSth = $dbh->prepare(
-        "SELECT *
-            FROM obstacles
+    #Query the database for obstacles of $heightMsl within our $radius
+    my $dtppSth = $dbh2->prepare(
+        "SELECT 
+            amsl_ht
+            ,obstacle_latitude
+	    ,obstacle_longitude
+         FROM OBSTACLE_OBSTACLE
             WHERE
-            (HeightAgl > $minimumAgl)
+            (CAST (obstacle_latitude AS REAL)>  $airportLatitude - $radiusDegreesLatitude )
             and
-            (Latitude >  $airportLatitude - $radiusDegreesLatitude )
+            (CAST (obstacle_latitude AS REAL) < $airportLatitude + $radiusDegreesLatitude )
             and
-            (Latitude < $airportLatitude + $radiusDegreesLatitude )
+            (CAST (obstacle_longitude AS REAL) >  $airportLongitude - $radiusDegreesLongitude )
             and
-            (Longitude >  $airportLongitude - $radiusDegreesLongitude )
-            and
-            (Longitude < $airportLongitude + $radiusDegreesLongitude )"
+            (CAST (obstacle_longitude AS REAL) < $airportLongitude + $radiusDegreesLongitude )"
     );
     $dtppSth->execute();
 
@@ -375,8 +494,8 @@ sub findObstaclesNearAirport {
     my $all = $dtppSth->fetchall_arrayref();
 
     foreach my $_row (@$all) {
-        my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
-        if ( exists $unique_obstacles_from_db{$heightmsl} ) {
+        my ( $heightMsl, $lat, $lon  ) = @$_row;
+        if ( exists $unique_obstacles_from_db{$heightMsl} ) {
 
             #This is a duplicate obstacle
             $lat = $lon = 0;
@@ -384,15 +503,14 @@ sub findObstaclesNearAirport {
 
         #Populate variables from our database lookup
 
-        $unique_obstacles_from_db{$heightmsl}{"Name"} = $heightmsl;
-        $unique_obstacles_from_db{$heightmsl}{"Lat"}  = $lat;
-        $unique_obstacles_from_db{$heightmsl}{"Lon"}  = $lon;
+        $unique_obstacles_from_db{$heightMsl}{"Name"} = $heightMsl;
+        $unique_obstacles_from_db{$heightMsl}{"Lat"}  = $lat;
+        $unique_obstacles_from_db{$heightMsl}{"Lon"}  = $lon;
 
     }
 
     return ( \%unique_obstacles_from_db );
 }
-
 sub convertPdfToPng {
 
     #Validate and set input parameters to this function
@@ -412,80 +530,80 @@ sub convertPdfToPng {
     return;
 }
 
-sub findFixesNearAirport {
-
-    #Validate and set input parameters to this function
-    my ( $airportLongitude, $airportLatitude ) =
-      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
-
-    # my $radius = .5;
-    my $radiusNm = 50;
-
-    #Calculate radius for the airport's latitude
-    my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
-      radiusGivenLatitude( $radiusNm, $airportLatitude );
-
-    #What type of fixes to look for
-    #     my $type = "%REP-PT";
-    my $type = "%";
-
-    #Query the database for fixes within our $radius
-    my $sth = $dbh->prepare(
-        "SELECT * 
-        FROM fixes 
-        WHERE  
-        (Latitude >  $airportLatitude - $radiusDegreesLatitude ) 
-        and 
-        (Latitude < $airportLatitude + $radiusDegreesLatitude )
-        and 
-        (Longitude >  $airportLongitude - $radiusDegreesLongitude ) 
-        and 
-        (Longitude < $airportLongitude + $radiusDegreesLongitude ) 
-        and
-        (Type like '$type')"
-    );
-    $sth->execute();
-
-    my $allSqlQueryResults = $sth->fetchall_arrayref();
-
-    my %fixes_from_db;
-
-    foreach my $_row (@$allSqlQueryResults) {
-        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
-
-        my @A = NESW( $lon, $lat );
-        my @B = NESW( $airportLongitude, $airportLatitude );
-
-        # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
-        my $km = great_circle_distance( @A, @B, 6378.137 );
-        my $nm = great_circle_distance( @A, @B, 3443.89849 );
-
-        $fixes_from_db{$fixname}{"Name"}     = $fixname;
-        $fixes_from_db{$fixname}{"Lat"}      = $lat;
-        $fixes_from_db{$fixname}{"Lon"}      = $lon;
-        $fixes_from_db{$fixname}{"Type"}     = $fixtype;
-        $fixes_from_db{$fixname}{"Distance"} = $nm;
-    }
-
-    # my $nmLatitude  = 60 * $radius;
-    # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
-
-    #     if ($debug) {
-    #         my $_rows  = $sth->rows();
-    #         my $fields = $sth->{NUM_OF_FIELDS};
-    #         say
-    #           "Found $_rows FIXES within $radiusNm nm of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
-    #
-    #         say "All $type fixes from database";
-    #         say "We have selected $fields field(s)";
-    #         say "We have selected $_rows row(s)";
-    #
-    #         #print Dumper ( \%fixes_from_db );
-    #         say "";
-    #     }
-
-    return ( \%fixes_from_db );
-}
+# sub findFixesNearAirport {
+# 
+#     #Validate and set input parameters to this function
+#     my ( $airportLongitude, $airportLatitude ) =
+#       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+# 
+#     # my $radius = .5;
+#     my $radiusNm = 50;
+# 
+#     #Calculate radius for the airport's latitude
+#     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
+#       radiusGivenLatitude( $radiusNm, $airportLatitude );
+# 
+#     #What type of fixes to look for
+#     #     my $type = "%REP-PT";
+#     my $type = "%";
+# 
+#     #Query the database for fixes within our $radius
+#     my $sth = $dbh->prepare(
+#         "SELECT * 
+#         FROM fixes 
+#         WHERE  
+#         (Latitude >  $airportLatitude - $radiusDegreesLatitude ) 
+#         and 
+#         (Latitude < $airportLatitude + $radiusDegreesLatitude )
+#         and 
+#         (Longitude >  $airportLongitude - $radiusDegreesLongitude ) 
+#         and 
+#         (Longitude < $airportLongitude + $radiusDegreesLongitude ) 
+#         and
+#         (Type like '$type')"
+#     );
+#     $sth->execute();
+# 
+#     my $allSqlQueryResults = $sth->fetchall_arrayref();
+# 
+#     my %fixes_from_db;
+# 
+#     foreach my $_row (@$allSqlQueryResults) {
+#         my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
+# 
+#         my @A = NESW( $lon, $lat );
+#         my @B = NESW( $airportLongitude, $airportLatitude );
+# 
+#         # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
+#         my $km = great_circle_distance( @A, @B, 6378.137 );
+#         my $nm = great_circle_distance( @A, @B, 3443.89849 );
+# 
+#         $fixes_from_db{$fixname}{"Name"}     = $fixname;
+#         $fixes_from_db{$fixname}{"Lat"}      = $lat;
+#         $fixes_from_db{$fixname}{"Lon"}      = $lon;
+#         $fixes_from_db{$fixname}{"Type"}     = $fixtype;
+#         $fixes_from_db{$fixname}{"Distance"} = $nm;
+#     }
+# 
+#     # my $nmLatitude  = 60 * $radius;
+#     # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
+# 
+#     #     if ($debug) {
+#     #         my $_rows  = $sth->rows();
+#     #         my $fields = $sth->{NUM_OF_FIELDS};
+#     #         say
+#     #           "Found $_rows FIXES within $radiusNm nm of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
+#     #
+#     #         say "All $type fixes from database";
+#     #         say "We have selected $fields field(s)";
+#     #         say "We have selected $_rows row(s)";
+#     #
+#     #         #print Dumper ( \%fixes_from_db );
+#     #         say "";
+#     #     }
+# 
+#     return ( \%fixes_from_db );
+# }
 
 sub findFixesNearAirport2 {
 
@@ -583,6 +701,65 @@ sub findFixesNearAirport2 {
     return ( \%fixes_from_db );
 }
 
+sub findFixesNearAirport3 {
+
+    #Validate and set input parameters to this function
+    my ( $airportLongitude, $airportLatitude ) =
+      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+
+    # my $radius = .5;
+    my $radiusNm = 50;
+
+    #Calculate radius for the airport's latitude
+    my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
+      radiusGivenLatitude( $radiusNm, $airportLatitude );
+
+    #Query the database for fixes within our $radius
+    my $sth = $dbh2->prepare(
+        "
+        SELECT
+	  national_airspace_system_nas_identifier_for_the_fix_usually_5_c
+	  ,latitude
+	  ,longitude
+	  ,fix_use
+
+	  FROM
+	  fix_fix1
+        WHERE  
+        (CAST (latitude as real) >  $airportLatitude - $radiusDegreesLatitude ) 
+        and 
+        (CAST (latitude as real) < $airportLatitude + $radiusDegreesLatitude )
+        and 
+        (CAST (longitude as real) >  $airportLongitude - $radiusDegreesLongitude ) 
+        and 
+        (CAST (longitude as real) < $airportLongitude + $radiusDegreesLongitude ) 
+"
+    );
+    $sth->execute();
+
+    my $allSqlQueryResults = $sth->fetchall_arrayref();
+
+    my %fixes_from_db;
+
+    foreach my $_row (@$allSqlQueryResults) {
+        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
+
+        my @A = NESW( $lon, $lat );
+        my @B = NESW( $airportLongitude, $airportLatitude );
+
+        # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
+        my $km = great_circle_distance( @A, @B, 6378.137 );
+        my $nm = great_circle_distance( @A, @B, 3443.89849 );
+
+        $fixes_from_db{$fixname}{"Name"}     = $fixname;
+        $fixes_from_db{$fixname}{"Lat"}      = $lat;
+        $fixes_from_db{$fixname}{"Lon"}      = $lon;
+        $fixes_from_db{$fixname}{"Type"}     = $fixtype;
+        $fixes_from_db{$fixname}{"Distance"} = $nm;
+    }
+
+    return ( \%fixes_from_db );
+}
 sub radiusGivenLatitude {
 
     #Validate and set input parameters to this function
@@ -597,73 +774,73 @@ sub radiusGivenLatitude {
 
 }
 
-sub findGpsWaypointsNearAirport {
-
-    #Validate and set input parameters to this function
-    my ( $airportLongitude, $airportLatitude ) =
-      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
-
-    #How far away from the airport to look for feature
-    my $radiusNm = 40;
-
-    #Calculate radius for the airport's latitude
-    my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
-      radiusGivenLatitude( $radiusNm, $airportLatitude );
-
-    #What type of fixes to look for
-    my $type = "%";
-
-    my $sth = $dbh->prepare(
-        "SELECT * 
-        FROM fixes 
-        WHERE  
-        (Latitude >  $airportLatitude - $radiusDegreesLatitude ) 
-        and 
-        (Latitude < $airportLatitude + $radiusDegreesLatitude )
-        and 
-        (Longitude >  $airportLongitude - $radiusDegreesLongitude ) 
-        and 
-        (Longitude < $airportLongitude + $radiusDegreesLongitude ) 
-        and
-        (Type like '$type')"
-    );
-    $sth->execute();
-    my $allSqlQueryResults = $sth->fetchall_arrayref();
-
-    my %gpswaypoints_from_db;
-
-    foreach my $_row (@$allSqlQueryResults) {
-        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
-
-        my @A = NESW( $lon, $lat );
-        my @B = NESW( $airportLongitude, $airportLatitude );
-
-        # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
-        my $km = great_circle_distance( @A, @B, 6378.137 );
-        my $nm = great_circle_distance( @A, @B, 3443.89849 );
-
-        $gpswaypoints_from_db{$fixname}{"Name"}     = $fixname;
-        $gpswaypoints_from_db{$fixname}{"Lat"}      = $lat;
-        $gpswaypoints_from_db{$fixname}{"Lon"}      = $lon;
-        $gpswaypoints_from_db{$fixname}{"Type"}     = $fixtype;
-        $gpswaypoints_from_db{$fixname}{"Distance"} = $nm;
-
-    }
-
-    #     if ($debug) {
-    #         my $_rows  = $sth->rows();
-    #         my $fields = $sth->{NUM_OF_FIELDS};
-    #         say
-    #           "Found $_rows GPS waypoints within $radiusNm NM of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
-    #         say "All $type fixes from database";
-    #         say "We have selected $fields field(s)";
-    #         say "We have selected $_rows row(s)";
-    #
-    #         #print Dumper ( \%gpswaypoints_from_db );
-    #         say "";
-    #     }
-    return ( \%gpswaypoints_from_db );
-}
+# sub findGpsWaypointsNearAirport {
+# 
+#     #Validate and set input parameters to this function
+#     my ( $airportLongitude, $airportLatitude ) =
+#       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+# 
+#     #How far away from the airport to look for feature
+#     my $radiusNm = 40;
+# 
+#     #Calculate radius for the airport's latitude
+#     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
+#       radiusGivenLatitude( $radiusNm, $airportLatitude );
+# 
+#     #What type of fixes to look for
+#     my $type = "%";
+# 
+#     my $sth = $dbh->prepare(
+#         "SELECT * 
+#         FROM fixes 
+#         WHERE  
+#         (Latitude >  $airportLatitude - $radiusDegreesLatitude ) 
+#         and 
+#         (Latitude < $airportLatitude + $radiusDegreesLatitude )
+#         and 
+#         (Longitude >  $airportLongitude - $radiusDegreesLongitude ) 
+#         and 
+#         (Longitude < $airportLongitude + $radiusDegreesLongitude ) 
+#         and
+#         (Type like '$type')"
+#     );
+#     $sth->execute();
+#     my $allSqlQueryResults = $sth->fetchall_arrayref();
+# 
+#     my %gpswaypoints_from_db;
+# 
+#     foreach my $_row (@$allSqlQueryResults) {
+#         my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
+# 
+#         my @A = NESW( $lon, $lat );
+#         my @B = NESW( $airportLongitude, $airportLatitude );
+# 
+#         # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
+#         my $km = great_circle_distance( @A, @B, 6378.137 );
+#         my $nm = great_circle_distance( @A, @B, 3443.89849 );
+# 
+#         $gpswaypoints_from_db{$fixname}{"Name"}     = $fixname;
+#         $gpswaypoints_from_db{$fixname}{"Lat"}      = $lat;
+#         $gpswaypoints_from_db{$fixname}{"Lon"}      = $lon;
+#         $gpswaypoints_from_db{$fixname}{"Type"}     = $fixtype;
+#         $gpswaypoints_from_db{$fixname}{"Distance"} = $nm;
+# 
+#     }
+# 
+#     #     if ($debug) {
+#     #         my $_rows  = $sth->rows();
+#     #         my $fields = $sth->{NUM_OF_FIELDS};
+#     #         say
+#     #           "Found $_rows GPS waypoints within $radiusNm NM of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) from database";
+#     #         say "All $type fixes from database";
+#     #         say "We have selected $fields field(s)";
+#     #         say "We have selected $_rows row(s)";
+#     #
+#     #         #print Dumper ( \%gpswaypoints_from_db );
+#     #         say "";
+#     #     }
+#     return ( \%gpswaypoints_from_db );
+# }
 
 sub NESW {
 
@@ -675,15 +852,75 @@ sub NESW {
     return deg2rad($airportLongitude), deg2rad( 90 - $airportLatitude );
 }
 
-sub findNavaidsNearAirport {
+# sub findNavaidsNearAirport {
+# 
+#     #Validate and set input parameters to this function
+#     my ( $airportLongitude, $airportLatitude ) =
+#       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+# 
+#     # my $radius      = .7;
+#     # my $nmLatitude  = 60 * $radius;
+#     # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
+# 
+#     #How far away from the airport to look for feature
+#     my $radiusNm = 30;
+# 
+#     #Calculate radius for the airport's latitude
+#     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
+#       radiusGivenLatitude( $radiusNm, $airportLatitude );
+# 
+#     #What type of fixes to look for
+#     my $type = "%VOR%";
+# 
+#     #Query the database for fixes within our $radius
+#     my $sth = $main::dbh->prepare(
+#         "SELECT * 
+#         FROM navaids 
+#         WHERE  
+#         (Latitude >  $airportLatitude - $radiusDegreesLatitude ) 
+#         and 
+#         (Latitude < $airportLatitude + $radiusDegreesLatitude )
+#         and 
+#         (Longitude >  $airportLongitude - $radiusDegreesLongitude ) 
+#         and 
+#         (Longitude < $airportLongitude + $radiusDegreesLongitude ) 
+#         --and
+#         --(Type like '$type' OR  Type like '%NDB%')
+#         "
+#     );
+#     $sth->execute();
+#     my $allSqlQueryResults = $sth->fetchall_arrayref();
+# 
+#     my %navaids_from_db;
+# 
+#     foreach my $_row (@$allSqlQueryResults) {
+#         my ( $navaidName, $lat, $lon, $navaidType ) = @$_row;
+# 
+#         #Ignore VOTs
+#         next if ( $navaidType =~ /^VOT$/i );
+# 
+#         my @A = NESW( $lon, $lat );
+#         my @B = NESW( $airportLongitude, $airportLatitude );
+# 
+#         # Last number is radius of earth in whatever units (eg 6378.137 is kilometers
+#         my $km = great_circle_distance( @A, @B, 6378.137 );
+#         my $nm = great_circle_distance( @A, @B, 3443.89849 );
+# 
+#         $navaids_from_db{ $navaidName . $navaidType }{"Name"}     = $navaidName;
+#         $navaids_from_db{ $navaidName . $navaidType }{"Lat"}      = $lat;
+#         $navaids_from_db{ $navaidName . $navaidType }{"Lon"}      = $lon;
+#         $navaids_from_db{ $navaidName . $navaidType }{"Type"}     = $navaidType;
+#         $navaids_from_db{ $navaidName . $navaidType }{"Distance"} = $nm;
+# 
+#     }
+#     return ( \%navaids_from_db );
+# }
+
+sub findNavaidsNearAirport2 {
 
     #Validate and set input parameters to this function
     my ( $airportLongitude, $airportLatitude ) =
       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
-
-    # my $radius      = .7;
-    # my $nmLatitude  = 60 * $radius;
-    # my $nmLongitude = $nmLatitude * cos( deg2rad($airportLatitudeDec) );
 
     #How far away from the airport to look for feature
     my $radiusNm = 30;
@@ -692,23 +929,25 @@ sub findNavaidsNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-    #What type of fixes to look for
-    my $type = "%VOR%";
-
     #Query the database for fixes within our $radius
-    my $sth = $main::dbh->prepare(
-        "SELECT * 
-        FROM navaids 
+    my $sth = $main::dbh2->prepare(
+        "SELECT
+	  navaid_facility_identifier
+	  ,latitude
+	  ,longitude
+	  ,navaid_facility_type_see_description
+	
+	FROM nav_nav1
+
         WHERE  
-        (Latitude >  $airportLatitude - $radiusDegreesLatitude ) 
+        (CAST (latitude as REAL) >  $airportLatitude - $radiusDegreesLatitude ) 
         and 
-        (Latitude < $airportLatitude + $radiusDegreesLatitude )
+        (CAST (latitude as REAL) < $airportLatitude + $radiusDegreesLatitude )
         and 
-        (Longitude >  $airportLongitude - $radiusDegreesLongitude ) 
+        (CAST (longitude as REAL) >  $airportLongitude - $radiusDegreesLongitude ) 
         and 
-        (Longitude < $airportLongitude + $radiusDegreesLongitude ) 
-        --and
-        --(Type like '$type' OR  Type like '%NDB%')
+        (CAST (longitude as REAL) < $airportLongitude + $radiusDegreesLongitude ) 
+
         "
     );
     $sth->execute();
@@ -738,18 +977,104 @@ sub findNavaidsNearAirport {
     }
     return ( \%navaids_from_db );
 }
+# sub findRunwaysInDatabase {
+#     #
+#     #Validate and set input parameters to this function
+#     my ($FAA_CODE) =
+#       validate_pos( @_, { type => SCALAR } );
+# 
+#     my $sth = $main::dbh->prepare(
+#         "SELECT * 
+#         FROM runways 
+#         WHERE 
+#          FaaID = '$FAA_CODE'
+#         "
+#     );
+#     $sth->execute();
+# 
+#     my $all = $sth->fetchall_arrayref();
+# 
+#     #     #How many rows did this search return
+#     #     my $_rows = $sth->rows();
+#     #     say "Found $_rows runways for $main::airportId" if $debug;
+# 
+#     my %runwaysFromDatabase;
+# 
+#     foreach my $_row (@$all) {
+#         my (
+#             $FaaID,      $Length,      $Width,       $LEName,
+#             $LELatitude, $LELongitude, $LEElevation, $LEHeading,
+#             $HEName,     $HELatitude,  $HELongitude, $HEElevation,
+#             $HEHeading
+#         ) = @$_row;
+# 
+#         # foreach my $_row2 (@$all) {
+#         # my (
+#         # $FaaID2,      $Length2,      $Width2,       $LEName2,
+#         # $LELatitude2, $LELongitude2, $LEElevation2, $LEHeading2,
+#         # $HEName2,     $HELatitude2,  $HELongitude2, $HEElevation2,
+#         # $HEHeading2
+#         # ) = @$_row2;
+#         # #Don't testg
+#         # next if ($LEName eq $LEName2);
+# 
+#         # }
+#         #Skip helipads or waterways
+#         next if ( $LEName =~ /[HW]/i );
+#         next
+#           unless ( $FaaID
+#             && $Length
+#             && $Width
+#             && $LEName
+#             && $LELatitude
+#             && $LELongitude
+#             && $LEElevation
+#             && $LEHeading
+#             && $HEName
+#             && $HELatitude
+#             && $HELongitude
+#             && $HEElevation
+#             && $HEHeading );
+# 
+#         #$runwaysFromDatabase{$LEName}{} = $trueHeading;
+#         $runwaysFromDatabase{ $LEName . $HEName }{'LELatitude'}  = $LELatitude;
+#         $runwaysFromDatabase{ $LEName . $HEName }{'LELongitude'} = $LELongitude;
+#         $runwaysFromDatabase{ $LEName . $HEName }{'LEHeading'}   = $LEHeading;
+#         $runwaysFromDatabase{ $LEName . $HEName }{'HELatitude'}  = $HELatitude;
+#         $runwaysFromDatabase{ $LEName . $HEName }{'HELongitude'} = $HELongitude;
+#         $runwaysFromDatabase{ $LEName . $HEName }{'HEHeading'}   = $HEHeading;
+# 
+#     }
+#     return ( \%runwaysFromDatabase );
+# }
 
-sub findRunwaysInDatabase {
+sub findRunwaysInDatabase2 {
     #
     #Validate and set input parameters to this function
     my ($FAA_CODE) =
       validate_pos( @_, { type => SCALAR } );
 
-    my $sth = $main::dbh->prepare(
-        "SELECT * 
-        FROM runways 
-        WHERE 
-         FaaID = '$FAA_CODE'
+    my $sth = $main::dbh2->prepare(
+        "
+      SELECT 
+    rwy. base_end_identifier
+,rwy.base_latitude
+,rwy.base_longitude
+,rwy.base_runway_end_true_alignment
+,rwy.reciprocal_end_identifier
+,rwy.reciprocal_latitude
+,rwy.reciprocal_longitude
+,rwy.reciprocal_runway_end_true_alignment
+,rwy.runway_identification
+      FROM 
+	apt_apt AS apt
+      JOIN 
+	apt_rwy AS rwy
+      ON 
+	apt.landing_facility_site_number=rwy.landing_facility_site_number
+      WHERE
+        apt.location_identifier = '$FAA_CODE'
+      ;
         "
     );
     $sth->execute();
@@ -764,39 +1089,23 @@ sub findRunwaysInDatabase {
 
     foreach my $_row (@$all) {
         my (
-            $FaaID,      $Length,      $Width,       $LEName,
-            $LELatitude, $LELongitude, $LEElevation, $LEHeading,
-            $HEName,     $HELatitude,  $HELongitude, $HEElevation,
-            $HEHeading
+            $LEName,     $LELatitude, $LELongitude,  $LEHeading,
+            $HEName,     $HELatitude,  $HELongitude, $HEHeading
         ) = @$_row;
 
-        # foreach my $_row2 (@$all) {
-        # my (
-        # $FaaID2,      $Length2,      $Width2,       $LEName2,
-        # $LELatitude2, $LELongitude2, $LEElevation2, $LEHeading2,
-        # $HEName2,     $HELatitude2,  $HELongitude2, $HEElevation2,
-        # $HEHeading2
-        # ) = @$_row2;
-        # #Don't testg
-        # next if ($LEName eq $LEName2);
-
-        # }
+       
         #Skip helipads or waterways
         next if ( $LEName =~ /[HW]/i );
         next
-          unless ( $FaaID
-            && $Length
-            && $Width
-            && $LEName
+          unless (            
+               $LEName
             && $LELatitude
             && $LELongitude
-            && $LEElevation
-            && $LEHeading
+           
             && $HEName
             && $HELatitude
-            && $HELongitude
-            && $HEElevation
-            && $HEHeading );
+            && $HELongitude      
+            );
 
         #$runwaysFromDatabase{$LEName}{} = $trueHeading;
         $runwaysFromDatabase{ $LEName . $HEName }{'LELatitude'}  = $LELatitude;
@@ -862,10 +1171,11 @@ sub findPlatesNotMarkedManually {
         STATE_ID LIKE  '$main::stateId'                   
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
+        --  AND
+        --DG.STATUS LIKE '%ADDEDCHANGED%'
           AND
-        DG.STATUS LIKE '%ADDEDCHANGED%'
-          AND
-        DG.STATUS NOT LIKE '%NOGEOREF%'
+        --DG.STATUS NOT LIKE '%NOGEOREF%'
+        DG.STATUS NOT LIKE '%MANUALGOOD%'
       ORDER BY
         D.FAA_CODE ASC
 ;"
@@ -967,7 +1277,9 @@ sub findPlatesMarkedBad {
       ON
 	D.PDF_NAME=DG.PDF_NAME
       WHERE
-        ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )
+        ( CHART_CODE = 'IAP' 
+          OR 
+        CHART_CODE = 'APD' )
            AND
 	FAA_CODE LIKE  '$main::airportId' 
            AND
@@ -1420,6 +1732,7 @@ sub cairo_draw {
 
                 my $textviewBuffer = $main::textview1->get_buffer;
                 my $iter           = $textviewBuffer->get_iter_at_offset(0);
+                if ($segment1Length && $segment3Length) {
                 $textviewBuffer->insert(
                     $iter,
                     "Angles: "
@@ -1436,7 +1749,7 @@ sub cairo_draw {
                       )
                       . "\n"
                 );
-
+}
                 # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
 
                 #             #say rad2deg(@vertexAngles[0]);
@@ -1844,11 +2157,11 @@ sub activateNewPlate {
 
     #Pull airport lon/lat from database
     ( $main::airportLatitudeDec, $main::airportLongitudeDec ) =
-      findAirportLatitudeAndLongitude($FAA_CODE);
+      findAirportLatitudeAndLongitude2($FAA_CODE);
 
     #---------------------------------------------------------------------------------------
     #Look up runways for this airport from the database
-    our $runwaysFromDatabaseHashref = findRunwaysInDatabase($FAA_CODE);
+    our $runwaysFromDatabaseHashref = findRunwaysInDatabase2($FAA_CODE);
 
     #Testing adding liststore programmmatically to partially glade-built interface
     # Create TreeModel
@@ -1913,7 +2226,7 @@ sub activateNewPlate {
         #---------------------------------------------------------------------------------------
         #Find navaids near the airport
         our $navaids_from_db_hashref =
-          findNavaidsNearAirport( $main::airportLongitudeDec,
+          findNavaidsNearAirport2( $main::airportLongitudeDec,
             $main::airportLatitudeDec );
 
         #     print Dumper($navaids_from_db_hashref);
@@ -1956,7 +2269,7 @@ sub activateNewPlate {
 
         #Find fixes near the airport
         our $fixes_from_db_hashref =
-          findFixesNearAirport( $main::airportLongitudeDec,
+          findFixesNearAirport3( $main::airportLongitudeDec,
             $main::airportLatitudeDec );
 
         our $fixes_from_db_iap_hashref =
@@ -2009,7 +2322,7 @@ sub activateNewPlate {
         #---------------------------------------------------
         #Find obstacles near the airport
         our $unique_obstacles_from_db_hashref =
-          findObstaclesNearAirport( $main::airportLongitudeDec,
+          findObstaclesNearAirport2( $main::airportLongitudeDec,
             $main::airportLatitudeDec );
 
         #     print Dumper($unique_obstacles_from_db_hashref);
@@ -2633,7 +2946,7 @@ sub coordinateToDecimal2 {
 
     my $signeddegrees;
 
-    return "" if !( $declination =~ /[NSEW]/ );
+    return "" if !( $declination =~ /[NSEW]/i );
 
     $deg = $deg / 1;
     $min = $min / 60;
@@ -2641,7 +2954,7 @@ sub coordinateToDecimal2 {
 
     $signeddegrees = ( $deg + $min + $sec );
 
-    if ( ( $declination eq "S" ) || ( $declination eq "W" ) ) {
+    if ( ( $declination =~ /[SW]/i ) ) {
         $signeddegrees = -($signeddegrees);
     }
 
@@ -2778,7 +3091,7 @@ sub nextButtonClick {
 
 sub activatePreviousPlate {
 
-    #Get the index of which plate we want to advance to on marking
+    #Get the index of which type of plate we want to advance to on marking
     my $comboIndex = $main::comboboxtext1->get_active;
     say $comboIndex;
     my $rowRef;
@@ -2835,7 +3148,8 @@ sub activatePreviousPlate {
 
         }
     }
-
+    #Update information for the plate we're getting ready to display
+    activateNewPlate($rowRef);
     #---------------------------------------
 }
 

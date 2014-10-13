@@ -181,60 +181,62 @@ sub main {
             link( "$inputDir" . "$pngName",
                 "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$pngName" );
 
-            my $worldfilePath =
-              "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$worldFileName";
+            if ( $upperLeftLon && $upperLeftLat ) {
+                my $worldfilePath =
+                  "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$worldFileName";
 
-            #Create the world file
-            open( my $fh, '>', $worldfilePath )
-              or die "Could not open file '$worldfilePath' $!";
+                #Create the world file
+                open( my $fh, '>', $worldfilePath )
+                  or die "Could not open file '$worldfilePath' $!";
 
-            if ( $yPixelSize > 0 ) {
+                if ( $yPixelSize > 0 ) {
 
-                #                 say "Converting $yPixelSize to negative";
-                $yPixelSize = -($yPixelSize);
+                    #                 say "Converting $yPixelSize to negative";
+                    $yPixelSize = -($yPixelSize);
+                }
+
+                #             if ($xPixelSkew != 0 && $yPixelSkew == 0)
+                # 	      {
+                # # say "Something wrong with X skew on $FAA_CODE ($PDF_NAME)";
+                # }
+                # 	    if ($yPixelSkew != 0 && $xPixelSkew == 0)
+                # 	      {
+                # # 	      say "Something wrong with Y skew on $FAA_CODE ($PDF_NAME)";
+                # 	      }
+                # 	    if ($yPixelSkew != 0 && $xPixelSkew != 0)
+                # # 	      {say "Non-zero X and Y skew on $FAA_CODE ($PDF_NAME)";}
+                #
+                # 	    if (abs($yPixelSize) < 0.00001 )
+                # # 	      {say " yPixelSize too small (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+                #
+                # 	    if (abs($yPixelSize) > 0.00009 )
+                # # 	      {say " yPixelSize too big (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+                #
+                # 	    if ($xPixelSize < 0.00001 )
+                # # 	      {say " xPixelSize too small (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+                #
+                # 	    if ($xPixelSize > 0.00009 )
+                # # 	      {say " xPixelSize too big (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+
+                #             say $fh $xPixelSize;
+                say $fh sprintf( $numberFormat, $xPixelSize );
+
+                #             say $fh $yPixelSkew;
+                say $fh sprintf( $numberFormat, $yPixelSkew );
+
+                #             say $fh $xPixelSkew;
+                say $fh sprintf( $numberFormat, $xPixelSkew );
+
+                #             say $fh $yPixelSize;
+                say $fh sprintf( $numberFormat, $yPixelSize );
+
+                #             say $fh $upperLeftLon;
+                say $fh sprintf( $numberFormat, $upperLeftLon );
+
+                #             say $fh $upperLeftLat;
+                say $fh sprintf( $numberFormat, $upperLeftLat );
+                close $fh;
             }
-
-            #             if ($xPixelSkew != 0 && $yPixelSkew == 0)
-            # 	      {
-            # # say "Something wrong with X skew on $FAA_CODE ($PDF_NAME)";
-            # }
-            # 	    if ($yPixelSkew != 0 && $xPixelSkew == 0)
-            # 	      {
-            # # 	      say "Something wrong with Y skew on $FAA_CODE ($PDF_NAME)";
-            # 	      }
-            # 	    if ($yPixelSkew != 0 && $xPixelSkew != 0)
-            # # 	      {say "Non-zero X and Y skew on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if (abs($yPixelSize) < 0.00001 )
-            # # 	      {say " yPixelSize too small (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if (abs($yPixelSize) > 0.00009 )
-            # # 	      {say " yPixelSize too big (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if ($xPixelSize < 0.00001 )
-            # # 	      {say " xPixelSize too small (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if ($xPixelSize > 0.00009 )
-            # # 	      {say " xPixelSize too big (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-
-            #             say $fh $xPixelSize;
-            say $fh sprintf( $numberFormat, $xPixelSize );
-
-            #             say $fh $yPixelSkew;
-            say $fh sprintf( $numberFormat, $yPixelSkew );
-
-            #             say $fh $xPixelSkew;
-            say $fh sprintf( $numberFormat, $xPixelSkew );
-
-            #             say $fh $yPixelSize;
-            say $fh sprintf( $numberFormat, $yPixelSize );
-
-            #             say $fh $upperLeftLon;
-            say $fh sprintf( $numberFormat, $upperLeftLon );
-
-            #             say $fh $upperLeftLat;
-            say $fh sprintf( $numberFormat, $upperLeftLat );
-            close $fh;
 
             #             if ( $CHART_CODE eq "APD" ) {
             #                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
