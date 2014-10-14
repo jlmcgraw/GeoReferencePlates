@@ -20,12 +20,15 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 #-------------------------------------------------------------------------------------------------------------------------------------------
 
-#Check the squareness of the "graticule"
+#To-do
 #Make auto-routine run only on added,changed IAPs, APDs
 #Use status area of GUI
-#Show chosen GCP coordinate
 #Have auto-apd code save/restore GCP hash
+
+#Done
 #Start using processFaa2 database
+#Show chosen GCP coordinate
+#Check the squareness of the "graticule"
 
 use 5.010;
 
@@ -223,8 +226,8 @@ our $fixesBox        = $builder->get_object('scrolledwindow5');
 our $obstaclesBox    = $builder->get_object('scrolledwindow6');
 our $gcpBox          = $builder->get_object('scrolledwindow3');
 our $lonLatTextEntry = $builder->get_object('lonLatTextEntry');
-our $statusBar       = $builder->get_object('statusbar1');
-our $context_id      = $statusBar->get_context_id("Statusbar");
+# our $statusBar       = $builder->get_object('statusbar1');
+# our $context_id      = $statusBar->get_context_id("Statusbar");
 our $textview1       = $builder->get_object('textview1');
 our $comboboxtext1   = $builder->get_object('comboboxtext1');
 
@@ -786,9 +789,10 @@ sub findPlatesNotMarkedManually {
         DG.PDF_NAME NOT LIKE '%DELETED%'
         --  AND
         --DG.STATUS LIKE '%ADDEDCHANGED%'
-          AND
+        --  AND
         --DG.STATUS NOT LIKE '%NOGEOREF%'
-        DG.STATUS NOT LIKE '%MANUALGOOD%'
+          AND
+        DG.STATUS NOT LIKE '%MANUAL%'
       ORDER BY
         D.FAA_CODE ASC
 ;"
@@ -1745,10 +1749,10 @@ sub activateNewPlate {
         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew
     ) = @$rowRef;
 
-    $main::statusBar->push( $context_id,
-        "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME"
-    );
-    say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
+#     $main::statusBar->push( $context_id,
+#         "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME"
+#     );
+#     say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
 
     my $textviewBuffer = $main::textview1->get_buffer;
     my $iter           = $textviewBuffer->get_iter_at_offset(0);
@@ -1989,9 +1993,9 @@ sub activateNewPlate {
     #Populate the GCP box from stored GCP hash if it exists
     our $gcp_from_db_hashref;
     if ( -e $storedGcpHash ) {
-        $main::statusBar->push( $context_id,
-            "Loading existing hash table $storedGcpHash" );
-        say "Loading existing hash table $storedGcpHash";
+#         $main::statusBar->push( $context_id,
+#             "Loading existing hash table $storedGcpHash" );
+#         say "Loading existing hash table $storedGcpHash";
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,
@@ -2003,9 +2007,9 @@ sub activateNewPlate {
 
     }
     else {
-        $main::statusBar->push( $context_id,
-            "No stored GCP hash, creating an empty one" );
-        say "No stored GCP hash, creating an empty one";
+#         $main::statusBar->push( $context_id,
+#             "No stored GCP hash, creating an empty one" );
+#         say "No stored GCP hash, creating an empty one";
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,

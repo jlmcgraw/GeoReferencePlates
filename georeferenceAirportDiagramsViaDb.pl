@@ -168,6 +168,7 @@ our $successCount  = 0;
 our $failCount     = 0;
 our $noTextCount   = 0;
 our $noPointsCount = 0;
+
 foreach my $_row (@$_allSqlQueryResults) {
 
     (
