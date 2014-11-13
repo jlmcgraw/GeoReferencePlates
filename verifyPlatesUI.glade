@@ -194,6 +194,7 @@
                   <item id="0" translatable="yes">Non-Manual</item>
                   <item id="1" translatable="yes">Added/Changed</item>
                   <item id="2" translatable="yes">Bad</item>
+                  <item id="3" translatable="yes">All</item>
                 </items>
               </object>
               <packing>

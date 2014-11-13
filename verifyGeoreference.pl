@@ -182,6 +182,7 @@ $dtppDbh->do("PRAGMA synchronous=OFF");
 
 #a reference to an array of all IAP and APD charts
 my $_allPlates = allIapAndApdCharts();
+my $indexIntoAllPlates = 0;
 
 #a reference to an array of charts with no longitude or latitude info
 my $_platesNotMarkedManually    = findPlatesNotMarkedManually();
@@ -389,17 +390,31 @@ sub findObstaclesNearAirport {
 
     foreach my $_row (@$all) {
         my ( $heightMsl, $lat, $lon ) = @$_row;
-        if ( exists $unique_obstacles_from_db{$heightMsl} ) {
-
-            #This is a duplicate obstacle
-            $lat = $lon = 0;
-        }
+        
+#         if ( exists $unique_obstacles_from_db{$heightMsl} ) {
+# 
+#             #This is a duplicate obstacle
+#             $lat = $lon = 0;
+#         }
+# 
+#         #Populate variables from our database lookup
+# 
+#         $unique_obstacles_from_db{$heightMsl}{"Name"} = $heightMsl;
+#         $unique_obstacles_from_db{$heightMsl}{"Lat"}  = $lat;
+#         $unique_obstacles_from_db{$heightMsl}{"Lon"}  = $lon;
+# 
+#     }
+#         if ( exists $unique_obstacles_from_db{$lon . $lat} ) {
+# 
+#             #This is a duplicate obstacle
+#             $lat = $lon = 0;
+#         }
 
         #Populate variables from our database lookup
 
-        $unique_obstacles_from_db{$heightMsl}{"Name"} = $heightMsl;
-        $unique_obstacles_from_db{$heightMsl}{"Lat"}  = $lat;
-        $unique_obstacles_from_db{$heightMsl}{"Lon"}  = $lon;
+        $unique_obstacles_from_db{$lon . $lat}{"Name"} = $heightMsl;
+        $unique_obstacles_from_db{$lon . $lat}{"Lat"}  = $lat;
+        $unique_obstacles_from_db{$lon . $lat}{"Lon"}  = $lon;
 
     }
 
@@ -747,6 +762,48 @@ sub usage {
 sub findPlatesNotMarkedManually {
 
     #Charts with no lon/lat
+#     my $dtppSth = $dtppDbh->prepare( "
+#       SELECT 
+# 	D.TPP_VOLUME
+# 	,D.FAA_CODE    
+# 	,D.CHART_SEQ 
+# 	,D.CHART_CODE
+#         ,D.CHART_NAME   
+#         ,D.USER_ACTION
+#         ,D.PDF_NAME
+#         ,D.FAANFD18_CODE
+#         ,D.MILITARY_USE
+#         ,D.COPTER_USE
+#         ,D.STATE_ID
+# 	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
+# 	,DG.upperLeftLon
+# 	,DG.upperLeftLat
+# 	,DG.lowerRightLon
+# 	,DG.lowerRightLat
+# 	,DG.xMedian
+# 	,DG.yMedian
+# 	,DG.xPixelSkew
+# 	,DG.yPixelSkew
+#       FROM 
+# 	dtpp as D 
+#       JOIN 
+# 	dtppGeo as DG 
+#       ON 
+# 	D.PDF_NAME=DG.PDF_NAME
+#       WHERE
+#       d.military_use = 'N'
+#       and
+#       d.PDF_NAME not like '%vis%'
+#            and
+#       d.PDF_NAME not like '%h%'
+#       and
+#         D.CHART_CODE = 'IAP'            
+# 	  and
+#          dg.status like '%bad%'
+# 
+#       ;
+# ;"
+#     );
     my $dtppSth = $dtppDbh->prepare( "
       SELECT 
 	D.TPP_VOLUME
@@ -776,25 +833,17 @@ sub findPlatesNotMarkedManually {
       ON 
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
-        ( 
-        CHART_CODE = 'IAP'
-         OR 
-        CHART_CODE = 'APD' 
-        )                 
-           AND 
-        FAA_CODE LIKE  '$main::airportId' 
-           AND
-        STATE_ID LIKE  '$main::stateId'                   
-          AND
-        DG.PDF_NAME NOT LIKE '%DELETED%'
-        --  AND
-        --DG.STATUS LIKE '%ADDEDCHANGED%'
-        --  AND
-        --DG.STATUS NOT LIKE '%NOGEOREF%'
-          AND
-        DG.STATUS NOT LIKE '%MANUAL%'
-      ORDER BY
-        D.FAA_CODE ASC
+      d.military_use = 'N'
+--       and
+--       d.PDF_NAME not like '%vis%'
+           and
+      d.PDF_NAME not like '%h%'
+      and
+        D.CHART_CODE = 'IAP'            
+	  and
+         dg.status like '%bad%'
+
+      ;
 ;"
     );
     $dtppSth->execute();
@@ -908,14 +957,9 @@ sub findPlatesMarkedBad {
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
         -- BUG TODO: Civilian charts only for now
-        --  AND
-        -- D.MILITARY_USE != 'M'
---          AND
---        CAST (DG.yScaleAvgSize AS FLOAT) > 1
---          AND
---        CAST (DG.xScaleAvgSize as FLOAT) > 1
---          AND
---        Difference  > .08
+          AND
+         D.MILITARY_USE != 'M'
+ 
       ORDER BY
         D.FAA_CODE ASC
 ;"
@@ -1684,6 +1728,10 @@ sub markNotReferenceableButtonClick {
     #Set this plate's status as not georeferenceable
     my ( $widget, $event ) = @_;
     updateStatus( "NOGEOREF", $main::PDF_NAME );
+    saveGroundControlPoints();
+    activateNextPlate();
+
+    #     say @$_platesNotMarkedManually;
 
     return TRUE;
 }
@@ -2527,6 +2575,15 @@ sub lonLatButtonClicked {
     my $latSeconds     = 0;
     my $latDeclination = $+{latDeclination};
 
+    #If the text starts with a '.' then it's interpreted as already being decimal
+    $text =~
+      m/\.(?<decimalLongitude>[\d\.-]{2,}),(?<decimaLatitude>[\d\.-]{2,})/ix;
+    
+    $lonDecimal     = $+{decimalLongitude};
+    $latDecimal     = $+{decimaLatitude};
+
+    say "decimal: $lonDecimal, $latDecimal";
+    
     #             say "$lonDegrees-$lonMinutes-$lonSeconds-$lonDeclination,$latDegrees-$latMinutes-$latSeconds-$latDeclination";
     if (   $lonDegrees
         && $lonMinutes
@@ -2679,6 +2736,21 @@ sub activateNextPlate {
             say "Next bad";
 
         }
+        when (/3/) {
+
+            #--------------------------------------
+            #Use this section to skip to next "bad" plate
+            my $totalPlateCount = scalar @{$_allPlates};
+
+	    if ( $indexIntoAllPlates < ( $totalPlateCount - 1 ) ) {
+                $indexIntoAllPlates += 1;
+            }
+            $rowRef = ( @$_allPlates[$indexIntoAllPlates] );
+            say "$indexIntoAllPlates / $totalPlateCount";
+
+            say "Next All";
+
+        }
     }
 
     #---------------------------------------
@@ -2733,7 +2805,7 @@ sub activatePreviousPlate {
               ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
             say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
 
-            say "Next non-Manual";
+            say "Previous non-Manual";
         }
         when (/1/) {
 
@@ -2749,7 +2821,7 @@ sub activatePreviousPlate {
 
             say "$indexIntoPlatesMarkedChanged/ $totalPlateCount";
 
-            say "Next added/changed";
+            say "Previous added/changed";
 
         }
         when (/2/) {
@@ -2764,7 +2836,22 @@ sub activatePreviousPlate {
             }
             $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
             say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-            say "Next bad";
+            say "Previous bad";
+
+        }
+         when (/3/) {
+
+            #--------------------------------------
+            #Use this section to skip to next "bad" plate
+            my $totalPlateCount = scalar @{$_allPlates};
+
+            #BUG TODO Make length of array
+            if ( $indexIntoAllPlates > 0 ) {
+                $indexIntoAllPlates--;
+            }
+            $rowRef = ( @$_allPlates[$indexIntoAllPlates] );
+            say "$indexIntoAllPlates / $totalPlateCount";
+            say "Next All";
 
         }
     }

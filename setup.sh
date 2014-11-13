@@ -11,3 +11,8 @@ sudo apt-get install libdbd-sqlite3-perl
 sudo apt-get install libimage-magick-perl
 sudo apt-get install libfile-slurp-perl
 sudo apt-get install libxml-xpath-perl
+sudo apt-get install libmath-round-perl
+sudo apt-get install libparams-validate-perl
+sudo apt-get install libgtk3-perl
+sudo apt-get install libgd-perl
+sudo apt-get install libparse-fixedlength-perl
