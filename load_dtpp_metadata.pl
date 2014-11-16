@@ -46,7 +46,7 @@ my $arg_num = scalar @ARGV;
 #We need at least one argument (the name of the PDF to process)
 if ( $arg_num < 2 ) {
     say "Specify base dir and cycle";
-    say "eg: $0 . 1410";
+    say "eg: $0 . 1412";
     exit(1);
 }
 
@@ -388,6 +388,8 @@ sub record {
     #We're only going to download IAPs or APDs, though all charts will be put in DB
     if ( !( $chart_code eq "APD" || $chart_code eq "IAP" ) ) { return; }
 
+  
+    
     if ( $user_action =~ /D/i ) {
         say "Deleting old " . "$dtppDownloadDir" . "$pdf_name";
         deleteStaleFiles($pdf_name);
@@ -427,7 +429,7 @@ sub record {
     }
 
     #If the pdf doesn't exist locally fetch it
-    if ( !-e ( "$dtppDownloadDir" . "$pdf_name" ) ) {
+    if (!($pdf_name =~ /DELETED/i) && ( !-e ( "$dtppDownloadDir" . "$pdf_name" )) ) {
 
         say "Download $chart_url_base"
           . "$pdf_name" . " -> "
@@ -478,7 +480,7 @@ sub record {
     }
 
     $twig->purge;
-
+ 
     return 1;
 }
 
@@ -487,6 +489,11 @@ sub deleteStaleFiles {
     my $pdf_name_lower = $pdf_name;
     $pdf_name_lower =~ s/\.PDF/\.pdf/;
 
+    #Pull out the various filename components of the input file from the command line
+    my ( $filename, $dir, $ext ) = fileparse( $pdf_name, qr/\.[^.]*/x );
+
+    my $targetPng = $dtppDownloadDir . $filename . ".png";
+    
     # say "Deleting "
     # . $dtppDownloadDir
     # . $pdf_name
@@ -506,9 +513,9 @@ sub deleteStaleFiles {
     }
 
     #delete the old .png
-    if ( -e ( "$dtppDownloadDir" . "$pdf_name" . "png" ) ) {
-        say "Deleting " . $dtppDownloadDir . $pdf_name . "png";
-        unlink( "$dtppDownloadDir" . "$pdf_name" . "png" );
+    if ( -e ( $targetPng ) ) {
+        say "Deleting " . $targetPng;
+        unlink( $targetPng );
     }
 
     #delete the outlines .pdf
@@ -531,7 +538,7 @@ sub deleteStaleFiles {
 sub convertPdfToPng {
 
     #Validate and set input parameters to this function
-    my ( $targetPdf, $targetpng ) =
+    my ( $targetPdf, $targetPng ) =
       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
 
     #DPI of the output PNG
@@ -539,10 +546,10 @@ sub convertPdfToPng {
 
     #Convert the PDF to a PNG
     my $pdfToPpmOutput;
-    if ( -e $targetpng ) {
+    if ( -e $targetPng ) {
         return;
     }
-    $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetpng);
+    $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetPng);
 
     my $retval = $? >> 8;
 

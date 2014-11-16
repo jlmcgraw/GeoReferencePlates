@@ -16,3 +16,5 @@ sudo apt-get install libparams-validate-perl
 sudo apt-get install libgtk3-perl
 sudo apt-get install libgd-perl
 sudo apt-get install libparse-fixedlength-perl
+sudo apt-get install libxml-twig-perl
+sudo apt-get install libparallel-forkmanager-perl
