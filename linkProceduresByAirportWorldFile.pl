@@ -110,8 +110,8 @@ sub main {
         )                          
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
---          AND
---        DG.STATUS LIKE '%MANUALGOOD%'
+          AND
+        DG.STATUS LIKE '%MANUALGOOD%'
 --          AND
 --        CAST (DG.xPixelSkew as FLOAT) > '0'    
 --        CAST (DG.upperLeftLon AS FLOAT) = '0'

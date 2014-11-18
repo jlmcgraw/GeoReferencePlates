@@ -429,6 +429,7 @@ sub record {
     }
 
     #If the pdf doesn't exist locally fetch it
+    #but don't bother trying to download DELETED charts
     if (!($pdf_name =~ /DELETED/i) && ( !-e ( "$dtppDownloadDir" . "$pdf_name" )) ) {
 
         say "Download $chart_url_base"
@@ -472,7 +473,7 @@ sub record {
 
     my $targetPng = $dtppDownloadDir . $filename . ".png";
 
-    if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) && !-e $targetPng ) {
+    if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) && !-e $targetPng && $user_action =~ /D/i) {
 
         #Convert the PDF to a PNG if one doesn't already exist
         say "Create PNG: $targetPdf -> $targetPng";
@@ -485,6 +486,7 @@ sub record {
 }
 
 sub deleteStaleFiles {
+    #First parameter is the name of the PDF (eg 00130RC.PDF)
     my $pdf_name       = shift @_;
     my $pdf_name_lower = $pdf_name;
     $pdf_name_lower =~ s/\.PDF/\.pdf/;

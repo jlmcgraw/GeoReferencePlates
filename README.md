@@ -42,7 +42,7 @@ How to get this utility up and running:
 		(currently included in the git repository)
 
 	Requires a database containing charting cycle information
-		(currently included in the git repository as dtpp.db.zip, unzip to use)
+		(create this with the load_dtpp_metadata.pl program)
 
 	Requires perl version > 5.010
 

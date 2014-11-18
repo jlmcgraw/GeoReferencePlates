@@ -832,18 +832,28 @@ sub findPlatesNotMarkedManually {
 	dtppGeo as DG 
       ON 
 	D.PDF_NAME=DG.PDF_NAME
-      WHERE  
-      d.military_use = 'N'
---       and
---       d.PDF_NAME not like '%vis%'
-           and
-      d.PDF_NAME not like '%h%'
-      and
-        D.CHART_CODE = 'IAP'            
-	  and
-         dg.status like '%bad%'
-
-      ;
+      WHERE
+        ( 
+         CHART_CODE = 'IAP' 
+           OR 
+         CHART_CODE = 'APD' 
+        )  
+          AND
+        FAA_CODE LIKE  '$main::airportId' 
+           AND
+        STATE_ID LIKE  '$main::stateId'   
+          AND
+        DG.PDF_NAME NOT LIKE '%DELETED%'
+        -- AND
+        -- DG.STATUS LIKE '%ADDEDCHANGED%'
+        -- AND
+        -- DG.STATUS NOT LIKE '%NOGEOREF%'
+        AND
+        DG.STATUS NOT LIKE '%MANUAL%'
+        AND
+        D.MILITARY_USE != 'M'
+      ORDER BY
+        D.FAA_CODE ASC
 ;"
     );
     $dtppSth->execute();

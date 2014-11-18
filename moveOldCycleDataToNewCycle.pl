@@ -76,6 +76,13 @@ sub main {
           = @$_row;
         state $rowCount = 0;
 
+        #Older databases sometimes have this as positive, let's convert to negative
+        #for the affine transform
+        if ( $yMedian > 0 ) {
+            say "Converting $yMedian to negative";
+            $yMedian = -($yMedian);
+        }
+        
         #say which row we're on every 1000 rows
         say "Copying row: $rowCount..."
           if ( $rowCount % 1000 == 0 );
