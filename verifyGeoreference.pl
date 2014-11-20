@@ -2135,7 +2135,8 @@ sub activateNewPlate {
     #Scale it to our available window size
     our $scaledPlate = load_image( $targetPng, $main::plateSw );
     $main::plate->set_from_pixbuf($scaledPlate);
-
+#      our $scaledPlate = scale_pixbuf(  $main::pixbuf, $main::plateSw );
+     
     my $originalImageWidth  = $main::pixbuf->get_width();
     my $originalImageHeight = $main::pixbuf->get_height();
     my $scaledImageWidth    = $main::scaledPlate->get_width();
@@ -2197,14 +2198,20 @@ sub activateNewPlate {
 
     #Connect this signal to draw features over the plate
     $main::plate->signal_connect_after( draw => \&cairo_draw );
-
+    $main::plateSw->queue_draw;
     return;
 }
 
 sub load_image {
 
     #Load and scale an image
-    my ( $file, $parent ) = @_;
+#     my ( $file, $parent ) = @_;
+     my ( $file, $parent ) = validate_pos(
+        @_,
+        { type => SCALAR },
+        { type => HASHREF }
+
+    );
     my $pixbuf = Gtk3::Gdk::Pixbuf->new_from_file($file);
     my $scaled = scale_pixbuf( $pixbuf, $parent );
     return $scaled;
@@ -2679,7 +2686,7 @@ sub updateStatus {
     my $textviewBuffer = $main::textview1->get_buffer;
     my $iter           = $textviewBuffer->get_iter_at_offset(0);
     $textviewBuffer->insert( $iter, " $_status -> $_PDF_NAME d\n\n" );
-    $main::textview1->scroll_to_iter( $iter, .5, TRUE, 0.5, 0.5 );
+    $main::textview1->scroll_to_iter( $iter, .4, TRUE, 0.5, 0.5 );
     my $dtppSth = $dtppDbh->prepare($update_dtpp_geo_record);
 
     $dtppSth->bind_param( 1, $_status );

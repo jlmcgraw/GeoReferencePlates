@@ -64,6 +64,12 @@ sub main {
 
     my $cycle = shift @ARGV;
 
+    if !($cycle =~ /\d\d\d\d/)
+      { say "Cycle must be a 4 digit number";
+        say "eg: $0 1410";
+        exit(1);
+      }
+      
     say "Cycle: $cycle";
 
     #Connect to our databases
@@ -125,6 +131,12 @@ sub main {
     );
     $dtppSth->execute();
 
+    if ($_rows == 0)
+       
+      { say "No charts found in database";
+        exit(1);
+      }
+      
     my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
     my $_rows               = $dtppSth->rows;
     say "Processing $_rows charts";
@@ -251,7 +263,7 @@ sub main {
             #             }
         }
         else {
-            say "No .png ($pngName) for $FAA_CODE";
+            say "No .png ($pngName) found for $FAA_CODE";
         }
         ++$completedCount;
 

@@ -473,7 +473,10 @@ sub record {
 
     my $targetPng = $dtppDownloadDir . $filename . ".png";
 
-    if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) && !-e $targetPng && $user_action =~ /D/i) {
+    #Create the PNG for this chart if it doesn't already exist and it isn't a deleted chart
+    if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) 
+	    && !-e $targetPng 
+	    && !($user_action =~ /D/i)) {
 
         #Convert the PDF to a PNG if one doesn't already exist
         say "Create PNG: $targetPdf -> $targetPng";
