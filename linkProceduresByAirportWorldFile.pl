@@ -194,6 +194,10 @@ sub main {
 
             link( "$inputDir" . "$pngName",
                 "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$pngName" );
+                    }
+        else {
+            say "No .png ($pngName) found for $FAA_CODE";
+        }
 
             if ( $upperLeftLon && $upperLeftLat ) {
                 my $worldfilePath =
@@ -263,10 +267,7 @@ sub main {
             # #                     say $targetvrt;
             #                 }
             #             }
-        }
-        else {
-            say "No .png ($pngName) found for $FAA_CODE";
-        }
+    
         ++$completedCount;
 
         #         say "$completedCount" . "/" . "$_rows";
