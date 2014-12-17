@@ -100,3 +100,25 @@ Thanks for trying this out!  If you have any feedback, ideas or patches please s
 
 -Jesse McGraw
 jlmcgraw@gmail.com
+
+DISTRIBUTION
+
+Users are  prohibited from  any commercial or non-free resale use without explicit written permission from Jesse McGraw. Users should acknowledge this project as
+the source used  in the creation  of any reports,  publications, new data  sets,
+derived products, or services resulting from the use of this data set. I also
+request  reprints of  any publications  and notification  of any  redistributing
+efforts.   For commercial  access to  the data,  send requests  to Jesse McGraw
+jlmcgraw@gmail.com.
+
+NO WARRANTY OR LIABILITY
+
+I provide  these data  without any  warranty of  any kind whatsoever, either
+express or implied,  including warranties of  merchantability and fitness  for a
+particular purpose. I shall not  be liable for incidental, consequential,  or
+special damages arising out of the use of any data.
+
+ACKNOWLEDGMENT AND CITATION
+
+I kindly ask  any users to  cite this data  in any published  material produced
+using this data,  and if possible  link web pages  to the github mwebsite
+(http://github.com/jlmcgraw).

@@ -16,7 +16,7 @@
 # * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # */
 #
-#Modified 2014 Jesse McGraw (<lmcgraw@gmail.com>
+#Modified 2014 Jesse McGraw (<jlmcgraw@gmail.com>
 # started from:
 # * FlightIntel for Pilots
 # *
@@ -37,21 +37,34 @@ use File::Basename;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use Carp;
+use Getopt::Std;
 
 #
 my @links = ();
 
+use vars qw/ %opt /;
 my $arg_num = scalar @ARGV;
 
-#We need at least one argument (the name of the PDF to process)
-if ( $arg_num < 2 ) {
-    say "Specify base dir and cycle";
-    say "eg: $0 . 1412";
+#Define the valid command line options
+my $opt_string = 'dr';
+
+#This will fail if we receive an invalid option
+unless ( getopts( "$opt_string", \%opt ) ) {
+    usage();
     exit(1);
 }
 
+#We need at least one argument (the name of the PDF to process)
+if ( $arg_num < 2 ) {
+    usage();
+    exit(1);
+}
+
+
+    
 my $BASE_DIR          = shift @ARGV;
 my $cycle             = shift @ARGV;
+
 my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile-$cycle.xml";
 
 #Where to download DTPPs to
@@ -277,7 +290,7 @@ print "\rDone loading $count records\n";
 say "$downloadedCount charts downloaded";
 say "$deletedCount charts deleted";
 say "$changedCount charts changed";
-say "$addedCount charts changed";
+say "$addedCount charts added";
 
 print Dumper ( \%countHash );
 exit;
@@ -397,7 +410,10 @@ sub record {
     }
     if ( $user_action =~ /A/i ) {
         say "Added " . "$dtppDownloadDir" . "$pdf_name";
+        
+#         getPlate();
         ++$addedCount;
+        
     }
     if ( $user_action =~ /C/i ) {
         say "Download changed chart $chart_url_base"
@@ -408,6 +424,7 @@ sub record {
         #Delete old files
         deleteStaleFiles($pdf_name);
 
+#         getplate();
         #Get the new one
         my $status;
 
@@ -478,9 +495,9 @@ sub record {
 	    && !-e $targetPng 
 	    && !($user_action =~ /D/i)) {
 
-        #Convert the PDF to a PNG if one doesn't already exist
-        say "Create PNG: $targetPdf -> $targetPng";
-        convertPdfToPng( $targetPdf, $targetPng );
+#         #Convert the PDF to a PNG if one doesn't already exist
+#         say "Create PNG: $targetPdf -> $targetPng";
+#         convertPdfToPng( $targetPdf, $targetPng );
     }
 
     $twig->purge;
@@ -561,3 +578,10 @@ sub convertPdfToPng {
     carp "Error from pdftoppm.   Return code is $retval" if $retval != 0;
     return $retval;
 }
+sub usage {
+    say "At least specify base dir and cycle";
+    say "eg: $0 . 1413";
+    say "-d Download ALL plates (default is only added/new)";
+    say "-r Rasterize ALL plates (default is only added/new)";
+    
+    }
