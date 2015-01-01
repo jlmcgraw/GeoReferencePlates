@@ -82,8 +82,7 @@ die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 # "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
 my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
 
-#Where to download DTPPs from
-my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
+
 my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
 
 my %countHash;
@@ -398,7 +397,7 @@ sub record {
     #Keep a tally of chart types and actions
     $countHash{$chart_code}{$user_action}++;
 
-    #We're only going to download IAPs or APDs, though all charts will be put in DB
+    #We're only going to process IAPs or APDs, though all charts will be put in DB
     if ( !( $chart_code eq "APD" || $chart_code eq "IAP" ) ) { return; }
 
   
@@ -409,39 +408,13 @@ sub record {
         ++$deletedCount;
     }
     if ( $user_action =~ /A/i ) {
-        say "Added " . "$dtppDownloadDir" . "$pdf_name";
-        
-#         getPlate();
+        say "Added " . "$dtppDownloadDir" . "$pdf_name";        
+        downloadPlate($pdf_name);
         ++$addedCount;
         
     }
     if ( $user_action =~ /C/i ) {
-        say "Download changed chart $chart_url_base"
-          . "$pdf_name" . " -> "
-          . "$dtppDownloadDir"
-          . "$pdf_name";
-
-        #Delete old files
-        deleteStaleFiles($pdf_name);
-
-#         getplate();
-        #Get the new one
-        my $status;
-
-        #         $status = getstore(
-        #             "$chart_url_base" . "$pdf_name",
-        #             "$dtppDownloadDir" . "$pdf_name"
-        #         );
-        #         die "Error $status on $pdf_name" unless is_success($status);
-        #
-        until ( is_success($status) ) {
-            $status = getstore(
-                "$chart_url_base" . "$pdf_name",
-                "$dtppDownloadDir" . "$pdf_name"
-            );
-        }
-
-        ++$downloadedCount;
+       downloadPlate($pdf_name);
         ++$changedCount;
     }
 
@@ -449,37 +422,16 @@ sub record {
     #but don't bother trying to download DELETED charts
     if (!($pdf_name =~ /DELETED/i) && ( !-e ( "$dtppDownloadDir" . "$pdf_name" )) ) {
 
-        say "Download $chart_url_base"
-          . "$pdf_name" . " -> "
-          . "$dtppDownloadDir"
-          . "$pdf_name";
+# #         say "Download $chart_url_base"
+# #           . "$pdf_name" . " -> "
+# #           . "$dtppDownloadDir"
+# #           . "$pdf_name";
+# 
+# #         #Save the link in an array for downloading in parallel
+# #         push @links,
+# #           [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
 
-        #Save the link in an array for downloading in parallel
-        push @links,
-          [ "$chart_url_base" . "$pdf_name", "$dtppDownloadDir" . "$pdf_name" ];
-
-        #
-        #         my $status = getstore(
-        #             "$chart_url_base" . "$pdf_name",
-        #             "$dtppDownloadDir" . "$pdf_name"
-        #         );
-        #         die "Error $status on $pdf_name" unless is_success($status);
-
-        my $status;
-
-        #         $status = getstore(
-        #             "$chart_url_base" . "$pdf_name",
-        #             "$dtppDownloadDir" . "$pdf_name"
-        #         );
-        #         die "Error $status on $pdf_name" unless is_success($status);
-        #
-        until ( is_success($status) ) {
-            $status = getstore(
-                "$chart_url_base" . "$pdf_name",
-                "$dtppDownloadDir" . "$pdf_name"
-            );
-        }
-        ++$downloadedCount;
+# 	downloadPlate($pdf_name);
     }
 
     #FQN of the PDF for this chart
@@ -490,14 +442,14 @@ sub record {
 
     my $targetPng = $dtppDownloadDir . $filename . ".png";
 
-    #Create the PNG for this chart if it doesn't already exist and it isn't a deleted chart
+#     #Create the PNG for this chart if it doesn't already exist and it isn't a deleted chart
     if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) 
 	    && !-e $targetPng 
 	    && !($user_action =~ /D/i)) {
 
-#         #Convert the PDF to a PNG if one doesn't already exist
-#         say "Create PNG: $targetPdf -> $targetPng";
-#         convertPdfToPng( $targetPdf, $targetPng );
+        #Convert the PDF to a PNG if one doesn't already exist
+        say "Create PNG: $targetPdf -> $targetPng";
+        convertPdfToPng( $targetPdf, $targetPng );
     }
 
     $twig->purge;
@@ -556,7 +508,48 @@ sub deleteStaleFiles {
     }
 
 }
+sub downloadPlate {
+    #Download a chart if it doesn't already exist locally
+    #First parameter is the name of the PDF (eg 00130RC.PDF)
+    my $pdf_name       = shift @_;
+    my $pdf_name_lower = $pdf_name;
+    $pdf_name_lower =~ s/\.PDF/\.pdf/;
 
+    #Pull out the various filename components of the input file from the command line
+    my ( $filename, $dir, $ext ) = fileparse( $pdf_name, qr/\.[^.]*/x );
+    #Where to download DTPPs from
+    my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
+
+    return if (-e  "$dtppDownloadDir" . "$pdf_name");
+    
+    say "Download changed chart $chart_url_base"
+          . "$pdf_name" . " -> "
+          . "$dtppDownloadDir"
+          . "$pdf_name";
+
+        #Delete old files
+#         deleteStaleFiles($pdf_name);
+
+#         getPlate();
+        #Get the new one
+        my $status;
+
+        #         $status = getstore(
+        #             "$chart_url_base" . "$pdf_name",
+        #             "$dtppDownloadDir" . "$pdf_name"
+        #         );
+        #         die "Error $status on $pdf_name" unless is_success($status);
+        #
+        until ( is_success($status) ) {
+            $status = getstore(
+                "$chart_url_base" . "$pdf_name",
+                "$dtppDownloadDir" . "$pdf_name"
+            );
+        }
+
+        ++$downloadedCount;
+
+}
 sub convertPdfToPng {
 
     #Validate and set input parameters to this function

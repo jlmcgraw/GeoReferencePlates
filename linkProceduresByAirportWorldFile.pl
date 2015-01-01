@@ -118,15 +118,6 @@ sub main {
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
         DG.STATUS LIKE '%MANUALGOOD%'
---          AND
---        CAST (DG.xPixelSkew as FLOAT) > '0'    
---        CAST (DG.upperLeftLon AS FLOAT) = '0'
---          AND
---        CAST (DG.xScaleAvgSize as FLOAT) > 1
---          AND
---        Difference  > .08
---      ORDER BY 
---        Difference ASC
 ;"
     );
     $dtppSth->execute();
@@ -209,7 +200,7 @@ sub main {
 
                 if ( $yPixelSize > 0 ) {
 
-                    #                 say "Converting $yPixelSize to negative";
+                    say "Converting $yPixelSize to negative";
                     $yPixelSize = -($yPixelSize);
                 }
 

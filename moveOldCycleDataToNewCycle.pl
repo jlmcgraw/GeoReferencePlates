@@ -78,7 +78,7 @@ sub main {
 
         #Older databases sometimes have this as positive, let's convert to negative
         #for the affine transform
-        if ( $yMedian > 0 ) {
+        if ( $xMedian && $yMedian > 0 ) {
             say "Converting $yMedian to negative";
             $yMedian = -($yMedian);
         }
@@ -186,7 +186,8 @@ sub getOldData {
     my ($oldDbh) =
       validate_pos( @_, { type => HASHREF } );
 
-    #Get the data we want to save for old IAP and APD charts
+    #Get the data we want to save for old IAP and APD charts.  
+    #Note that will also select all IAP and APD, not just good ones
     my $oldSth = $oldDbh->prepare( "
     SELECT	
         D.PDF_NAME

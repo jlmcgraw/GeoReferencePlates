@@ -366,21 +366,35 @@ sub findObstaclesNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-    #Query the database for obstacles of $heightMsl within our $radius
-    my $dtppSth = $dbh2->prepare(
+# #     #Query the database for obstacles of $heightMsl within our $radius
+#     my $dtppSth = $dbh2->prepare(
+#         "SELECT 
+#             amsl_ht
+#             ,obstacle_latitude
+# 	    ,obstacle_longitude
+#          FROM OBSTACLE_OBSTACLE
+#             WHERE
+#             (CAST (obstacle_latitude AS REAL) >  $airportLatitude - $radiusDegreesLatitude )
+#             and
+#             (CAST (obstacle_latitude AS REAL) < $airportLatitude + $radiusDegreesLatitude )
+#             and
+#             (CAST (obstacle_longitude AS REAL) >  $airportLongitude - $radiusDegreesLongitude )
+#             and
+#             (CAST (obstacle_longitude AS REAL) < $airportLongitude + $radiusDegreesLongitude )"
+#     );
+        my $dtppSth = $dbh2->prepare(
         "SELECT 
             amsl_ht
             ,obstacle_latitude
 	    ,obstacle_longitude
          FROM OBSTACLE_OBSTACLE
             WHERE
-            (CAST (obstacle_latitude AS REAL) >  $airportLatitude - $radiusDegreesLatitude )
+            agl_ht > 200
+            AND
+            (obstacle_latitude  BETWEEN $airportLatitude -  $radiusDegreesLatitude  AND $airportLatitude  + $radiusDegreesLatitude )
             and
-            (CAST (obstacle_latitude AS REAL) < $airportLatitude + $radiusDegreesLatitude )
-            and
-            (CAST (obstacle_longitude AS REAL) >  $airportLongitude - $radiusDegreesLongitude )
-            and
-            (CAST (obstacle_longitude AS REAL) < $airportLongitude + $radiusDegreesLongitude )"
+            (obstacle_longitude BETWEEN $airportLongitude - $radiusDegreesLongitude AND $airportLongitude + $radiusDegreesLongitude )
+          ORDER BY amsl_ht ASC"
     );
     $dtppSth->execute();
 
@@ -410,11 +424,11 @@ sub findObstaclesNearAirport {
 #             $lat = $lon = 0;
 #         }
 
-        #Populate variables from our database lookup
+        #Populate variables from our database lookup.  Key starts with $heightMsl so hash will be sortable by height
 
-        $unique_obstacles_from_db{$lon . $lat}{"Name"} = $heightMsl;
-        $unique_obstacles_from_db{$lon . $lat}{"Lat"}  = $lat;
-        $unique_obstacles_from_db{$lon . $lat}{"Lon"}  = $lon;
+        $unique_obstacles_from_db{$heightMsl . $lon . $lat}{"Name"} = $heightMsl;
+        $unique_obstacles_from_db{$heightMsl . $lon . $lat}{"Lat"}  = $lat;
+        $unique_obstacles_from_db{$heightMsl . $lon . $lat}{"Lon"}  = $lon;
 
     }
 
@@ -472,6 +486,7 @@ sub findFixesFromCifpForAirport {
 
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
+    #Add each of them to our overall FIX hash
     foreach my $_row (@$allSqlQueryResults) {
         my ( $fixname, $lat, $lon ) = @$_row;
 
@@ -514,6 +529,7 @@ sub findFixesFromCifpForAirport {
 
     $allSqlQueryResults = $sth->fetchall_arrayref();
 
+    #Add each of them to our overall FIX hash
     foreach my $_row (@$allSqlQueryResults) {
         my ( $fixname, $lat, $lon ) = @$_row;
 
@@ -549,6 +565,26 @@ sub findFixesNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
+#     #Query the database for fixes within our $radius
+#     my $sth = $dbh2->prepare( "
+#         SELECT
+# 	  national_airspace_system_nas_identifier_for_the_fix_usually_5_c
+# 	  ,latitude
+# 	  ,longitude
+# 	  ,fix_use
+# 
+# 	  FROM
+# 	  fix_fix1
+#         WHERE  
+#         (CAST (latitude as real) >  $airportLatitude - $radiusDegreesLatitude ) 
+#         and 
+#         (CAST (latitude as real) < $airportLatitude + $radiusDegreesLatitude )
+#         and 
+#         (CAST (longitude as real) >  $airportLongitude - $radiusDegreesLongitude ) 
+#         and 
+#         (CAST (longitude as real) < $airportLongitude + $radiusDegreesLongitude ) 
+# "
+#     );
     #Query the database for fixes within our $radius
     my $sth = $dbh2->prepare( "
         SELECT
@@ -560,14 +596,9 @@ sub findFixesNearAirport {
 	  FROM
 	  fix_fix1
         WHERE  
-        (CAST (latitude as real) >  $airportLatitude - $radiusDegreesLatitude ) 
+        (latitude  BETWEEN $airportLatitude  - $radiusDegreesLatitude  AND $airportLatitude  + $radiusDegreesLatitude )
         and 
-        (CAST (latitude as real) < $airportLatitude + $radiusDegreesLatitude )
-        and 
-        (CAST (longitude as real) >  $airportLongitude - $radiusDegreesLongitude ) 
-        and 
-        (CAST (longitude as real) < $airportLongitude + $radiusDegreesLongitude ) 
-"
+        (longitude BETWEEN $airportLongitude - $radiusDegreesLongitude AND $airportLongitude + $radiusDegreesLongitude ) "
     );
     $sth->execute();
 
@@ -633,7 +664,27 @@ sub findNavaidsNearAirport {
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
     #Query the database for fixes within our $radius
-    my $sth = $main::dbh2->prepare(
+#     my $sth = $main::dbh2->prepare(
+#         "SELECT
+# 	  navaid_facility_identifier
+# 	  ,latitude
+# 	  ,longitude
+# 	  ,navaid_facility_type_see_description
+# 	
+# 	FROM nav_nav1
+# 
+#         WHERE  
+#         (CAST (latitude as REAL) >  $airportLatitude - $radiusDegreesLatitude ) 
+#         and 
+#         (CAST (latitude as REAL) < $airportLatitude + $radiusDegreesLatitude )
+#         and 
+#         (CAST (longitude as REAL) >  $airportLongitude - $radiusDegreesLongitude ) 
+#         and 
+#         (CAST (longitude as REAL) < $airportLongitude + $radiusDegreesLongitude ) 
+# 
+#         "
+#     );
+        my $sth = $main::dbh2->prepare(
         "SELECT
 	  navaid_facility_identifier
 	  ,latitude
@@ -643,13 +694,9 @@ sub findNavaidsNearAirport {
 	FROM nav_nav1
 
         WHERE  
-        (CAST (latitude as REAL) >  $airportLatitude - $radiusDegreesLatitude ) 
+        (latitude  BETWEEN $airportLatitude -  $radiusDegreesLatitude  AND $airportLatitude  + $radiusDegreesLatitude )
         and 
-        (CAST (latitude as REAL) < $airportLatitude + $radiusDegreesLatitude )
-        and 
-        (CAST (longitude as REAL) >  $airportLongitude - $radiusDegreesLongitude ) 
-        and 
-        (CAST (longitude as REAL) < $airportLongitude + $radiusDegreesLongitude ) 
+        (longitude BETWEEN $airportLongitude - $radiusDegreesLongitude AND $airportLongitude + $radiusDegreesLongitude ) 
 
         "
     );
@@ -742,9 +789,11 @@ sub findRunwaysAtAirport {
         $runwaysFromDatabase{ $LEName . $HEName }{'LELatitude'}  = $LELatitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'LELongitude'} = $LELongitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'LEHeading'}   = $LEHeading;
+        $runwaysFromDatabase{ $LEName . $HEName }{'LEName'}   = $LEName;
         $runwaysFromDatabase{ $LEName . $HEName }{'HELatitude'}  = $HELatitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'HELongitude'} = $HELongitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'HEHeading'}   = $HEHeading;
+        $runwaysFromDatabase{ $LEName . $HEName }{'HEName'}   = $HEName;
 
     }
     return ( \%runwaysFromDatabase );
@@ -1499,12 +1548,12 @@ sub cairo_draw {
 
         #Draw the current GCP point
         # Circle with border - transparent
-        $context->set_source_rgba( 255, 128, 0, 64 );
+        $context->set_source_rgba( 255, 0, 0, 64 );
         $context->arc( $main::currentGcpPixbufX, $main::currentGcpPixbufY, 2,
             0, 3.1415 * 2 );
         $context->set_line_width(2);
         $context->stroke_preserve;
-        $context->set_source_rgba( 255, 255, 0, 64 );
+        $context->set_source_rgba( 255, 165, 0, 64 );
         $context->fill;
     }
 
@@ -1814,8 +1863,9 @@ sub activateNewPlate {
 
     my $textviewBuffer = $main::textview1->get_buffer;
     my $iter           = $textviewBuffer->get_iter_at_offset(0);
+    say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME";
     $textviewBuffer->insert( $iter,
-        "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME\n\n"
+        "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME\n\n"
     );
 
     #FQN of the PDF for this chart
@@ -1841,6 +1891,7 @@ sub activateNewPlate {
     #Look up runways for this airport from the database
     our $runwaysFromDatabaseHashref = findRunwaysAtAirport($FAA_CODE);
 
+#     print Dumper $runwaysFromDatabaseHashref;
     #Testing adding liststore programmmatically to partially glade-built interface
     # Create TreeModel
     my $runwayModel = create_model_runways($runwaysFromDatabaseHashref);
@@ -2157,7 +2208,7 @@ sub activateNewPlate {
         $yMed       = $yMed * $verticalScaleFactor;
         $yPixelSkew = $yPixelSkew * $verticalScaleFactor;
 
-        say "Affine parameters calculated from existing GCP hash";
+        say "Affine parameters";
         say " pixelSizeX->$xMed";
         say " yPixelSkew->$yPixelSkew";
         say " xPixelSkew->$xPixelSkew";
@@ -2167,7 +2218,7 @@ sub activateNewPlate {
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,
-            "Affine parameters calculated from existing GCP hash\npixelSizeX->$xMed\nyPixelSkew->$yPixelSkew\nxPixelSkew->$xPixelSkew\npixelSizeY->$yMed\nupperLeftLon->$upperLeftLon\nupperLeftLat->$upperLeftLat\n\n"
+            "Affine parameters\npixelSizeX: $xMed\nyPixelSkew: $yPixelSkew\nxPixelSkew: $xPixelSkew\npixelSizeY: $yMed\nupperLeftLon: $upperLeftLon\nupperLeftLat: $upperLeftLat\n\n"
         );
 
         #Set up the affine transformations
@@ -2191,6 +2242,10 @@ sub activateNewPlate {
         $invertedAffineTransform = $AffineTransform->clone()->invert();
     }
     else {
+	say "Affine parameters currently undefined";
+	$textviewBuffer->insert( $iter,
+            "Affine parameters currently undefined\n"
+        );
         #Otherwise make sure transforms undefined
         $AffineTransform         = undef;
         $invertedAffineTransform = undef;
@@ -2371,20 +2426,28 @@ sub create_model_runways {
         #         get length of key
         #         split in two
         # say length $item;
-        my $firstHalf = substr( $item, 0, ( ( length $item ) / 2 ) );
-        my $secondHalf = substr( $item, -( ( length $item ) / 2 ) );
+#         #Leading 0 of base end is getting removed due to type of sqlite column
+#         if (length $item == 3) {$item = "0" . $item;}
+        
+#         my $firstHalf = substr( $item, 0, ( ( length $item ) / 2 ) );
+#         
+#         my $secondHalf = substr( $item, -( ( length $item ) / 2 ) );
 
         #         say $item;
         #         say "$firstHalf - $secondHalf";
         $lstore->set(
-            $iter, 0, $firstHalf, 1, $hashRef->{$item}{LELongitude},
+            $iter, 
+            0, $hashRef->{$item}{LEName},
+            1, $hashRef->{$item}{LELongitude},
             2, $hashRef->{$item}{LELatitude},
         );
         $iter = $lstore->append();
 
         #         $iter->next;
         $lstore->set(
-            $iter, 0, $secondHalf, 1, $hashRef->{$item}{HELongitude},
+            $iter, 
+            0, $hashRef->{$item}{HEName},
+            1, $hashRef->{$item}{HELongitude},
             2, $hashRef->{$item}{HELatitude},
         );
     }
@@ -2394,7 +2457,7 @@ sub create_model_runways {
 sub create_model_obstacles {
     my ($hashRef) = validate_pos(
         @_,
-        { type => HASHREF },
+        { type => HASHREF }, 
 
     );
 
