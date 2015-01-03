@@ -4,7 +4,7 @@ Create Georeferencing information for Instrument Approach Procedures and Airport
 
 ![SFO VOR RWY 19L](https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-VOR-RWY-19L.png)
 
-These instructions are based on using Ubuntu
+These instructions are based on using Ubuntu (or some other Debian variant)
 
 How to get this utility up and running:
 
@@ -28,21 +28,25 @@ How to get this utility up and running:
 		Image::Magick	(sudo apt-get install libimage-magick-perl)
 		File::Slurp	(sudo apt-get install libfile-slurp-perl)
 		XML::Xpath 	(sudo apt-get install libxml-xpath-perl)
+		Math::Round	(sudo apt-get install libmath-round-perl
+		Params::Validate	(sudo apt-get install libparams-validate-perl)
+		Gtk3		(sudo apt-get install libgtk3-perl)
+		GD		(sudo apt-get install libgd-perl)
+		Parse::FixedLength	(sudo apt-get install libparse-fixedlength-perl)
 
-	Download some Instrument Approach Procedure plates
+	Or install everything at once:
+		sudo apt-get install --yes git gdal-bin mupdf-tools sqlite3 libpdf-api2-perl libdbi-perl libdbd-sqlite3-perl \
+                                           libimage-magick-perl libfile-slurp-perl libxml-xpath-perl libmath-round-perl \
+                                           libparams-validate-perl libgtk3-perl libgd-perl libparse-fixedlength-perl
+
+	Download some Instrument Approach Procedure plates and initialize the database
 		- Download these with the "load_dtpp_metadata.pl" file
 			This will also re-initialize the dtpp.db file, be careful
 
-		- A download of all plates takes several hours
-			
-		downloadPlates.pl requires the following CPAN modules:
-			XML::Xpath (sudo apt-get install libxml-xpath-perl)
+		- A download of all plates will probably take several hours
 
 	Requires a database containing lat/lon info 
-		(currently included in the git repository)
-
-	Requires a database containing charting cycle information
-		(create this with the load_dtpp_metadata.pl program)
+		(This is created by another of my projects at https://github.com/jlmcgraw/processFaaData)
 
 	Requires perl version > 5.010
 
@@ -120,5 +124,5 @@ special damages arising out of the use of any data.
 ACKNOWLEDGMENT AND CITATION
 
 I kindly ask  any users to  cite this data  in any published  material produced
-using this data,  and if possible  link web pages  to the github mwebsite
+using this data,  and if possible  link web pages  to the github website
 (http://github.com/jlmcgraw).
