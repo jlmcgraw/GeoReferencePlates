@@ -65,7 +65,7 @@ if ( $arg_num < 2 ) {
 my $BASE_DIR          = shift @ARGV;
 my $cycle             = shift @ARGV;
 
-my $TPP_METADATA_FILE = "$BASE_DIR/d-TPP_Metafile-$cycle.xml";
+my $TPP_METADATA_FILE = "$BASE_DIR/dtpp-$cycle/d-TPP_Metafile.xml";
 
 #Where to download DTPPs to
 my $dtppDownloadDir = "$BASE_DIR/dtpp-$cycle/";
@@ -95,6 +95,7 @@ else {
 
     # my $ret = 200;
     my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
+    
     if ( $ret != 200 ) {
         die "Unable to download d-TPP metadata.";
     }
@@ -121,7 +122,8 @@ my $create_cycle_table =
   . "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
   . "TPP_CYCLE TEXT, "
   . "FROM_DATE TEXT, "
-  . "TO_DATE TEXT" . ")";
+  . "TO_DATE TEXT" 
+  . ")";
 
 my $insert_cycle_record =
     "INSERT INTO cycle ("
@@ -129,8 +131,10 @@ my $insert_cycle_record =
   . "FROM_DATE, "
   . "TO_DATE"
   . ") VALUES ("
-  . "?, ?, ?" . ")";
+  . "?, ?, ?" 
+  . ")";
 
+#SQL statement to create the dtpp table
 my $create_dtpp_table =
     "CREATE TABLE dtpp ("
   . "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -144,8 +148,10 @@ my $create_dtpp_table =
   . "FAANFD18_CODE TEXT, "
   . "MILITARY_USE TEXT, "
   . "COPTER_USE TEXT,"
-  . "STATE_ID TEXT" . ")";
+  . "STATE_ID TEXT" 
+  . ")";
 
+#SQL statement to insert a record into dtpp table
 my $insert_dtpp_record =
     "INSERT INTO dtpp ("
   . "TPP_VOLUME, "
@@ -160,41 +166,12 @@ my $insert_dtpp_record =
   . "COPTER_USE,"
   . "STATE_ID"
   . ") VALUES ("
-  . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?" . ")";
+  . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" 
+  . ")";
 
-# my $create_dtpp_geo_table =
-# "CREATE TABLE dtppGeo ("
-# . "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-# . "airportLatitude TEXT, "
-# . "horizontalAndVerticalLinesCount TEXT, "
-# . "gcpCount TEXT, "
-# . "yMedian TEXT, "
-# . "gpsCount TEXT, "
-# . "targetPdf TEXT, "
-# . "yScaleAvgSize TEXT, "
-# . "airportLongitude TEXT, "
-# . "notToScaleIndicatorCount TEXT, "
-# . "unique_obstacles_from_dbCount TEXT, "
-# . "xScaleAvgSize TEXT, "
-# . "navaidCount TEXT, "
-# . "xMedian TEXT, "
-# . "insetCircleCount TEXT, "
-# . "obstacleCount TEXT, "
-# . "insetBoxCount TEXT, "
-# . "fixCount TEXT, "
-# . "yAvg TEXT, "
-# . "xAvg TEXT, "
-# . "pdftotext TEXT, "
-# . "lonLatRatio TEXT, "
-# . "upperLeftLon TEXT, "
-# . "upperLeftLat TEXT, "
-# . "lowerRightLon TEXT, "
-# . "lowerRightLat TEXT, "
-# . "targetLonLatRatio TEXT, "
-# . "runwayIconsCount TEXT, "
-# . "PDF_NAME TEXT" . ")";
 
-#Just trying another way of doing this
+
+#SQL statement to create the dtppGeo table
 my $create_dtpp_geo_table_sql = <<'END_SQL';
   CREATE TABLE dtppGeo (
      _id		   INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -573,7 +550,7 @@ sub convertPdfToPng {
 }
 sub usage {
     say "At least specify base dir and cycle";
-    say "eg: $0 . 1413";
+    say "eg: $0 . 1502";
     say "-d Download ALL plates (default is only added/new)";
     say "-r Rasterize ALL plates (default is only added/new)";
     

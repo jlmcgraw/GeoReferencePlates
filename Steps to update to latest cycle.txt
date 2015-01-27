@@ -1,6 +1,8 @@
 Steps to update to latest cycle
-$previousCycle = 1412
-$latestCycle = 1413
+$previousCycle = 1501
+$latestCycle = 1502
+
+unzip file.zip -d xxx
 
 Create the new cycle db and download IAP,APD charts
   ./load_dtpp_metadata.pl . $latestCycle

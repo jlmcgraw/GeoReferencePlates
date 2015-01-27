@@ -34,6 +34,7 @@ use 5.010;
 
 use strict;
 use warnings;
+use autodie;
 
 #use diagnostics;
 
@@ -161,7 +162,7 @@ my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.db",
 
 #CIFP database
 my $cifpDbh =
-     DBI->connect( "dbi:SQLite:dbname=./cifp.db", "", "", { RaiseError => 1 } )
+     DBI->connect( "dbi:SQLite:dbname=./cifp-$cycle.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------

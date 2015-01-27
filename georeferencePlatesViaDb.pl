@@ -101,7 +101,7 @@ our %statistics = ();
 use vars qw/ %opt /;
 
 #Define the valid command line options
-my $opt_string = 'cspvobma:i:';
+my $opt_string = 'ntcspvobma:i:';
 my $arg_num    = scalar @ARGV;
 
 #We need at least one argument (the name of the PDF to process)
@@ -141,6 +141,26 @@ if ( $opt{i} ) {
     #If something  provided on the command line use it instead
     $stateId = $opt{i};
     say "Supplied state ID: $stateId";
+}
+
+#Default to all plates for the SQL query
+our $plateId = "%";
+
+if ( $opt{t} ) {
+
+    #If something  provided on the command line use it instead
+    $plateId = $opt{t};
+    say "Supplied plate ID: $plateId";
+}
+
+#Default to all statuses for the SQL query
+our $plateStatus = "%";
+
+if ( $opt{n} ) {
+
+    #If something  provided on the command line use it instead
+    $plateStatus = "ADDEDCHANGED";
+    say "Doing only ADDEDCHANGED charts: $plateStatus";
 }
 
 our $shouldNotOverwriteVrt           = $opt{c};
@@ -187,7 +207,11 @@ my $selectStatement = "SELECT
     ON 
       D.PDF_NAME=DG.PDF_NAME
     WHERE  
-      D.CHART_CODE = 'IAP' 
+      D.CHART_CODE = 'IAP'
+        AND 
+      DG.STATUS LIKE  '$plateStatus' 
+        AND 
+      D.PDF_NAME LIKE  '$plateId' 
         AND 
       D.FAA_CODE LIKE  '$airportId' 
         AND
