@@ -30,7 +30,7 @@ use warnings;
 use DBI;
 use LWP::Simple;
 use XML::Twig;
-use Parallel::ForkManager;
+# use Parallel::ForkManager;
 use File::Path qw(make_path remove_tree);
 use Params::Validate qw(:all);
 use File::Basename;
@@ -169,7 +169,23 @@ my $insert_dtpp_record =
   . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" 
   . ")";
 
-
+#SQL statement to insert a record into dtpp table
+my $insert_dtpp_record =
+    "INSERT INTO dtpp ("
+  . "TPP_VOLUME, "
+  . "FAA_CODE, "
+  . "CHART_SEQ, "
+  . "CHART_CODE, "
+  . "CHART_NAME, "
+  . "USER_ACTION, "
+  . "PDF_NAME, "
+  . "FAANFD18_CODE, "
+  . "MILITARY_USE, "
+  . "COPTER_USE,"
+  . "STATE_ID"
+  . ") VALUES ("
+  . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" 
+  . ")";
 
 #SQL statement to create the dtppGeo table
 my $create_dtpp_geo_table_sql = <<'END_SQL';
@@ -422,7 +438,7 @@ sub record {
 #     #Create the PNG for this chart if it doesn't already exist and it isn't a deleted chart
     if ( ( $chart_code eq "APD" || $chart_code eq "IAP" ) 
 	    && !-e $targetPng 
-	    && !($user_action =~ /D/i)) {
+	    && ($user_action =~ /[AC]/i)) {
 
         #Convert the PDF to a PNG if one doesn't already exist
         say "Create PNG: $targetPdf -> $targetPng";
