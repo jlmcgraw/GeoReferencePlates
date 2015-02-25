@@ -1,6 +1,6 @@
 Steps to update to latest cycle
-$previousCycle = 1501
-$latestCycle = 1502
+$previousCycle = 1502
+$latestCycle = 1503
 
 unzip file.zip -d xxx
 
@@ -9,7 +9,7 @@ Create the new cycle db and download IAP,APD charts
 
 #This hasn't been implemented yet  
 #Run autogeoref for added/changed plates
-#  ./verifyGeoreference.pl -c "./dtpp-$latestCycle"
+#  ./verifyGeoreference.pl -n ./dtpp-$latestCycle
   
 Move the old georeference database data to the new cycle db (overwriting auto data) along with hashes of GCPs
   ./moveOldCycleDataToNewCycle.pl $previousCycle $latestCycle

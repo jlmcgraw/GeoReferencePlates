@@ -54,7 +54,7 @@ unless ( getopts( "$opt_string", \%opt ) ) {
     exit(1);
 }
 
-#We need at least one argument (the name of the PDF to process)
+#We need at least two arguments 
 if ( $arg_num < 2 ) {
     usage();
     exit(1);
@@ -64,6 +64,9 @@ if ( $arg_num < 2 ) {
     
 my $BASE_DIR          = shift @ARGV;
 my $cycle             = shift @ARGV;
+
+#We'll use this to check that our requested cycle matches what's in the catalog
+our $requestedCycle = $cycle;
 
 my $TPP_METADATA_FILE = "$BASE_DIR/dtpp-$cycle/d-TPP_Metafile.xml";
 
@@ -169,23 +172,6 @@ my $insert_dtpp_record =
   . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" 
   . ")";
 
-#SQL statement to insert a record into dtpp table
-my $insert_dtpp_record =
-    "INSERT INTO dtpp ("
-  . "TPP_VOLUME, "
-  . "FAA_CODE, "
-  . "CHART_SEQ, "
-  . "CHART_CODE, "
-  . "CHART_NAME, "
-  . "USER_ACTION, "
-  . "PDF_NAME, "
-  . "FAANFD18_CODE, "
-  . "MILITARY_USE, "
-  . "COPTER_USE,"
-  . "STATE_ID"
-  . ") VALUES ("
-  . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" 
-  . ")";
 
 #SQL statement to create the dtppGeo table
 my $create_dtpp_geo_table_sql = <<'END_SQL';
@@ -300,6 +286,8 @@ sub digital_tpp {
     my $from_date = $dtpp->{'att'}->{'from_edate'};
     my $to_date   = $dtpp->{'att'}->{'to_edate'};
 
+    die "Requested cycle ($main::requestedCycle) not equal to catalog cycle ($cycle)" unless $main::requestedCycle eq $cycle;
+    
     #TPP_CYCLE
     $sth_cycle->bind_param( 1, $cycle );
 

@@ -101,10 +101,10 @@ our %statistics = ();
 use vars qw/ %opt /;
 
 #Define the valid command line options
-my $opt_string = 'ntcspvobma:i:';
+my $opt_string = 'ncspvobma:i:t:';
 my $arg_num    = scalar @ARGV;
 
-#We need at least one argument (the name of the PDF to process)
+#We need at least one argument (the directory of dtpp files)
 if ( $arg_num < 1 ) {
     usage();
     exit(1);
@@ -116,8 +116,10 @@ unless ( getopts( "$opt_string", \%opt ) ) {
     exit(1);
 }
 
-#Get the target PDF file from command line options
-our ($dtppDirectory) = $ARGV[0];
+#Get the target cycle rom command line
+my $cycle             = shift @ARGV;
+our ($dtppDirectory) = "./dtpp-$cycle/";
+
 
 if ( !-e ($dtppDirectory) ) {
     say "Target dTpp directory $dtppDirectory doesn't exist";
@@ -148,7 +150,7 @@ our $plateId = "%";
 
 if ( $opt{t} ) {
 
-    #If something  provided on the command line use it instead
+    #If something specific provided on the command line use it instead
     $plateId = $opt{t};
     say "Supplied plate ID: $plateId";
 }
@@ -170,11 +172,14 @@ our $debug                           = $opt{v};
 our $shouldRecreateOutlineFiles      = $opt{o};
 our $shouldSaveBadRatio              = $opt{b};
 our $shouldUseMultipleObstacles      = $opt{m};
-our $shouldOnlyProcessAddedOrChanged = $opt{n};
+# our $shouldOnlyProcessAddedOrChanged = $opt{n};
+
+#The name of our database
+my $dbfile = "./dtpp-$cycle.db";
 
 #database of metadata for dtpp
 my $dtppDbh =
-     DBI->connect( "dbi:SQLite:dbname=./dtpp.db", "", "", { RaiseError => 1 } )
+     DBI->connect( "dbi:SQLite:dbname=./$dbfile", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
@@ -218,34 +223,34 @@ my $selectStatement = "SELECT
       D.STATE_ID LIKE  '$stateId'
       ";
 
-#Alter SQL query if  we only want to do added/changed charts
-if ($shouldOnlyProcessAddedOrChanged) {
-    $selectStatement = "SELECT  
-      D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
-      D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
-      D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
-      DG.STATUS
-    FROM 
-      dtpp AS D 
-    JOIN 
-      dtppGeo AS DG 
-    ON 
-      D.PDF_NAME=DG.PDF_NAME
-    WHERE  
-      D.CHART_CODE = 'IAP' 
-        AND 
-      D.FAA_CODE LIKE  '$airportId' 
-        AND
-      D.STATE_ID LIKE  '$stateId'
-       AND
-      (
-      D.USER_ACTION = 'A'
-      OR
-      D.USER_ACTION = 'C'
-      )
-      ";
-
-}
+# #Alter SQL query if  we only want to do added/changed charts
+# if ($shouldOnlyProcessAddedOrChanged) {
+#     $selectStatement = "SELECT  
+#       D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
+#       D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
+#       D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
+#       DG.STATUS
+#     FROM 
+#       dtpp AS D 
+#     JOIN 
+#       dtppGeo AS DG 
+#     ON 
+#       D.PDF_NAME=DG.PDF_NAME
+#     WHERE  
+#       D.CHART_CODE = 'IAP' 
+#         AND 
+#       D.FAA_CODE LIKE  '$airportId' 
+#         AND
+#       D.STATE_ID LIKE  '$stateId'
+#        AND
+#       (
+#       D.USER_ACTION = 'A'
+#       OR
+#       D.USER_ACTION = 'C'
+#       )
+#       ";
+# 
+# }
 
 #Query the dtpp database for desired charts
 my $dtppSth = $dtppDbh->prepare($selectStatement);
@@ -504,6 +509,8 @@ sub doAPlate {
 
     }
 
+    
+    #Do we already have a hash of ground control points for this plate stored from a previous run?
     if ( !-e $storedGcpHash ) {
 
         #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
@@ -732,13 +739,12 @@ sub doAPlate {
         #Delete an icon if the not-to-scale squiggly is too close to it
         findClosestSquigglyToA( \%fixIcons, \%notToScaleIndicator );
 
-        #Try to find closest TextBox center to each Icon center
-        #and then do the reverse
+        #Try to find closest TextBox center to each Icon center...
         findClosestBToA( \%fixIcons,     \%fixTextboxes );
+        #now do the reverse
         findClosestBToA( \%fixTextboxes, \%fixIcons, );
 
-        #Make sure there is a bi-directional match between icon and textbox
-        #Returns a reference to a hash of matched pairs
+        #match up icons and text boxes
         my $matchedFixIconsToTextBoxes =
           joinIconTextboxAndDatabaseHashes( \%fixIcons, \%fixTextboxes,
             \%fixes_from_db );
@@ -757,13 +763,13 @@ sub doAPlate {
             # say "";
         }
 
-        #Indicate which textbox we matched to
+        #Draw a line between matched icons and text
         drawLineFromEachIconToMatchedTextBox( \%fixIcons, \%fixTextboxes )
           if $shouldSaveMarkedPdf;
 
         #---------------------------------------------------------------------------------------------------------------------------------------
         #Everything to do with GPS waypoints
-        #
+        #---------------------------------------------------------------------------------------------------------------------------------------
         #Find GPS waypoints near the airport
         our %gpswaypoints_from_db = ();
         findGpsWaypointsNearAirport();
@@ -777,10 +783,11 @@ sub doAPlate {
           if $debug;
         findClosestSquigglyToA( \%gpsWaypointIcons, \%notToScaleIndicator );
 
-        #Try to find closest TextBox center to each Icon center and then do the reverse
+        #Try to find closest TextBox center to each Icon center...
         say 'findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes )' if $debug;
         findClosestBToA( \%gpsWaypointIcons, \%fixTextboxes );
 
+        #now do the reverse
         say 'findClosestBToA( \%fixTextboxes,     \%gpsWaypointIcons )'
           if $debug;
         findClosestBToA( \%fixTextboxes, \%gpsWaypointIcons );
@@ -789,6 +796,7 @@ sub doAPlate {
   joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
     \%gpswaypoints_from_db )' if $debug;
 
+	#match up icons and text boxes
         my $matchedGpsWaypointIconsToTextBoxes =
           joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
             \%gpswaypoints_from_db );
@@ -807,13 +815,14 @@ sub doAPlate {
             # say "";
         }
 
+       #Draw a line between matched icons and text
         drawLineFromEachIconToMatchedTextBox( \%gpsWaypointIcons,
             \%fixTextboxes )
           if $shouldSaveMarkedPdf;
 
         #---------------------------------------------------------------------------------------------------------------------------------------
         #Everything to do with navaids
-        #
+        #---------------------------------------------------------------------------------------------------------------------------------------
 
         #Orange outline navaid textboxes that have a valid navaid name in them
         outlineValidNavaidTextBoxes() if $shouldSaveMarkedPdf;
@@ -855,24 +864,24 @@ sub doAPlate {
 
         #---------------------------------------------------------------------------------------------------------------------------------------------------
         #Create the combined hash of Ground Control Points
-
-        #Add Runway endpoints to Ground Control Points hash
+	#---------------------------------------------------------------------------------------------------------------------------------------------------
+        #Add Runway endpoints  
         addCombinedHashToGroundControlPoints( "runway",
             \%matchedRunIconsToDatabase );
 
-        #Add Obstacles to Ground Control Points hash
+        #Add Obstacles 
         addCombinedHashToGroundControlPoints( "obstacle",
             $matchedObstacleIconsToTextBoxes );
 
-        #Add Fixes to Ground Control Points hash
+        #Add Fixes  
         addCombinedHashToGroundControlPoints( "fix",
             $matchedFixIconsToTextBoxes );
 
-        #Add Navaids to Ground Control Points hash
+        #Add Navaids 
         addCombinedHashToGroundControlPoints( "navaid",
             $matchedNavaidIconsToTextBoxes );
 
-        #Add GPS waypoints to Ground Control Points hash
+        #Add GPS waypoints 
         addCombinedHashToGroundControlPoints( "gps",
             $matchedGpsWaypointIconsToTextBoxes );
     }
@@ -884,6 +893,7 @@ sub doAPlate {
         %gcps = %{$gcpHashref};
 
     }
+    
     if ($debug) {
         say "";
         say "Combined Ground Control Points";
@@ -918,7 +928,7 @@ sub doAPlate {
     our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
     our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
     our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
-    our ($lonLatRatio) = 0;
+    our ( $lonLatRatio ) = 0;
 
     #Can't do anything if we didn't find any valid ground control points
     if ( $gcpCount < 2 ) {
@@ -5002,15 +5012,19 @@ sub createOutlinesPdf {
 }
 
 sub usage {
-    say "Usage: $0 <options> <directory_with_PDFs>";
+    say "Usage: $0 <options> <dtpp cycle>";
     say "-v debug";
     say "-a<FAA airport ID>  To specify an airport ID";
     say "-i<2 Letter state ID>  To specify a specific state";
+    say "-t<plate name>  To specify a specific plate";
+    say "";
+    say "-b Allow creation of vrt with known bad lon/lat ratio";
+    say "-c Don't overwrite existing .vrt";
+    say "-m Allow use of non-unique obstacles";
+    say "-n Only process new plates with no affine data";
+    say "-o Re-create outlines/mask files";
     say "-p Output a marked up version of PDF";
     say "-s Output statistics about the PDF";
-    say "-c Don't overwrite existing .vrt";
-    say "-o Re-create outlines/mask files";
-    say "-b Allow creation of vrt with known bad lon/lat ratio";
-    say "-m Allow use of non-unique obstacles";
+    
     return;
 }
