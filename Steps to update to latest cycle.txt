@@ -2,17 +2,42 @@ Steps to update to latest cycle
 $previousCycle = 1502
 $latestCycle = 1503
 
-unzip file.zip -d xxx
+mkdir $latestCycle
 
-Create the new cycle db and download IAP,APD charts
+select status, count(status) 
+from dtppgeo 
+group by status;
+
+
+#unzip all of the dtpp archives to one directory
+#unzip -q "DDTPP?_20$latestCycle.zip" -d dtpp-$latestCycle
+
+#1
+#Create the new cycle db and download IAP,APD charts
   ./load_dtpp_metadata.pl . $latestCycle
-
-#This hasn't been implemented yet  
-#Run autogeoref for added/changed plates
-#  ./verifyGeoreference.pl -n ./dtpp-$latestCycle
   
-Move the old georeference database data to the new cycle db (overwriting auto data) along with hashes of GCPs
+#2  
+#Copy the old georeference database data to the new cycle db (overwriting auto data) along with hashes of GCPs
   ./moveOldCycleDataToNewCycle.pl $previousCycle $latestCycle
-  
+
+ADDEDCHANGED|2790
+MANUALBAD|491
+MANUALGOOD|9940
+NOGEOREF|43
+
+#remove empty stored hash files
+find ./dtpp-$latestCycle -type f -name '*hash*' -size -30c
+
+#3  
+#Run autogeoref for added/changed plates and update their statistics
+  ./georeferencePlatesViaDb.pl -n -s $latestCycle
+
+ADDEDCHANGED|2755
+AUTOGOOD|35
+MANUALBAD|491
+MANUALGOOD|9940
+NOGEOREF|43
+
+#4
 #Manually verify everything
   ./verifyGeoreference.pl $latestCycle

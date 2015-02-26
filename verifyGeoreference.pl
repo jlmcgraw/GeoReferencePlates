@@ -181,21 +181,23 @@ our $dbh2 =
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
-#a reference to an array of all IAP and APD charts
-my $_allPlates = allIapAndApdCharts();
-my $indexIntoAllPlates = 0;
+
 
 #a reference to an array of charts with no longitude or latitude info
 my $_platesNotMarkedManually    = findPlatesNotMarkedManually();
 my $indexIntoPlatesWithNoLonLat = 0;
 
+#a reference to an array of charts marked Changed
+my $_platesMarkedChanged         = findPlatesMarkedChanged();
+my $indexIntoPlatesMarkedChanged = 0;
+
 #a reference to an array of charts marked bad
 my $_platesMarkedBad         = findPlatesMarkedBad();
 my $indexIntoPlatesMarkedBad = 0;
 
-#a reference to an array of charts marked Changed
-my $_platesMarkedChanged         = chartsMarkedChanged();
-my $indexIntoPlatesMarkedChanged = 0;
+#a reference to an array of all IAP and APD charts
+my $_allPlates = allIapAndApdCharts();
+my $indexIntoAllPlates = 0;
 
 our (
     $currentGcpName, $currentGcpLon,     $currentGcpLat,
@@ -266,15 +268,16 @@ sub findAirportLatitudeAndLongitude {
 
     #Query the database for airport
     my $sth = $main::dbh2->prepare( "
-        select
+      SELECT
         location_identifier
 	,apt_latitude
 	,apt_longitude
 	,official_facility_name
 
-      from apt_apt
-         WHERE
-	    location_identifier = '$FAA_CODE'
+      FROM 
+	apt_apt
+      WHERE
+	location_identifier = '$FAA_CODE'
 	    "
     );
     $sth->execute();
@@ -367,35 +370,21 @@ sub findObstaclesNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-# #     #Query the database for obstacles of $heightMsl within our $radius
-#     my $dtppSth = $dbh2->prepare(
-#         "SELECT 
-#             amsl_ht
-#             ,obstacle_latitude
-# 	    ,obstacle_longitude
-#          FROM OBSTACLE_OBSTACLE
-#             WHERE
-#             (CAST (obstacle_latitude AS REAL) >  $airportLatitude - $radiusDegreesLatitude )
-#             and
-#             (CAST (obstacle_latitude AS REAL) < $airportLatitude + $radiusDegreesLatitude )
-#             and
-#             (CAST (obstacle_longitude AS REAL) >  $airportLongitude - $radiusDegreesLongitude )
-#             and
-#             (CAST (obstacle_longitude AS REAL) < $airportLongitude + $radiusDegreesLongitude )"
-#     );
-        my $dtppSth = $dbh2->prepare(
+     my $dtppSth = $dbh2->prepare(
         "SELECT 
             amsl_ht
             ,obstacle_latitude
 	    ,obstacle_longitude
-         FROM OBSTACLE_OBSTACLE
-            WHERE
+         FROM 
+	    OBSTACLE_OBSTACLE
+         WHERE
             agl_ht > 200
             AND
             (obstacle_latitude  BETWEEN $airportLatitude -  $radiusDegreesLatitude  AND $airportLatitude  + $radiusDegreesLatitude )
             and
             (obstacle_longitude BETWEEN $airportLongitude - $radiusDegreesLongitude AND $airportLongitude + $radiusDegreesLongitude )
-          ORDER BY amsl_ht ASC"
+         ORDER BY 
+	    amsl_ht ASC"
     );
     $dtppSth->execute();
 
@@ -566,26 +555,6 @@ sub findFixesNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-#     #Query the database for fixes within our $radius
-#     my $sth = $dbh2->prepare( "
-#         SELECT
-# 	  national_airspace_system_nas_identifier_for_the_fix_usually_5_c
-# 	  ,latitude
-# 	  ,longitude
-# 	  ,fix_use
-# 
-# 	  FROM
-# 	  fix_fix1
-#         WHERE  
-#         (CAST (latitude as real) >  $airportLatitude - $radiusDegreesLatitude ) 
-#         and 
-#         (CAST (latitude as real) < $airportLatitude + $radiusDegreesLatitude )
-#         and 
-#         (CAST (longitude as real) >  $airportLongitude - $radiusDegreesLongitude ) 
-#         and 
-#         (CAST (longitude as real) < $airportLongitude + $radiusDegreesLongitude ) 
-# "
-#     );
     #Query the database for fixes within our $radius
     my $sth = $dbh2->prepare( "
         SELECT
@@ -593,8 +562,7 @@ sub findFixesNearAirport {
 	  ,latitude
 	  ,longitude
 	  ,fix_use
-
-	  FROM
+	FROM
 	  fix_fix1
         WHERE  
         (latitude  BETWEEN $airportLatitude  - $radiusDegreesLatitude  AND $airportLatitude  + $radiusDegreesLatitude )
@@ -664,36 +632,15 @@ sub findNavaidsNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-    #Query the database for fixes within our $radius
-#     my $sth = $main::dbh2->prepare(
-#         "SELECT
-# 	  navaid_facility_identifier
-# 	  ,latitude
-# 	  ,longitude
-# 	  ,navaid_facility_type_see_description
-# 	
-# 	FROM nav_nav1
-# 
-#         WHERE  
-#         (CAST (latitude as REAL) >  $airportLatitude - $radiusDegreesLatitude ) 
-#         and 
-#         (CAST (latitude as REAL) < $airportLatitude + $radiusDegreesLatitude )
-#         and 
-#         (CAST (longitude as REAL) >  $airportLongitude - $radiusDegreesLongitude ) 
-#         and 
-#         (CAST (longitude as REAL) < $airportLongitude + $radiusDegreesLongitude ) 
-# 
-#         "
-#     );
-        my $sth = $main::dbh2->prepare(
-        "SELECT
+    my $sth = $main::dbh2->prepare(
+        "
+        SELECT
 	  navaid_facility_identifier
 	  ,latitude
 	  ,longitude
-	  ,navaid_facility_type_see_description
-	
-	FROM nav_nav1
-
+	  ,navaid_facility_type_see_description	
+	FROM 
+	  nav_nav1
         WHERE  
         (latitude  BETWEEN $airportLatitude -  $radiusDegreesLatitude  AND $airportLatitude  + $radiusDegreesLatitude )
         and 
@@ -737,15 +684,15 @@ sub findRunwaysAtAirport {
 
     my $sth = $main::dbh2->prepare( "
       SELECT 
-    rwy. base_end_identifier
-,rwy.base_latitude
-,rwy.base_longitude
-,rwy.base_runway_end_true_alignment
-,rwy.reciprocal_end_identifier
-,rwy.reciprocal_latitude
-,rwy.reciprocal_longitude
-,rwy.reciprocal_runway_end_true_alignment
-,rwy.runway_identification
+	 rwy. base_end_identifier
+	,rwy.base_latitude
+	,rwy.base_longitude
+	,rwy.base_runway_end_true_alignment
+	,rwy.reciprocal_end_identifier
+	,rwy.reciprocal_latitude
+	,rwy.reciprocal_longitude
+	,rwy.reciprocal_runway_end_true_alignment
+	,rwy.runway_identification
       FROM 
 	apt_apt AS apt
       JOIN 
@@ -811,49 +758,8 @@ sub usage {
 
 sub findPlatesNotMarkedManually {
 
-    #Charts with no lon/lat
-#     my $dtppSth = $dtppDbh->prepare( "
-#       SELECT 
-# 	D.TPP_VOLUME
-# 	,D.FAA_CODE    
-# 	,D.CHART_SEQ 
-# 	,D.CHART_CODE
-#         ,D.CHART_NAME   
-#         ,D.USER_ACTION
-#         ,D.PDF_NAME
-#         ,D.FAANFD18_CODE
-#         ,D.MILITARY_USE
-#         ,D.COPTER_USE
-#         ,D.STATE_ID
-# 	,ABS( CAST (DG.targetLonLatRatio AS FLOAT) - CAST(DG.lonLatRatio AS FLOAT)) AS Difference
-# 	,DG.upperLeftLon
-# 	,DG.upperLeftLat
-# 	,DG.lowerRightLon
-# 	,DG.lowerRightLat
-# 	,DG.xMedian
-# 	,DG.yMedian
-# 	,DG.xPixelSkew
-# 	,DG.yPixelSkew
-#       FROM 
-# 	dtpp as D 
-#       JOIN 
-# 	dtppGeo as DG 
-#       ON 
-# 	D.PDF_NAME=DG.PDF_NAME
-#       WHERE
-#       d.military_use = 'N'
-#       and
-#       d.PDF_NAME not like '%vis%'
-#            and
-#       d.PDF_NAME not like '%h%'
-#       and
-#         D.CHART_CODE = 'IAP'            
-# 	  and
-#          dg.status like '%bad%'
-# 
-#       ;
-# ;"
-#     );
+    #Charts not marked MANUAL
+    
     my $dtppSth = $dtppDbh->prepare( "
       SELECT 
 	D.TPP_VOLUME
@@ -898,10 +804,10 @@ sub findPlatesNotMarkedManually {
         -- DG.STATUS LIKE '%ADDEDCHANGED%'
         -- AND
         -- DG.STATUS NOT LIKE '%NOGEOREF%'
-        AND
+          AND
         DG.STATUS NOT LIKE '%MANUAL%'
-        AND
-        D.MILITARY_USE != 'M'
+        -- AND
+        -- D.MILITARY_USE != 'M'
       ORDER BY
         D.FAA_CODE ASC
 ;"
@@ -1032,9 +938,9 @@ sub findPlatesMarkedBad {
 
 }
 
-sub chartsMarkedChanged {
+sub findPlatesMarkedChanged {
 
-    #Charts marked bad
+    #Charts marked ADDEDCHANGED
     my $dtppSth = $dtppDbh->prepare( "
       SELECT
 	D.TPP_VOLUME
@@ -1626,122 +1532,6 @@ sub plateBox_click {
     return TRUE;
 }
 
-# sub nextPlateNotMarkedManually {
-#     my ( $widget, $event ) = @_;
-#
-#     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-#
-#     if ( $indexIntoPlatesWithNoLonLat < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesWithNoLonLat++;
-#     }
-#
-#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-#
-#     #Get info about the airport we're currently pointing to
-#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-#     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-#
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-#
-#     return TRUE;
-# }
-#
-# sub previousPlateNotMarkedManually {
-#     my ( $widget, $event ) = @_;
-#
-#     my $totalPlateCount = scalar @{$_platesNotMarkedManually};
-#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-#
-#     if ( $indexIntoPlatesWithNoLonLat > 0 ) {
-#         $indexIntoPlatesWithNoLonLat--;
-#     }
-#
-#     #Info about current plate
-#     my $rowRef = ( @$_platesNotMarkedManually[$indexIntoPlatesWithNoLonLat] );
-#
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-#
-#     say "$indexIntoPlatesWithNoLonLat / $totalPlateCount";
-#
-#     return TRUE;
-# }
-
-# sub nextBadButtonClick {
-#     my ( $widget, $event ) = @_;
-#
-#     #Get info about the airport we're currently pointing to
-#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-#
-#     my $totalPlateCount = scalar @{$_platesMarkedBad};
-#
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-#
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesMarkedBad < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesMarkedBad++;
-#     }
-#
-#     say "$indexIntoPlatesMarkedBad / $totalPlateCount";
-#
-#     return TRUE;
-# }
-#
-# sub previousBadButtonClick {
-#     my ( $widget, $event ) = @_;
-#
-#     my $rowRef = ( @$_platesMarkedBad[$indexIntoPlatesMarkedBad] );
-#
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-#
-#     if ( $indexIntoPlatesMarkedBad > 0 ) {
-#         $indexIntoPlatesMarkedBad--;
-#     }
-#     say $indexIntoPlatesMarkedBad;
-#
-#     return TRUE;
-# }
-
-# sub nextChangedButtonClick {
-#     my ( $widget, $event ) = @_;
-#
-#     #Get info about the airport we're currently pointing to
-#     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-#
-#     my $totalPlateCount = scalar @{$_platesMarkedChanged};
-#
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-#
-#     #BUG TODO Make length of array
-#     if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
-#         $indexIntoPlatesMarkedChanged++;
-#     }
-#
-#     say "$indexIntoPlatesMarkedChanged / $totalPlateCount";
-#
-#     return TRUE;
-# }
-#
-# sub previousChangedButtonClick {
-#     my ( $widget, $event ) = @_;
-#
-#     my $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
-#
-#     #Update information for the plate we're getting ready to display
-#     activateNewPlate($rowRef);
-#
-#     if ( $indexIntoPlatesMarkedChanged > 0 ) {
-#         $indexIntoPlatesMarkedChanged--;
-#     }
-#     say $indexIntoPlatesMarkedChanged;
-#
-#     return TRUE;
-# }
-
 sub addGcpButtonClick {
 
     #Add to the GCP list
@@ -1796,18 +1586,6 @@ sub markNotReferenceableButtonClick {
     return TRUE;
 }
 
-# sub deleteActiveGcp {
-#   #Delete the active item in the liststore
-#   my ( undef, $tree ) = @_;
-#
-#   my $sel = $main::gcpTreeview->get_selection;
-#
-#   my ( $model, $iter ) = $sel->get_selected;
-#   return unless $iter;
-#   $model->remove($iter);
-#   return TRUE;
-# }
-
 sub deleteActiveGcpDelKey {
 
     #Linked to "Del" key on treeview
@@ -1819,6 +1597,8 @@ sub deleteActiveGcpDelKey {
     #    say $key;
     #   say Gtk3::Gdk->keyval_name($key);
     if (
+        #BUG TODO I'd rather use the key name than value but I can't get that
+        #to work yet
         #Delete key value
         $key == 65535
 
@@ -1864,7 +1644,9 @@ sub activateNewPlate {
 
     my $textviewBuffer = $main::textview1->get_buffer;
     my $iter           = $textviewBuffer->get_iter_at_offset(0);
+    
     say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME";
+    
     $textviewBuffer->insert( $iter,
         "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME\n\n"
     );
@@ -3112,7 +2894,6 @@ sub georeferenceTheRaster {
     }
 
     #Run gdal_translate
-
     my $gdal_translateoutput = qx($gdal_translateCommand);
 
     my $retval = $? >> 8;
@@ -3195,8 +2976,10 @@ sub georeferenceTheRaster {
     }
 
     my ( $pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, );
-    say $gdalinfoCommandOutput if $debug;
     my ( $xPixelSkew, $yPixelSkew );
+    
+    say $gdalinfoCommandOutput if $debug;
+    
 
     #Extract georeference info from gdalinfo output
     (
@@ -3204,6 +2987,7 @@ sub georeferenceTheRaster {
         $upperLeftLat
 
     ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput);
+    
     say "From gcps2wld: ";
     say " pixelSizeX->$pixelSizeX";
     say " yPixelSkew->$yPixelSkew";
@@ -3217,15 +3001,16 @@ sub georeferenceTheRaster {
 
         #BUG TODO
         if ( $main::CHART_CODE =~ /IAP/ ) {
-
-            #Instrument Approach Procedures are always True North Up
+            #Instrument Approach Procedures are always True North Up so lets
+            #zero out these values just in case
             $xPixelSkew = 0;
             $yPixelSkew = 0;
         }
 
         #Update the georef table
         my $update_dtpp_geo_record =
-            "UPDATE dtppGeo " . "SET "
+            "UPDATE dtppGeo " 
+          . "SET "
           . "xMedian = ?, "
           . "yMedian = ?, "
           . "upperLeftLon = ?, "
@@ -3258,7 +3043,6 @@ sub georeferenceTheRaster {
         my $verticalScaleFactor   = $originalImageHeight / $scaledImageHeight;
 
         #adjust the scale factors per the ratio of the image to the actual window
-
         $pixelSizeX = $pixelSizeX * $horizontalScaleFactor;
         $xPixelSkew = $xPixelSkew * $horizontalScaleFactor;
         $pixelSizeY = $pixelSizeY * $verticalScaleFactor;
@@ -3290,8 +3074,6 @@ sub georeferenceTheRaster {
         $pixelSizeX, $yPixelSkew,   $xPixelSkew,
         $pixelSizeY, $upperLeftLon, $upperLeftLat
     );
-
-    #     return 0;
 }
 
 sub extractGeoreferenceInfoGcps2Wld {
@@ -3318,4 +3100,21 @@ sub extractGeoreferenceInfoGcps2Wld {
         $pixelSizeX, $pixelSizeY, $xPixelSkew, $yPixelSkew, $upperLeftLon,
         $upperLeftLat
     );
+}
+
+sub handlerAutoGeoreferenceButtonClick {
+    my ( $widget, $event ) = @_;
+
+    #Delete the existing stored hash (maybe even outlines etc?)
+    #run georef
+    #update all of my current data with data from the run
+
+    return TRUE;
+}
+sub handlerOpenInQgisButtonClick {
+    my ( $widget, $event ) = @_;
+
+    #Create a vrt or world file and open in qgis
+
+    return TRUE;
 }

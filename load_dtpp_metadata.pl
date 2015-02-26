@@ -542,14 +542,23 @@ sub convertPdfToPng {
 
     #Convert the PDF to a PNG
     my $pdfToPpmOutput;
+    
+    #Return if the png already exists
     if ( -e $targetPng ) {
         return;
     }
     $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetPng);
 
     my $retval = $? >> 8;
-
-    carp "Error from pdftoppm.   Return code is $retval" if $retval != 0;
+ 
+ #Did we succeed?
+ if ($retval != 0) {  
+  #Delete the possibly bad png
+  unlink $targetPng;
+  carp "Error from pdftoppm.   Return code is $retval";
+ }
+    
+   
     return $retval;
 }
 sub usage {

@@ -117,9 +117,8 @@ unless ( getopts( "$opt_string", \%opt ) ) {
 }
 
 #Get the target cycle rom command line
-my $cycle             = shift @ARGV;
+my $cycle = shift @ARGV;
 our ($dtppDirectory) = "./dtpp-$cycle/";
-
 
 if ( !-e ($dtppDirectory) ) {
     say "Target dTpp directory $dtppDirectory doesn't exist";
@@ -159,36 +158,35 @@ if ( $opt{t} ) {
 our $plateStatus = "%";
 
 if ( $opt{n} ) {
-
-    #If something  provided on the command line use it instead
+    #Let's only process plates we've tagged as ADDEDCHANGED in load_dtpp_metadata
     $plateStatus = "ADDEDCHANGED";
     say "Doing only ADDEDCHANGED charts: $plateStatus";
 }
 
-our $shouldNotOverwriteVrt           = $opt{c};
-our $shouldOutputStatistics          = $opt{s};
-our $shouldSaveMarkedPdf             = $opt{p};
-our $debug                           = $opt{v};
-our $shouldRecreateOutlineFiles      = $opt{o};
-our $shouldSaveBadRatio              = $opt{b};
-our $shouldUseMultipleObstacles      = $opt{m};
-# our $shouldOnlyProcessAddedOrChanged = $opt{n};
+our $shouldNotOverwriteVrt      = $opt{c};
+our $shouldOutputStatistics     = $opt{s};
+our $shouldSaveMarkedPdf        = $opt{p};
+our $debug                      = $opt{v};
+our $shouldRecreateOutlineFiles = $opt{o};
+our $shouldSaveBadRatio         = $opt{b};
+our $shouldUseMultipleObstacles = $opt{m};
 
-#The name of our database
+
+#The name of our dtpp database
 my $dbfile = "./dtpp-$cycle.db";
 
-#database of metadata for dtpp
+#Connect to dtpp database
 my $dtppDbh =
      DBI->connect( "dbi:SQLite:dbname=./$dbfile", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
-#Open the locations database
+#Open the NASR database
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect( "dbi:SQLite:dbname=./locationinfo.db",
-    "", "", { RaiseError => 1 } )
+$dbh =
+     DBI->connect( "dbi:SQLite:dbname=./56day.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 our (
@@ -225,21 +223,21 @@ my $selectStatement = "SELECT
 
 # #Alter SQL query if  we only want to do added/changed charts
 # if ($shouldOnlyProcessAddedOrChanged) {
-#     $selectStatement = "SELECT  
-#       D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE, 
-#       D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE, 
+#     $selectStatement = "SELECT
+#       D.TPP_VOLUME, D.FAA_CODE, D.CHART_SEQ, D.CHART_CODE,
+#       D.CHART_NAME, D.USER_ACTION, D.PDF_NAME, D.FAANFD18_CODE,
 #       D.MILITARY_USE, D.COPTER_USE, D.STATE_ID,
 #       DG.STATUS
-#     FROM 
-#       dtpp AS D 
-#     JOIN 
-#       dtppGeo AS DG 
-#     ON 
+#     FROM
+#       dtpp AS D
+#     JOIN
+#       dtppGeo AS DG
+#     ON
 #       D.PDF_NAME=DG.PDF_NAME
-#     WHERE  
-#       D.CHART_CODE = 'IAP' 
-#         AND 
-#       D.FAA_CODE LIKE  '$airportId' 
+#     WHERE
+#       D.CHART_CODE = 'IAP'
+#         AND
+#       D.FAA_CODE LIKE  '$airportId'
 #         AND
 #       D.STATE_ID LIKE  '$stateId'
 #        AND
@@ -249,7 +247,7 @@ my $selectStatement = "SELECT
 #       D.USER_ACTION = 'C'
 #       )
 #       ";
-# 
+#
 # }
 
 #Query the dtpp database for desired charts
@@ -276,7 +274,8 @@ foreach my $_row (@$_allSqlQueryResults) {
     #Execute the main loop for this plate
     doAPlate();    #PDF_NAME, $dtppDirectory
     ++$completedCount;
-    say "$completedCount" . "/" . "$_rows";
+    say "$completedCount" . "/" . "$_rows\n";
+    
 }
 
 #Close the charts database
@@ -340,6 +339,9 @@ sub doAPlate {
         '$status'                          => "0"
     );
 
+    #Load existing info for this plate so it won't get zeroed out in case of error
+    loadExistingStatistics();
+    
     #FQN of the PDF for this chart
     our $targetPdf = $dtppDirectory . $PDF_NAME;
 
@@ -370,7 +372,6 @@ sub doAPlate {
     our $targetvrt         = $dir . $targetVrtFile . ".vrt";
     our $targetVrtFile2    = "warped" . $targetVrtFile;
     our $targetvrt2        = $dir . $targetVrtFile2 . ".vrt";
-    our $targetStatistics  = "./statistics.csv";
 
     #Say what our input PDF and output VRT are
     say $targetPdf;
@@ -386,7 +387,7 @@ sub doAPlate {
         say "TargetPng: $targetpng";
         say "TargetTif: $targettif";
         say "TargetVrt: $targetvrt";
-        say "targetStatistics: $targetStatistics";
+
         say "";
     }
 
@@ -412,7 +413,8 @@ sub doAPlate {
 
     if ( scalar(@pdftotext) < 5 ) {
         say "Not enough pdftotext output for $targetPdf";
-        writeStatistics() if $shouldOutputStatistics;
+        #BUG TODO Commenting out so we don't zero out existing stats
+#         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
 
@@ -422,7 +424,8 @@ sub doAPlate {
         if ( $line =~ m/chartnott/i ) {
             say "$targetPdf not to scale, can't georeference";
             $statistics{'$status'} = "AUTOBAD";
-            writeStatistics() if $shouldOutputStatistics;
+            #BUG TODO Commenting out so we don't zero out existing stats
+#             writeStatistics() if $shouldOutputStatistics;
             return (1);
         }
 
@@ -509,10 +512,10 @@ sub doAPlate {
 
     }
 
-    
     #Do we already have a hash of ground control points for this plate stored from a previous run?
+    #If not, find GCPs
     if ( !-e $storedGcpHash ) {
-
+	say "Find new GCPs";
         #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
         #(airportId,%runwaysFromDatabase,runwaysToDraw)
         findRunwaysInDatabase();
@@ -727,7 +730,7 @@ sub doAPlate {
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Everything to do with fixes
-        #
+        #-----------------------------------------------------------------------------------------------------------------------------------------
         #Find fixes near the airport
         #Updates %fixes_from_db
         our %fixes_from_db = ();
@@ -740,7 +743,8 @@ sub doAPlate {
         findClosestSquigglyToA( \%fixIcons, \%notToScaleIndicator );
 
         #Try to find closest TextBox center to each Icon center...
-        findClosestBToA( \%fixIcons,     \%fixTextboxes );
+        findClosestBToA( \%fixIcons, \%fixTextboxes );
+
         #now do the reverse
         findClosestBToA( \%fixTextboxes, \%fixIcons, );
 
@@ -796,7 +800,7 @@ sub doAPlate {
   joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
     \%gpswaypoints_from_db )' if $debug;
 
-	#match up icons and text boxes
+        #match up icons and text boxes
         my $matchedGpsWaypointIconsToTextBoxes =
           joinIconTextboxAndDatabaseHashes( \%gpsWaypointIcons, \%fixTextboxes,
             \%gpswaypoints_from_db );
@@ -815,7 +819,7 @@ sub doAPlate {
             # say "";
         }
 
-       #Draw a line between matched icons and text
+        #Draw a line between matched icons and text
         drawLineFromEachIconToMatchedTextBox( \%gpsWaypointIcons,
             \%fixTextboxes )
           if $shouldSaveMarkedPdf;
@@ -864,27 +868,34 @@ sub doAPlate {
 
         #---------------------------------------------------------------------------------------------------------------------------------------------------
         #Create the combined hash of Ground Control Points
-	#---------------------------------------------------------------------------------------------------------------------------------------------------
-        #Add Runway endpoints  
+        #---------------------------------------------------------------------------------------------------------------------------------------------------
+        #Add Runway endpoints
         addCombinedHashToGroundControlPoints( "runway",
             \%matchedRunIconsToDatabase );
 
-        #Add Obstacles 
+        #Add Obstacles
         addCombinedHashToGroundControlPoints( "obstacle",
             $matchedObstacleIconsToTextBoxes );
 
-        #Add Fixes  
+        #Add Fixes
         addCombinedHashToGroundControlPoints( "fix",
             $matchedFixIconsToTextBoxes );
 
-        #Add Navaids 
+        #Add Navaids
         addCombinedHashToGroundControlPoints( "navaid",
             $matchedNavaidIconsToTextBoxes );
 
-        #Add GPS waypoints 
+        #Add GPS waypoints
         addCombinedHashToGroundControlPoints( "gps",
             $matchedGpsWaypointIconsToTextBoxes );
     }
+    elsif ( $opt{n} ) {
+      say "Only processing added/changed plates with no pre-existing GPC hash. Exiting..";
+      #If we have a pre-existing hash and we're only doing added/changed charts let's not do anything
+      #
+      return;
+    }
+    
     else {
         say "Loading existing hash table $storedGcpHash";
         my $gcpHashref = retrieve($storedGcpHash);
@@ -893,7 +904,7 @@ sub doAPlate {
         %gcps = %{$gcpHashref};
 
     }
-    
+
     if ($debug) {
         say "";
         say "Combined Ground Control Points";
@@ -918,8 +929,7 @@ sub doAPlate {
         $pdf->saveas($outputPdf);
     }
 
-    #----------------------------------------------------------------------------------------------------------------------------------------------------
-    #Now some math
+    #Take the GCPs we've found and try to georeference
     our ( @xScaleAvg, @yScaleAvg, @ulXAvg, @ulYAvg, @lrXAvg, @lrYAvg ) = ();
 
     our ( $xAvg,    $xMedian,   $xStdDev )   = 0;
@@ -928,7 +938,7 @@ sub doAPlate {
     our ( $ulYAvrg, $ulYmedian, $ulYStdDev ) = 0;
     our ( $lrXAvrg, $lrXmedian, $lrXStdDev ) = 0;
     our ( $lrYAvrg, $lrYmedian, $lrYStdDev ) = 0;
-    our ( $lonLatRatio ) = 0;
+    our ($lonLatRatio) = 0;
 
     #Can't do anything if we didn't find any valid ground control points
     if ( $gcpCount < 2 ) {
@@ -944,11 +954,13 @@ sub doAPlate {
         #touch($touchFile);
 
         $statistics{'$status'} = "AUTOBAD";
-        writeStatistics() if $shouldOutputStatistics;
+        #BUG TODO Commenting out so we don't zero out existing stats
+#         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
 
-    #Calculate the rough X and Y scale values
+    #We could possibly try to reference with only one point
+    #for now we're not
     if ( $gcpCount == 1 ) {
         say "Found 1 ground control points in $targetPdf";
         say "Touching $touchFile";
@@ -959,7 +971,8 @@ sub doAPlate {
         #Is it better to guess or do nothing?  I think we should do nothing
         #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
         $statistics{'$status'} = "AUTOBAD";
-        writeStatistics() if $shouldOutputStatistics;
+        #BUG TODO Commenting out so we don't zero out existing stats
+#         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
     else {
@@ -1008,7 +1021,10 @@ sub doAPlate {
         $statistics{'$yMedian'}       = $yMedian;
         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
         $statistics{'$lonLatRatio'}   = $lonLatRatio;
-
+    
+	#Write out the statistics of this file if requested
+	writeStatistics() if $shouldOutputStatistics;
+    
     }
     else {
         say
@@ -1021,8 +1037,7 @@ sub doAPlate {
         close($fh);
     }
 
-    #Write out the statistics of this file if requested
-    writeStatistics() if $shouldOutputStatistics;
+
 
     #Since we've calculated our extents, try drawing some features on the outputPdf to see if they align
     #With our work
@@ -1159,8 +1174,17 @@ sub findAirportLatitudeAndLongitude {
         }
 
         #Query the database for airport
-        my $sth = $dbh->prepare(
-            "SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportId'"
+        my $sth = $dbh->prepare( "
+        select
+        location_identifier
+	,apt_latitude
+	,apt_longitude
+	,official_facility_name
+
+      from apt_apt
+         WHERE
+	    location_identifier = '$airportId'
+	    "
         );
         $sth->execute();
         my $_allSqlQueryResults = $sth->fetchall_arrayref();
@@ -1196,9 +1220,10 @@ sub findAirportLatitudeAndLongitude {
 sub getMediaboxSize {
 
     #Get the mediabox size from the PDF
-    my $mutoolinfo = qx(mutool info $main::targetPdf);
+    my $mutoolinfo = qx(mutool info -m $main::targetPdf);
     my $retval     = $? >> 8;
-    die "No output from mutool info.  Is it installed? Return code was $retval"
+    die
+      "No output from mutool info for $main::targetPdf.  Is it installed? Return code was $retval"
       if ( $mutoolinfo eq "" || $retval != 0 );
 
     foreach my $line ( split /[\r\n]+/, $mutoolinfo ) {
@@ -1783,15 +1808,34 @@ sub findObstaclesNearAirport {
     foreach my $heightmsl (@main::obstacle_heights) {
 
         #@obstacle_heights only contains unique potential heights mentioned on the plate
+        #         #Query the database for obstacles of $heightmsl within our $radius
+        #         my $sth = $dbh->prepare(
+        #             "SELECT * FROM obstacles WHERE
+        #                                        (HeightMsl=$heightmsl) and
+        #                                        (HeightAgl > $minimumAgl) and
+        #                                        (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and
+        #                                        (Latitude < $main::airportLatitudeDec +$radiusDegreesLatitude ) and
+        #                                        (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and
+        #                                        (Longitude < $main::airportLongitudeDec +$radiusDegreesLongitude )"
+        #         );
+
         #Query the database for obstacles of $heightmsl within our $radius
         my $sth = $dbh->prepare(
-            "SELECT * FROM obstacles WHERE 
-                                       (HeightMsl=$heightmsl) and 
-                                       (HeightAgl > $minimumAgl) and 
-                                       (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and 
-                                       (Latitude < $main::airportLatitudeDec +$radiusDegreesLatitude ) and 
-                                       (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and 
-                                       (Longitude < $main::airportLongitudeDec +$radiusDegreesLongitude )"
+            "SELECT 
+            obstacle_latitude
+	    ,obstacle_longitude
+	    ,amsl_ht
+	    ,agl_ht
+         FROM OBSTACLE_OBSTACLE
+            WHERE
+            amsl_ht=$heightmsl
+            and
+            agl_ht > 200
+            AND
+            (obstacle_latitude  BETWEEN  $main::airportLatitudeDec -  $radiusDegreesLatitude  AND  $main::airportLatitudeDec  + $radiusDegreesLatitude )
+            and
+            (obstacle_longitude BETWEEN $main::airportLongitudeDec - $radiusDegreesLongitude AND $main::airportLongitudeDec + $radiusDegreesLongitude )
+          ORDER BY amsl_ht ASC"
         );
         $sth->execute();
 
@@ -1799,11 +1843,15 @@ sub findObstaclesNearAirport {
         my $_rows = $sth->rows();
         say "Found $_rows objects of height $heightmsl" if $debug;
 
-        #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
-        #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
+#         #BUG TODO Remove after testing
+#         die if $_rows < 2;
+
         my $bestDistanceToAirport = 9999;
 
         if ($shouldUseMultipleObstacles) {
+
+            #This may be a terrible idea but I'm testing the theory that if an obstacle is mentioned only once on the PDF that even if that height is not unique in the real world within the bounding box
+            #that the designer is going to show the one that's closest to the airport.  I could be totally wrong here and causing more mismatches than I'm solving
             foreach my $_row (@$all) {
                 my ( $lat, $lon, $heightmsl, $heightagl ) = @$_row;
                 my $distanceToAirport =
@@ -3788,21 +3836,6 @@ sub writeStatistics {
 
     $dtppSth->execute();
 
-    # open my $file, '>>', $main::targetStatistics
-    # or croak "can't open '$main::targetStatistics' for writing : $!";
-
-    # my $_header = join ",", sort keys %statistics;
-
-    # # my $_data   = join ",", sort values %statistics;
-    # #A basic routine for outputting CSV for our statistics hash
-    # my $_data =
-    # join( ",", map { "$main::statistics{$_}" } sort keys %statistics );
-    # say {$file} "$_header"
-    # or croak "Cannot write to $main::targetStatistics: ";
-    # say {$file} "$_data"
-    # or croak "Cannot write to $main::targetStatistics: ";
-
-    # close $file;
     return;
 }
 
@@ -3852,13 +3885,38 @@ sub findFixesNearAirport {
     my $type = "%REP-PT";
 
     #Query the database for fixes within our $radius
-    my $sth = $dbh->prepare(
-        "SELECT * FROM fixes WHERE  (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and 
-                                (Latitude < $main::airportLatitudeDec + $radiusDegreesLatitude ) and 
-                                (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and 
-                                (Longitude < $main::airportLongitudeDec + $radiusDegreesLongitude ) and
-                                (Type like '$type')"
+    #     my $sth = $dbh->prepare(
+    #         "SELECT * FROM fixes WHERE  (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and
+    #                                 (Latitude < $main::airportLatitudeDec + $radiusDegreesLatitude ) and
+    #                                 (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and
+    #                                 (Longitude < $main::airportLongitudeDec + $radiusDegreesLongitude ) and
+    #                                 (Type like '$type')"
+    #     );
+    #
+
+    my $sth = $dbh->prepare( "
+        SELECT
+	  national_airspace_system_nas_identifier_for_the_fix_usually_5_c
+	  ,latitude
+	  ,longitude
+	  ,fix_use
+	  FROM
+	  fix_fix1
+        WHERE  
+        (latitude  BETWEEN $main::airportLatitudeDec  - $radiusDegreesLatitude  AND $main::airportLatitudeDec  + $radiusDegreesLatitude )
+        and 
+        (longitude BETWEEN $main::airportLongitudeDec - $radiusDegreesLongitude AND $main::airportLongitudeDec + $radiusDegreesLongitude )
+        and
+        (fix_use like '$type')
+        "
+
     );
+
+    my $_rows = $sth->rows();
+
+#     #BUG TODO remove after testing
+#     die if $_rows < 2;
+
     $sth->execute();
 
     my $allSqlQueryResults = $sth->fetchall_arrayref();
@@ -3885,62 +3943,62 @@ sub findFixesNearAirport {
         say "We have selected $fields field(s)";
         say "We have selected $_rows row(s)";
 
-        #print Dumper ( \%fixes_from_db );
+        print Dumper ( \%main::fixes_from_db);
         say "";
     }
 
     return;
 }
 
-sub findFeatureInDatabaseNearAirport {
-
-    #my ($radius, $type, $table, $referenceToHash) = @_;
-    my $radius = .5;
-
-    #What type of fixes to look for
-    my $type = "%REP-PT";
-
-    #Query the database for fixes within our $radius
-    my $sth = $dbh->prepare(
-        "SELECT * FROM fixes WHERE  (Latitude >  $main::airportLatitudeDec - $radius ) and 
-                                (Latitude < $main::airportLatitudeDec + $radius ) and 
-                                (Longitude >  $main::airportLongitudeDec - $radius ) and 
-                                (Longitude < $main::airportLongitudeDec +$radius ) and
-                                (Type like '$type')"
-    );
-    $sth->execute();
-
-    my $allSqlQueryResults = $sth->fetchall_arrayref();
-
-    foreach my $_row (@$allSqlQueryResults) {
-        my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
-        $main::fixes_from_db{$fixname}{"Name"} = $fixname;
-        $main::fixes_from_db{$fixname}{"Lat"}  = $lat;
-        $main::fixes_from_db{$fixname}{"Lon"}  = $lon;
-        $main::fixes_from_db{$fixname}{"Type"} = $fixtype;
-
-    }
-
-    if ($debug) {
-        my $nmLatitude = 60 * $radius;
-        my $nmLongitude =
-          $nmLatitude * cos( deg2rad($main::airportLatitudeDec) );
-
-        my $_rows  = $sth->rows();
-        my $fields = $sth->{NUM_OF_FIELDS};
-        say
-          "Found $_rows FIXES within $radius degrees of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) ($nmLongitude x $nmLatitude nm)  from database";
-
-        say "All $type fixes from database";
-        say "We have selected $fields field(s)";
-        say "We have selected $_rows row(s)";
-
-        #print Dumper ( \%fixes_from_db );
-        say "";
-    }
-
-    return;
-}
+# sub findFeatureInDatabaseNearAirport {
+#
+#     #my ($radius, $type, $table, $referenceToHash) = @_;
+#     my $radius = .5;
+#
+#     #What type of fixes to look for
+#     my $type = "%REP-PT";
+#
+#     #Query the database for fixes within our $radius
+#     my $sth = $dbh->prepare(
+#         "SELECT * FROM fixes WHERE  (Latitude >  $main::airportLatitudeDec - $radius ) and
+#                                 (Latitude < $main::airportLatitudeDec + $radius ) and
+#                                 (Longitude >  $main::airportLongitudeDec - $radius ) and
+#                                 (Longitude < $main::airportLongitudeDec +$radius ) and
+#                                 (Type like '$type')"
+#     );
+#     $sth->execute();
+#
+#     my $allSqlQueryResults = $sth->fetchall_arrayref();
+#
+#     foreach my $_row (@$allSqlQueryResults) {
+#         my ( $fixname, $lat, $lon, $fixtype ) = @$_row;
+#         $main::fixes_from_db{$fixname}{"Name"} = $fixname;
+#         $main::fixes_from_db{$fixname}{"Lat"}  = $lat;
+#         $main::fixes_from_db{$fixname}{"Lon"}  = $lon;
+#         $main::fixes_from_db{$fixname}{"Type"} = $fixtype;
+#
+#     }
+#
+#     if ($debug) {
+#         my $nmLatitude = 60 * $radius;
+#         my $nmLongitude =
+#           $nmLatitude * cos( deg2rad($main::airportLatitudeDec) );
+#
+#         my $_rows  = $sth->rows();
+#         my $fields = $sth->{NUM_OF_FIELDS};
+#         say
+#           "Found $_rows FIXES within $radius degrees of airport  ($main::airportLongitudeDec, $main::airportLatitudeDec) ($nmLongitude x $nmLatitude nm)  from database";
+#
+#         say "All $type fixes from database";
+#         say "We have selected $fields field(s)";
+#         say "We have selected $_rows row(s)";
+#
+#         #print Dumper ( \%fixes_from_db );
+#         say "";
+#     }
+#
+#     return;
+# }
 
 sub findGpsWaypointsNearAirport {
 
@@ -3979,14 +4037,36 @@ sub findGpsWaypointsNearAirport {
     # AND
     # (Type like '$type')"
     # );
+    #     my $sth = $dbh->prepare(
+    #         "SELECT * FROM fixes WHERE
+    #                                 (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and
+    #                                 (Latitude < $main::airportLatitudeDec +$radiusDegreesLatitude ) and
+    #                                 (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and
+    #                                 (Longitude < $main::airportLongitudeDec +$radiusDegreesLongitude ) and
+    #                                 (Type like '$type')"
+    #     );
     my $sth = $dbh->prepare(
-        "SELECT * FROM fixes WHERE  
-                                (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and 
-                                (Latitude < $main::airportLatitudeDec +$radiusDegreesLatitude ) and 
-                                (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and 
-                                (Longitude < $main::airportLongitudeDec +$radiusDegreesLongitude ) and
-                                (Type like '$type')"
+        "SELECT
+	  national_airspace_system_nas_identifier_for_the_fix_usually_5_c
+	  ,latitude
+	  ,longitude
+	  ,fix_use
+	  FROM
+	  fix_fix1
+        WHERE  
+        (latitude  BETWEEN $main::airportLatitudeDec  - $radiusDegreesLatitude  AND $main::airportLatitudeDec  + $radiusDegreesLatitude )
+        and 
+        (longitude BETWEEN $main::airportLongitudeDec - $radiusDegreesLongitude AND $main::airportLongitudeDec + $radiusDegreesLongitude )
+        and
+        (fix_use like '$type')
+        "
     );
+
+    my $_rows = $sth->rows();
+
+#     #BUG TODO remove after testing
+#     die if $_rows < 2;
+
     $sth->execute();
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
@@ -4008,7 +4088,7 @@ sub findGpsWaypointsNearAirport {
         say "We have selected $fields field(s)";
         say "We have selected $_rows row(s)";
 
-        #print Dumper ( \%gpswaypoints_from_db );
+        print Dumper ( \%main::gpswaypoints_from_db );
         say "";
     }
     return;
@@ -4033,17 +4113,39 @@ sub findNavaidsNearAirport {
     my $type = "%VOR%";
 
     #Query the database for fixes within our $radius
+    #     my $sth = $main::dbh->prepare(
+    #         "SELECT * FROM navaids WHERE
+    #                                 (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and
+    #                                 (Latitude < $main::airportLatitudeDec +$radiusDegreesLatitude ) and
+    #                                 (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and
+    #                                 (Longitude < $main::airportLongitudeDec +$radiusDegreesLongitude ) and
+    #                                 (Type like '$type' OR  Type like '%NDB%')"
+    #     );
+
     my $sth = $main::dbh->prepare(
-        "SELECT * FROM navaids WHERE  
-                                (Latitude >  $main::airportLatitudeDec - $radiusDegreesLatitude ) and 
-                                (Latitude < $main::airportLatitudeDec +$radiusDegreesLatitude ) and 
-                                (Longitude >  $main::airportLongitudeDec - $radiusDegreesLongitude ) and 
-                                (Longitude < $main::airportLongitudeDec +$radiusDegreesLongitude ) and
-                                (Type like '$type' OR  Type like '%NDB%')"
+
+        "SELECT
+	  navaid_facility_identifier
+	  ,latitude
+	  ,longitude
+	  ,navaid_facility_type_see_description
+	
+	FROM nav_nav1
+
+        WHERE  
+        (latitude  BETWEEN $main::airportLatitudeDec -  $radiusDegreesLatitude  AND $main::airportLatitudeDec  + $radiusDegreesLatitude )
+        and 
+        (longitude BETWEEN $main::airportLongitudeDec - $radiusDegreesLongitude AND $main::airportLongitudeDec + $radiusDegreesLongitude )  
+        and
+        (navaid_facility_type_see_description like '$type' OR  navaid_facility_type_see_description like '%NDB%')"
     );
+
     $sth->execute();
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
+    #BUG TODO remove
+#             my $_rows  = $sth->rows();
+#             die "No navaids found!" if $_rows < 1;
     foreach my $_row (@$allSqlQueryResults) {
         my ( $navaidName, $lat, $lon, $navaidType ) = @$_row;
         $main::navaids_from_db{$navaidName}{"Name"} = $navaidName;
@@ -4844,25 +4946,52 @@ sub findRunwayIcons {
 
 sub findRunwaysInDatabase {
     #
+    #     my $sth = $main::dbh->prepare(
+    #         "SELECT * FROM runways WHERE
+    #                                        FaaID like \"$main::airportId\"
+    #                                        "
+    #     );
+    #
     my $sth = $main::dbh->prepare(
-        "SELECT * FROM runways WHERE 
-                                       FaaID like \"$main::airportId\"
-                                       "
+        " SELECT 
+    rwy. base_end_identifier
+,rwy.base_latitude
+,rwy.base_longitude
+,rwy.base_runway_end_true_alignment
+,rwy.reciprocal_end_identifier
+,rwy.reciprocal_latitude
+,rwy.reciprocal_longitude
+,rwy.reciprocal_runway_end_true_alignment
+      FROM 
+	apt_apt AS apt
+      JOIN 
+	apt_rwy AS rwy
+      ON 
+	apt.landing_facility_site_number=rwy.landing_facility_site_number
+      WHERE
+        apt.location_identifier = '$main::airportId'
+      ;
+        "
     );
+
     $sth->execute();
 
     my $all = $sth->fetchall_arrayref();
 
     #How many rows did this search return
     my $_rows = $sth->rows();
+
+    #TODO BUG remove after testing
+
+    die if $_rows < 1;
+
     say "Found $_rows runways for $main::airportId" if $debug;
 
     foreach my $_row (@$all) {
         my (
-            $FaaID,      $Length,      $Width,       $LEName,
-            $LELatitude, $LELongitude, $LEElevation, $LEHeading,
-            $HEName,     $HELatitude,  $HELongitude, $HEElevation,
-            $HEHeading
+            $LEName,      $LELatitude, $LELongitude, $LEElevation,
+            $LEHeading,   $HEName,     $HELatitude,  $HELongitude,
+            $HEElevation, $HEHeading
         ) = @$_row;
 
         # foreach my $_row2 (@$all) {
@@ -4879,18 +5008,13 @@ sub findRunwaysInDatabase {
         #Skip helipads or waterways
         next if ( $LEName =~ /[HW]/i );
         next
-          unless ( $FaaID
-            && $Length
-            && $Width
-            && $LEName
+          unless ( $LEName
             && $LELatitude
             && $LELongitude
-            && $LEElevation
             && $LEHeading
             && $HEName
             && $HELatitude
             && $HELongitude
-            && $HEElevation
             && $HEHeading );
 
         #Convert lon/at to EPSG 3857
@@ -4934,7 +5058,7 @@ sub findRunwaysInDatabase {
         $main::runwaysToDraw{ $LEName . $HEName }{'HELatitude'}  = $HELatitude;
         $main::runwaysToDraw{ $LEName . $HEName }{'HELongitude'} = $HELongitude;
 
-        #say "$FaaID, $Length ,$Width ,$LEName ,$LELatitude ,$LELongitude ,$LEElevation , $LEHeading , $HEName ,$HELatitude ,$HELongitude ,$HEElevation ,$HEHeading";
+        #say "$LEName ,$LELatitude ,$LELongitude , $LEHeading , $HEName ,$HELatitude ,$HELongitude ,$HEHeading";
         # $unique_obstacles_from_db{$heightmsl}{"Lat"} = $lat;
         # $unique_obstacles_from_db{$heightmsl}{"Lon"} = $lon;
 
@@ -5025,6 +5149,10 @@ sub usage {
     say "-o Re-create outlines/mask files";
     say "-p Output a marked up version of PDF";
     say "-s Output statistics about the PDF";
-    
+
     return;
+}
+
+sub loadExistingStatistics {
+return;
 }
