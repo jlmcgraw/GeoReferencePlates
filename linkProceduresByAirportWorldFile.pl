@@ -45,13 +45,13 @@ exit main(@ARGV);
 #--------------------------------------------------------------------------
 sub main {
 
-    # mkdir byAirport
+    # mkdir byAirport-$cycle
     # for each distinct FAA_CODE
-    # mkdir FAA_CODE
-    # for each DTPP that is IAP or AirportDiagram
-    # santize procedure Name
-    # create a .wld file from database
-    # link ./byAirportWorldFile/AirportCode/procedureName.png -> ./dtpp/chartcode.png
+    #   mkdir FAA_CODE
+    #   for each DTPP that is IAP or AirportDiagram
+    #   santize procedure Name
+    #   create a .wld file from database
+    #   link ./byAirportWorldFile$cycle/AirportCode/procedureName.png -> ./dtpp-$cycle/chartcode.png
 
     my $arg_num = scalar @ARGV;
 

@@ -4,11 +4,6 @@ $latestCycle = 1503
 
 mkdir $latestCycle
 
-select status, count(status) 
-from dtppgeo 
-group by status;
-
-
 #unzip all of the dtpp archives to one directory
 #unzip -q "DDTPP?_20$latestCycle.zip" -d dtpp-$latestCycle
 
@@ -20,24 +15,26 @@ group by status;
 #Copy the old georeference database data to the new cycle db (overwriting auto data) along with hashes of GCPs
   ./moveOldCycleDataToNewCycle.pl $previousCycle $latestCycle
 
-ADDEDCHANGED|2790
-MANUALBAD|491
-MANUALGOOD|9940
-NOGEOREF|43
-
+#2a
 #remove empty stored hash files
-find ./dtpp-$latestCycle -type f -name '*hash*' -size -30c
+find ./dtpp-$latestCycle -type f -name '*hash*' -size -30c -exec rm '{}' ';'
 
 #3  
 #Run autogeoref for added/changed plates and update their statistics
   ./georeferencePlatesViaDb.pl -n -s $latestCycle
 
-ADDEDCHANGED|2755
-AUTOGOOD|35
-MANUALBAD|491
-MANUALGOOD|9940
-NOGEOREF|43
-
 #4
 #Manually verify everything
   ./verifyGeoreference.pl $latestCycle
+
+#4
+#Remove unecessary info (unused columns, bad statuses etc)
+
+#To see count of statuses
+#select status, count(status) 
+#from dtppgeo 
+#group by status;
+
+
+
+  
