@@ -17,7 +17,7 @@ mkdir $latestCycle
 
 #2a
 #remove empty stored hash files
-find ./dtpp-$latestCycle -type f -name '*hash*' -size -30c -exec rm '{}' ';'
+#find ./dtpp-$latestCycle -type f -name '*AD-hash*' -size -30c -exec rm '{}' ';'
 
 #3  
 #Run autogeoref for added/changed plates and update their statistics
