@@ -118,7 +118,7 @@ unless ( getopts( "$opt_string", \%opt ) ) {
     exit(1);
 }
 
-#Get the target PDF file from command line options
+#Get the cycle from command line options
 our $cycle = $ARGV[0];
 our ($dtppDirectory) = "./dtpp-$cycle/";
 
@@ -850,11 +850,11 @@ sub allIapAndApdCharts {
       ON 
 	D.PDF_NAME=DG.PDF_NAME
       WHERE  
-        ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )                 
+        ( CHART_CODE = 'IAP' OR CHART_CODE = 'APD' )
            AND 
 	FAA_CODE LIKE  '$main::airportId' 
            AND
-        STATE_ID LIKE  '$main::stateId'                    
+        STATE_ID LIKE  '$main::stateId'
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
 --          AND
