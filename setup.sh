@@ -18,3 +18,10 @@ sudo apt-get install libgd-perl
 sudo apt-get install libparse-fixedlength-perl
 sudo apt-get install libxml-twig-perl
 sudo apt-get install libparallel-forkmanager-perl
+
+
+cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/bash
+find . -maxdepth 1 -type f -name '*.pl' -or -name '*.pm' | \
+    xargs -I{} -P0 sh -c 'perltidy -b -noll {}'
+EOF

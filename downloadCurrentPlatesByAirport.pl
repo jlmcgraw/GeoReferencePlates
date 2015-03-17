@@ -261,7 +261,7 @@ sub downloadPlate {
       validate_pos( @_, { type => SCALAR } );
 
     #     my $pdf_name       = shift @_;
-#     my $pdf_name_lower = $pdf_name =~ s/\.PDF/\.pdf/;
+    #     my $pdf_name_lower = $pdf_name =~ s/\.PDF/\.pdf/;
 
     #Pull out the various filename components of the input file from the command line
     my ( $filename, $dir, $ext ) = fileparse( $pdf_name, qr/\.[^.]*/x );
@@ -291,8 +291,9 @@ sub downloadPlate {
 }
 
 sub convertPdfToPng {
+
     #Convert the PDF to a PNG
-    
+
     #Validate and set input parameters to this function
     my ( $targetPdf, $targetPng ) =
       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
@@ -300,13 +301,11 @@ sub convertPdfToPng {
     #DPI of the output PNG
     my $pngDpi = 300;
 
-
-
     #Return if the png already exists
     if ( -e $targetPng ) {
         return;
     }
-    
+
     my $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetPng);
 
     my $retval = $? >> 8;

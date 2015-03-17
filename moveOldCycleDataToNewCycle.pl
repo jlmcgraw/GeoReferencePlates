@@ -82,7 +82,7 @@ sub main {
             say "Converting $yMedian to negative";
             $yMedian = -($yMedian);
         }
-        
+
         #say which row we're on every 1000 rows
         say "Copying row: $rowCount..."
           if ( $rowCount % 1000 == 0 );
@@ -186,7 +186,7 @@ sub getOldData {
     my ($oldDbh) =
       validate_pos( @_, { type => HASHREF } );
 
-    #Get the data we want to save for old IAP and APD charts.  
+    #Get the data we want to save for old IAP and APD charts.
     #Note that will also select all IAP and APD, not just good ones
     my $oldSth = $oldDbh->prepare( "
     SELECT	

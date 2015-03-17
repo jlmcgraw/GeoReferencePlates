@@ -158,6 +158,7 @@ if ( $opt{t} ) {
 our $plateStatus = "%";
 
 if ( $opt{n} ) {
+
     #Let's only process plates we've tagged as ADDEDCHANGED in load_dtpp_metadata
     $plateStatus = "ADDEDCHANGED";
     say "Doing only ADDEDCHANGED charts: $plateStatus";
@@ -170,7 +171,6 @@ our $debug                      = $opt{v};
 our $shouldRecreateOutlineFiles = $opt{o};
 our $shouldSaveBadRatio         = $opt{b};
 our $shouldUseMultipleObstacles = $opt{m};
-
 
 #The name of our dtpp database
 my $dbfile = "./dtpp-$cycle.db";
@@ -275,7 +275,7 @@ foreach my $_row (@$_allSqlQueryResults) {
     doAPlate();    #PDF_NAME, $dtppDirectory
     ++$completedCount;
     say "$completedCount" . "/" . "$_rows\n";
-    
+
 }
 
 #Close the charts database
@@ -341,7 +341,7 @@ sub doAPlate {
 
     #Load existing info for this plate so it won't get zeroed out in case of error
     loadExistingStatistics();
-    
+
     #FQN of the PDF for this chart
     our $targetPdf = $dtppDirectory . $PDF_NAME;
 
@@ -413,8 +413,9 @@ sub doAPlate {
 
     if ( scalar(@pdftotext) < 5 ) {
         say "Not enough pdftotext output for $targetPdf";
+
         #BUG TODO Commenting out so we don't zero out existing stats
-#         writeStatistics() if $shouldOutputStatistics;
+        #         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
 
@@ -424,8 +425,9 @@ sub doAPlate {
         if ( $line =~ m/chartnott/i ) {
             say "$targetPdf not to scale, can't georeference";
             $statistics{'$status'} = "AUTOBAD";
+
             #BUG TODO Commenting out so we don't zero out existing stats
-#             writeStatistics() if $shouldOutputStatistics;
+            #             writeStatistics() if $shouldOutputStatistics;
             return (1);
         }
 
@@ -515,7 +517,8 @@ sub doAPlate {
     #Do we already have a hash of ground control points for this plate stored from a previous run?
     #If not, find GCPs
     if ( !-e $storedGcpHash ) {
-	say "Find new GCPs";
+        say "Find new GCPs";
+
         #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
         #(airportId,%runwaysFromDatabase,runwaysToDraw)
         findRunwaysInDatabase();
@@ -890,12 +893,14 @@ sub doAPlate {
             $matchedGpsWaypointIconsToTextBoxes );
     }
     elsif ( $opt{n} ) {
-      say "Only processing added/changed plates with no pre-existing GPC hash. Exiting..";
-      #If we have a pre-existing hash and we're only doing added/changed charts let's not do anything
-      #
-      return;
+        say
+          "Only processing added/changed plates with no pre-existing GPC hash. Exiting..";
+
+        #If we have a pre-existing hash and we're only doing added/changed charts let's not do anything
+        #
+        return;
     }
-    
+
     else {
         say "Loading existing hash table $storedGcpHash";
         my $gcpHashref = retrieve($storedGcpHash);
@@ -954,8 +959,9 @@ sub doAPlate {
         #touch($touchFile);
 
         $statistics{'$status'} = "AUTOBAD";
+
         #BUG TODO Commenting out so we don't zero out existing stats
-#         writeStatistics() if $shouldOutputStatistics;
+        #         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
 
@@ -971,8 +977,9 @@ sub doAPlate {
         #Is it better to guess or do nothing?  I think we should do nothing
         #calculateRoughRealWorldExtentsOfRasterWithOneGCP();
         $statistics{'$status'} = "AUTOBAD";
+
         #BUG TODO Commenting out so we don't zero out existing stats
-#         writeStatistics() if $shouldOutputStatistics;
+        #         writeStatistics() if $shouldOutputStatistics;
         return (1);
     }
     else {
@@ -1021,10 +1028,10 @@ sub doAPlate {
         $statistics{'$yMedian'}       = $yMedian;
         $statistics{'$yScaleAvgSize'} = $yScaleAvgSize;
         $statistics{'$lonLatRatio'}   = $lonLatRatio;
-    
-	#Write out the statistics of this file if requested
-	writeStatistics() if $shouldOutputStatistics;
-    
+
+        #Write out the statistics of this file if requested
+        writeStatistics() if $shouldOutputStatistics;
+
     }
     else {
         say
@@ -1036,8 +1043,6 @@ sub doAPlate {
           or die "cannot open > $touchFile: $!";
         close($fh);
     }
-
-
 
     #Since we've calculated our extents, try drawing some features on the outputPdf to see if they align
     #With our work
@@ -1843,8 +1848,8 @@ sub findObstaclesNearAirport {
         my $_rows = $sth->rows();
         say "Found $_rows objects of height $heightmsl" if $debug;
 
-#         #BUG TODO Remove after testing
-#         die if $_rows < 2;
+        #         #BUG TODO Remove after testing
+        #         die if $_rows < 2;
 
         my $bestDistanceToAirport = 9999;
 
@@ -3914,8 +3919,8 @@ sub findFixesNearAirport {
 
     my $_rows = $sth->rows();
 
-#     #BUG TODO remove after testing
-#     die if $_rows < 2;
+    #     #BUG TODO remove after testing
+    #     die if $_rows < 2;
 
     $sth->execute();
 
@@ -3943,7 +3948,7 @@ sub findFixesNearAirport {
         say "We have selected $fields field(s)";
         say "We have selected $_rows row(s)";
 
-        print Dumper ( \%main::fixes_from_db);
+        print Dumper ( \%main::fixes_from_db );
         say "";
     }
 
@@ -4064,8 +4069,8 @@ sub findGpsWaypointsNearAirport {
 
     my $_rows = $sth->rows();
 
-#     #BUG TODO remove after testing
-#     die if $_rows < 2;
+    #     #BUG TODO remove after testing
+    #     die if $_rows < 2;
 
     $sth->execute();
     my $allSqlQueryResults = $sth->fetchall_arrayref();
@@ -4144,8 +4149,8 @@ sub findNavaidsNearAirport {
     my $allSqlQueryResults = $sth->fetchall_arrayref();
 
     #BUG TODO remove
-#             my $_rows  = $sth->rows();
-#             die "No navaids found!" if $_rows < 1;
+    #             my $_rows  = $sth->rows();
+    #             die "No navaids found!" if $_rows < 1;
     foreach my $_row (@$allSqlQueryResults) {
         my ( $navaidName, $lat, $lon, $navaidType ) = @$_row;
         $main::navaids_from_db{$navaidName}{"Name"} = $navaidName;
@@ -5154,5 +5159,5 @@ sub usage {
 }
 
 sub loadExistingStatistics {
-return;
+    return;
 }

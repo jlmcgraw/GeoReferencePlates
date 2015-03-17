@@ -33,8 +33,8 @@ $VERSION = 1.00;
 @ISA     = qw(Exporter);
 @EXPORT =
   qw( rtrim ltrim coordinatetodecimal coordinatetodecimal2 is_vhf onlyuniq uniq average stdev median same_sign is_between
-   targetLonLatRatio hashHasUnmatchedIcons trueHeading WGS84toGoogleBing slopeAngle NESW removeIconsAndTextboxesInMaskedAreas
-   processMaskingFile drawFeaturesOnPdf);
+  targetLonLatRatio hashHasUnmatchedIcons trueHeading WGS84toGoogleBing slopeAngle NESW removeIconsAndTextboxesInMaskedAreas
+  processMaskingFile drawFeaturesOnPdf);
 
 #@EXPORT_OK   = qw(  coordinatetodecimal );
 
@@ -100,14 +100,13 @@ sub coordinatetodecimal {
 }
 
 sub coordinatetodecimal2 {
-    
-    my ( $deg, $min, $sec,  $declination ) = @_;
-    
+
+    my ( $deg, $min, $sec, $declination ) = @_;
+
     my $signeddegrees;
-    
 
     return "" if !( $declination =~ /[NSEW]/ );
-    
+
     $deg = $deg / 1;
     $min = $min / 60;
     $sec = $sec / 3600;
@@ -133,10 +132,12 @@ sub coordinatetodecimal2 {
         }
 
     }
+
     # say "Coordinate: $coordinate to $signeddegrees"        if $debug;
     say "Deg: $deg, Min:$min, Sec:$sec, Decl:$declination" if $debug;
     return ($signeddegrees);
 }
+
 sub uniq {
 
     #Remove duplicates from a hash, leaving only one entry (eg 1 2 3 2 2 -> 1 2 3)
@@ -247,20 +248,23 @@ sub is_between {
     my $num   = shift;
     return ( sort { $a <=> $b } $lower, $upper, $num )[1] == $num;
 }
+
 sub targetLonLatRatio {
-     my ($_airportLatitudeDec) = @_;
-     #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
-                my $_targetLonLatRatio =
-                  0.000000000065 * ( $_airportLatitudeDec**6 ) -
-                  0.000000010206 * ( $_airportLatitudeDec**5 ) +
-                  0.000000614793 * ( $_airportLatitudeDec**4 ) -
-                  0.000014000833 * ( $_airportLatitudeDec**3 ) +
-                  0.000124430097 * ( $_airportLatitudeDec**2 ) +
-                  0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
-        
-        return $_targetLonLatRatio;
+    my ($_airportLatitudeDec) = @_;
+
+    #This equation comes from a polynomial regression analysis of longitudeToLatitudeRatio by airportLatitudeDec
+    my $_targetLonLatRatio =
+      0.000000000065 * ( $_airportLatitudeDec**6 ) -
+      0.000000010206 * ( $_airportLatitudeDec**5 ) +
+      0.000000614793 * ( $_airportLatitudeDec**4 ) -
+      0.000014000833 * ( $_airportLatitudeDec**3 ) +
+      0.000124430097 * ( $_airportLatitudeDec**2 ) +
+      0.003297052219 * ($_airportLatitudeDec) + 0.618729977577;
+
+    return $_targetLonLatRatio;
 
 }
+
 sub hashHasUnmatchedIcons {
 
     # Return true if the passed hash has icons that aren't matched
@@ -356,13 +360,15 @@ sub removeIconsAndTextboxesInMaskedAreas {
 }
 
 sub processMaskingFile {
-    if ( !-e "$main::outputPdfOutlines.png" || $main::shouldRecreateOutlineFiles ) {
+    if ( !-e "$main::outputPdfOutlines.png"
+        || $main::shouldRecreateOutlineFiles )
+    {
 
         #If the .PNG doesn't already exist lets create it
         #offset from the center to start the fills
         my $offsetFromCenter = 120;
 
-#If the masking PNG doesn't already exist, read in the outlines PDF, floodfill and then save
+        #If the masking PNG doesn't already exist, read in the outlines PDF, floodfill and then save
 
         #Read in the .pdf maskfile
         # $image->Set(units=>'1');
@@ -372,11 +378,12 @@ sub processMaskingFile {
 
         #$image->Set( background => 'white' );
         $main::image->Set( alpha => 'off' );
-        $main::perlMagickStatus = $main::image->Read("$main::outputPdfOutlines");
+        $main::perlMagickStatus =
+          $main::image->Read("$main::outputPdfOutlines");
 
-#Now do two fills from just around the middle of the inner box, just in case there's something in the middle of the box blocking the fill
-#I've only seen this be an issue once
-# $image->Draw(primitive=>'color',method=>'Replace',fill=>'black',x=>1,y=>1,color => 'black');
+        #Now do two fills from just around the middle of the inner box, just in case there's something in the middle of the box blocking the fill
+        #I've only seen this be an issue once
+        # $image->Draw(primitive=>'color',method=>'Replace',fill=>'black',x=>1,y=>1,color => 'black');
         $main::image->Set( depth => 1 );
 
         #$image->Set( background => 'white' );
@@ -394,10 +401,11 @@ sub processMaskingFile {
             bordercolor => 'black'
         );
 
-# $image->Draw(stroke=>'red',  fill        => 'white',primitive=>'rectangle', points=>'20,20 100,100');
+        # $image->Draw(stroke=>'red',  fill        => 'white',primitive=>'rectangle', points=>'20,20 100,100');
 
         #Write out to a .png do we don't have to do this work again
-        $main::perlMagickStatus = $main::image->write("$main::outputPdfOutlines.png");
+        $main::perlMagickStatus =
+          $main::image->write("$main::outputPdfOutlines.png");
         warn "$main::perlMagickStatus" if "$main::perlMagickStatus";
     }
     else {
@@ -409,28 +417,31 @@ sub processMaskingFile {
         # $image->Set( alpha      => 'off' );
 
         #Use the already created mask image
-        $main::perlMagickStatus = $main::image->Read("$main::outputPdfOutlines.png");
+        $main::perlMagickStatus =
+          $main::image->Read("$main::outputPdfOutlines.png");
         warn "$main::perlMagickStatus" if "$main::perlMagickStatus";
     }
 
-# $image->Draw(primitive=>'rectangle',method=>'Floodfill',fill=>'black',points=>"$halfPngX1,$halfPngY1,5,100",color=>'black');
-# $image->Draw(fill=>'black',points=>'$halfPngX2,$halfPngY2',floodfill=>'yes',color => 'black');
-#warn "$perlMagickStatus" if "$perlMagickStatus";
-#Uncomment these lines to write out the mask file so you can see what it looks like
-#Black pixel represent areas to keep, what is what to ignore
-# $perlMagickStatus = $image->Write("$outputPdfOutlines.png");
-# warn "$perlMagickStatus" if "$perlMagickStatus";
+    # $image->Draw(primitive=>'rectangle',method=>'Floodfill',fill=>'black',points=>"$halfPngX1,$halfPngY1,5,100",color=>'black');
+    # $image->Draw(fill=>'black',points=>'$halfPngX2,$halfPngY2',floodfill=>'yes',color => 'black');
+    #warn "$perlMagickStatus" if "$perlMagickStatus";
+    #Uncomment these lines to write out the mask file so you can see what it looks like
+    #Black pixel represent areas to keep, what is what to ignore
+    # $perlMagickStatus = $image->Write("$outputPdfOutlines.png");
+    # warn "$perlMagickStatus" if "$perlMagickStatus";
 }
+
 sub drawFeaturesOnPdf {
 
     if ( -e "$main::targetpng" ) {
+
         #Read in the .png we've created
         my ( $image, $perlMagickStatus );
         $image = Image::Magick->new;
 
         $perlMagickStatus = $image->Read("$main::targetpng");
         warn $perlMagickStatus if $perlMagickStatus;
-        
+
         # say $main::airportLatitudeDec;
         my $y1 = latitudeToPixel($main::airportLatitudeDec) - 2;
         my $x1 = longitudeToPixel($main::airportLongitudeDec) - 2;
@@ -458,12 +469,12 @@ sub drawFeaturesOnPdf {
 
             my $lon = $main::gcps{$key}{"lon"};
             my $lat = $main::gcps{$key}{"lat"};
-   
-            my $y1  = latitudeToPixel($lat) - 1;
-            my $x1  = longitudeToPixel($lon) - 1;
-            my $x2  = $x1 + 2;
-            my $y2  = $y1 + 2;
-   
+
+            my $y1 = latitudeToPixel($lat) - 1;
+            my $x1 = longitudeToPixel($lon) - 1;
+            my $x2 = $x1 + 2;
+            my $y2 = $y1 + 2;
+
             $image->Draw(
                 primitive => 'circle',
                 stroke    => 'none',
@@ -473,48 +484,49 @@ sub drawFeaturesOnPdf {
             );
 
         }
-        #Draw the runway endpoints in orange
-                foreach my $key ( sort keys %main::runwaysToDraw ) {
 
-                    my $latLE = $main::runwaysToDraw{$key}{"LELatitude"};
-                    my $lonLE = $main::runwaysToDraw{$key}{"LELongitude"};
-              
-           
-                    my $y1  = latitudeToPixel($latLE) - 1;
-                    my $x1  = longitudeToPixel($lonLE) - 1;
-                    my $x2  = $x1 + 2;
-                    my $y2  = $y1 + 2;
-           
-                    $image->Draw(
-                        primitive => 'circle',
-                        stroke    => 'none',
-                        fill      => 'orange',
-                        points    => "$x1,$y1 $x2,$y2",
-                        alpha     => '100'
-                    );
-                    
-                    my $latHE = $main::runwaysToDraw{$key}{"HELatitude"};
-                    my $lonHE = $main::runwaysToDraw{$key}{"HELongitude"};
-                    $y1  = latitudeToPixel($latHE) - 1;
-                    $x1  = longitudeToPixel($lonHE) - 1;
-                    $x2  = $x1 + 2;
-                    $y2  = $y1 + 2;
-           
-                    $image->Draw(
-                        primitive => 'circle',
-                        stroke    => 'none',
-                        fill      => 'orange',
-                        points    => "$x1,$y1 $x2,$y2",
-                        alpha     => '100'
-                    );
+        #Draw the runway endpoints in orange
+        foreach my $key ( sort keys %main::runwaysToDraw ) {
+
+            my $latLE = $main::runwaysToDraw{$key}{"LELatitude"};
+            my $lonLE = $main::runwaysToDraw{$key}{"LELongitude"};
+
+            my $y1 = latitudeToPixel($latLE) - 1;
+            my $x1 = longitudeToPixel($lonLE) - 1;
+            my $x2 = $x1 + 2;
+            my $y2 = $y1 + 2;
+
+            $image->Draw(
+                primitive => 'circle',
+                stroke    => 'none',
+                fill      => 'orange',
+                points    => "$x1,$y1 $x2,$y2",
+                alpha     => '100'
+            );
+
+            my $latHE = $main::runwaysToDraw{$key}{"HELatitude"};
+            my $lonHE = $main::runwaysToDraw{$key}{"HELongitude"};
+            $y1 = latitudeToPixel($latHE) - 1;
+            $x1 = longitudeToPixel($lonHE) - 1;
+            $x2 = $x1 + 2;
+            $y2 = $y1 + 2;
+
+            $image->Draw(
+                primitive => 'circle',
+                stroke    => 'none',
+                fill      => 'orange',
+                points    => "$x1,$y1 $x2,$y2",
+                alpha     => '100'
+            );
 
         }
-        
+
         $perlMagickStatus = $image->write("$main::gcpPng");
         warn $perlMagickStatus if $perlMagickStatus;
         return;
     }
 }
+
 sub latitudeToPixel {
     my ($_latitude) = @_;
     return 0 unless $main::yMedian;

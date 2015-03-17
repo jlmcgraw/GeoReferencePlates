@@ -157,15 +157,15 @@ my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.db",
   or croak $DBI::errstr;
 
 #CIFP database
-my $cifpDbh =
-     DBI->connect( "dbi:SQLite:dbname=./cifp-$cycle.db", "", "", { RaiseError => 1 } )
+my $cifpDbh = DBI->connect( "dbi:SQLite:dbname=./cifp-$cycle.db",
+    "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #The 56 day NASR database
 our $nasrDbh =
      DBI->connect( "dbi:SQLite:dbname=./56day.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
-  
+
 #-----------------------------------------------
 #Open the locations database
 our $dbh;
@@ -175,12 +175,8 @@ my $sth;
 #     "", "", { RaiseError => 1 } )
 #   or croak $DBI::errstr;
 
-
-
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
-
-
 
 #a reference to an array of charts with no longitude or latitude info
 my $_platesNotMarkedManually    = findPlatesNotMarkedManually();
@@ -195,7 +191,7 @@ my $_platesMarkedBad         = findPlatesMarkedBad();
 my $indexIntoPlatesMarkedBad = 0;
 
 #a reference to an array of all IAP and APD charts
-my $_allPlates = allIapAndApdCharts();
+my $_allPlates         = allIapAndApdCharts();
 my $indexIntoAllPlates = 0;
 
 our (
@@ -229,10 +225,11 @@ our $fixesBox        = $builder->get_object('scrolledwindow5');
 our $obstaclesBox    = $builder->get_object('scrolledwindow6');
 our $gcpBox          = $builder->get_object('scrolledwindow3');
 our $lonLatTextEntry = $builder->get_object('lonLatTextEntry');
+
 # our $statusBar       = $builder->get_object('statusbar1');
 # our $context_id      = $statusBar->get_context_id("Statusbar");
-our $textview1       = $builder->get_object('textview1');
-our $comboboxtext1   = $builder->get_object('comboboxtext1');
+our $textview1     = $builder->get_object('textview1');
+our $comboboxtext1 = $builder->get_object('comboboxtext1');
 
 # my $textviewBuffer = $textview1->get_buffer;
 # my $iter = $textviewBuffer->get_iter_at_offset (0);
@@ -369,7 +366,7 @@ sub findObstaclesNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-     my $dtppSth = $nasrDbh->prepare(
+    my $dtppSth = $nasrDbh->prepare(
         "SELECT 
             amsl_ht
             ,obstacle_latitude
@@ -393,31 +390,32 @@ sub findObstaclesNearAirport {
 
     foreach my $_row (@$all) {
         my ( $heightMsl, $lat, $lon ) = @$_row;
-        
-#         if ( exists $unique_obstacles_from_db{$heightMsl} ) {
-# 
-#             #This is a duplicate obstacle
-#             $lat = $lon = 0;
-#         }
-# 
-#         #Populate variables from our database lookup
-# 
-#         $unique_obstacles_from_db{$heightMsl}{"Name"} = $heightMsl;
-#         $unique_obstacles_from_db{$heightMsl}{"Lat"}  = $lat;
-#         $unique_obstacles_from_db{$heightMsl}{"Lon"}  = $lon;
-# 
-#     }
-#         if ( exists $unique_obstacles_from_db{$lon . $lat} ) {
-# 
-#             #This is a duplicate obstacle
-#             $lat = $lon = 0;
-#         }
+
+        #         if ( exists $unique_obstacles_from_db{$heightMsl} ) {
+        #
+        #             #This is a duplicate obstacle
+        #             $lat = $lon = 0;
+        #         }
+        #
+        #         #Populate variables from our database lookup
+        #
+        #         $unique_obstacles_from_db{$heightMsl}{"Name"} = $heightMsl;
+        #         $unique_obstacles_from_db{$heightMsl}{"Lat"}  = $lat;
+        #         $unique_obstacles_from_db{$heightMsl}{"Lon"}  = $lon;
+        #
+        #     }
+        #         if ( exists $unique_obstacles_from_db{$lon . $lat} ) {
+        #
+        #             #This is a duplicate obstacle
+        #             $lat = $lon = 0;
+        #         }
 
         #Populate variables from our database lookup.  Key starts with $heightMsl so hash will be sortable by height
 
-        $unique_obstacles_from_db{$heightMsl . $lon . $lat}{"Name"} = $heightMsl;
-        $unique_obstacles_from_db{$heightMsl . $lon . $lat}{"Lat"}  = $lat;
-        $unique_obstacles_from_db{$heightMsl . $lon . $lat}{"Lon"}  = $lon;
+        $unique_obstacles_from_db{ $heightMsl . $lon . $lat }{"Name"} =
+          $heightMsl;
+        $unique_obstacles_from_db{ $heightMsl . $lon . $lat }{"Lat"} = $lat;
+        $unique_obstacles_from_db{ $heightMsl . $lon . $lat }{"Lon"} = $lon;
 
     }
 
@@ -631,8 +629,7 @@ sub findNavaidsNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-    my $sth = $main::nasrDbh->prepare(
-        "
+    my $sth = $main::nasrDbh->prepare( "
         SELECT
 	  navaid_facility_identifier
 	  ,latitude
@@ -736,11 +733,11 @@ sub findRunwaysAtAirport {
         $runwaysFromDatabase{ $LEName . $HEName }{'LELatitude'}  = $LELatitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'LELongitude'} = $LELongitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'LEHeading'}   = $LEHeading;
-        $runwaysFromDatabase{ $LEName . $HEName }{'LEName'}   = $LEName;
+        $runwaysFromDatabase{ $LEName . $HEName }{'LEName'}      = $LEName;
         $runwaysFromDatabase{ $LEName . $HEName }{'HELatitude'}  = $HELatitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'HELongitude'} = $HELongitude;
         $runwaysFromDatabase{ $LEName . $HEName }{'HEHeading'}   = $HEHeading;
-        $runwaysFromDatabase{ $LEName . $HEName }{'HEName'}   = $HEName;
+        $runwaysFromDatabase{ $LEName . $HEName }{'HEName'}      = $HEName;
 
     }
     return ( \%runwaysFromDatabase );
@@ -758,7 +755,7 @@ sub usage {
 sub findPlatesNotMarkedManually {
 
     #Charts not marked MANUAL
-    
+
     my $dtppSth = $dtppDbh->prepare( "
       SELECT 
 	D.TPP_VOLUME
@@ -1636,16 +1633,17 @@ sub activateNewPlate {
         $xMed,         $yMed,         $xPixelSkew,    $yPixelSkew
     ) = @$rowRef;
 
-#     $main::statusBar->push( $context_id,
-#         "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME"
-#     );
-#     say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
+    #     $main::statusBar->push( $context_id,
+    #         "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME"
+    #     );
+    #     say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME";
 
     my $textviewBuffer = $main::textview1->get_buffer;
     my $iter           = $textviewBuffer->get_iter_at_offset(0);
-    
-    say "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME";
-    
+
+    say
+      "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME";
+
     $textviewBuffer->insert( $iter,
         "FAA_CODE: $FAA_CODE, CHART_CODE: $CHART_CODE, CHART_NAME: $CHART_NAME, PDF_NAME: $PDF_NAME\n\n"
     );
@@ -1673,7 +1671,7 @@ sub activateNewPlate {
     #Look up runways for this airport from the database
     our $runwaysFromDatabaseHashref = findRunwaysAtAirport($FAA_CODE);
 
-#     print Dumper $runwaysFromDatabaseHashref;
+    #     print Dumper $runwaysFromDatabaseHashref;
     #Testing adding liststore programmmatically to partially glade-built interface
     # Create TreeModel
     my $runwayModel = create_model_runways($runwaysFromDatabaseHashref);
@@ -1884,9 +1882,10 @@ sub activateNewPlate {
     #Populate the GCP box from stored GCP hash if it exists
     our $gcp_from_db_hashref;
     if ( -e $storedGcpHash ) {
-#         $main::statusBar->push( $context_id,
-#             "Loading existing hash table $storedGcpHash" );
-#         say "Loading existing hash table $storedGcpHash";
+
+        #         $main::statusBar->push( $context_id,
+        #             "Loading existing hash table $storedGcpHash" );
+        #         say "Loading existing hash table $storedGcpHash";
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,
@@ -1898,9 +1897,9 @@ sub activateNewPlate {
 
     }
     else {
-#         $main::statusBar->push( $context_id,
-#             "No stored GCP hash, creating an empty one" );
-#         say "No stored GCP hash, creating an empty one";
+        #         $main::statusBar->push( $context_id,
+        #             "No stored GCP hash, creating an empty one" );
+        #         say "No stored GCP hash, creating an empty one";
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,
@@ -1968,8 +1967,9 @@ sub activateNewPlate {
     #Scale it to our available window size
     our $scaledPlate = load_image( $targetPng, $main::plateSw );
     $main::plate->set_from_pixbuf($scaledPlate);
-#      our $scaledPlate = scale_pixbuf(  $main::pixbuf, $main::plateSw );
-     
+
+    #      our $scaledPlate = scale_pixbuf(  $main::pixbuf, $main::plateSw );
+
     my $originalImageWidth  = $main::pixbuf->get_width();
     my $originalImageHeight = $main::pixbuf->get_height();
     my $scaledImageWidth    = $main::scaledPlate->get_width();
@@ -2024,10 +2024,10 @@ sub activateNewPlate {
         $invertedAffineTransform = $AffineTransform->clone()->invert();
     }
     else {
-	say "Affine parameters currently undefined";
-	$textviewBuffer->insert( $iter,
-            "Affine parameters currently undefined\n"
-        );
+        say "Affine parameters currently undefined";
+        $textviewBuffer->insert( $iter,
+            "Affine parameters currently undefined\n" );
+
         #Otherwise make sure transforms undefined
         $AffineTransform         = undef;
         $invertedAffineTransform = undef;
@@ -2042,8 +2042,8 @@ sub activateNewPlate {
 sub load_image {
 
     #Load and scale an image
-#     my ( $file, $parent ) = @_;
-     my ( $file, $parent ) = validate_pos(
+    #     my ( $file, $parent ) = @_;
+    my ( $file, $parent ) = validate_pos(
         @_,
         { type => SCALAR },
         { type => HASHREF }
@@ -2208,18 +2208,17 @@ sub create_model_runways {
         #         get length of key
         #         split in two
         # say length $item;
-#         #Leading 0 of base end is getting removed due to type of sqlite column
-#         if (length $item == 3) {$item = "0" . $item;}
-        
-#         my $firstHalf = substr( $item, 0, ( ( length $item ) / 2 ) );
-#         
-#         my $secondHalf = substr( $item, -( ( length $item ) / 2 ) );
+        #         #Leading 0 of base end is getting removed due to type of sqlite column
+        #         if (length $item == 3) {$item = "0" . $item;}
+
+        #         my $firstHalf = substr( $item, 0, ( ( length $item ) / 2 ) );
+        #
+        #         my $secondHalf = substr( $item, -( ( length $item ) / 2 ) );
 
         #         say $item;
         #         say "$firstHalf - $secondHalf";
         $lstore->set(
-            $iter, 
-            0, $hashRef->{$item}{LEName},
+            $iter, 0, $hashRef->{$item}{LEName},
             1, $hashRef->{$item}{LELongitude},
             2, $hashRef->{$item}{LELatitude},
         );
@@ -2227,8 +2226,7 @@ sub create_model_runways {
 
         #         $iter->next;
         $lstore->set(
-            $iter, 
-            0, $hashRef->{$item}{HEName},
+            $iter, 0, $hashRef->{$item}{HEName},
             1, $hashRef->{$item}{HELongitude},
             2, $hashRef->{$item}{HELatitude},
         );
@@ -2239,7 +2237,7 @@ sub create_model_runways {
 sub create_model_obstacles {
     my ($hashRef) = validate_pos(
         @_,
-        { type => HASHREF }, 
+        { type => HASHREF },
 
     );
 
@@ -2440,12 +2438,12 @@ sub lonLatButtonClicked {
     #If the text starts with a '.' then it's interpreted as already being decimal
     $text =~
       m/\.(?<decimalLongitude>[\d\.-]{2,}),(?<decimaLatitude>[\d\.-]{2,})/ix;
-    
-    $lonDecimal     = $+{decimalLongitude};
-    $latDecimal     = $+{decimaLatitude};
+
+    $lonDecimal = $+{decimalLongitude};
+    $latDecimal = $+{decimaLatitude};
 
     say "decimal: $lonDecimal, $latDecimal";
-    
+
     #             say "$lonDegrees-$lonMinutes-$lonSeconds-$lonDeclination,$latDegrees-$latMinutes-$latSeconds-$latDeclination";
     if (   $lonDegrees
         && $lonMinutes
@@ -2574,7 +2572,8 @@ sub activateNextPlate {
             my $totalPlateCount = scalar @{$_platesMarkedChanged};
 
             if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
-                $indexIntoPlatesMarkedChanged++;$indexIntoPlatesWithNoLonLat
+                $indexIntoPlatesMarkedChanged++;
+                $indexIntoPlatesWithNoLonLat;
             }
             $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
 
@@ -2604,7 +2603,7 @@ sub activateNextPlate {
             #Use this section to skip to next "bad" plate
             my $totalPlateCount = scalar @{$_allPlates};
 
-	    if ( $indexIntoAllPlates < ( $totalPlateCount - 1 ) ) {
+            if ( $indexIntoAllPlates < ( $totalPlateCount - 1 ) ) {
                 $indexIntoAllPlates += 1;
             }
             $rowRef = ( @$_allPlates[$indexIntoAllPlates] );
@@ -2623,14 +2622,15 @@ sub activateNextPlate {
 }
 
 sub randomPlateButtonClick {
+
     #Activate a random plate for spot checks
     my ( $widget, $event ) = @_;
 
     #Use this section to skip to next "bad" plate
     my $totalPlateCount = scalar @{$_allPlates};
 
-    my $random_number = rand($totalPlateCount - 1);
-    
+    my $random_number = rand( $totalPlateCount - 1 );
+
     my $rowRef = ( @$_allPlates[$random_number] );
 
     #Update information for the plate we're getting ready to display
@@ -2718,7 +2718,7 @@ sub activatePreviousPlate {
             say "Previous bad";
 
         }
-         when (/3/) {
+        when (/3/) {
 
             #--------------------------------------
             #Use this section to skip to next "bad" plate
@@ -2993,9 +2993,8 @@ sub georeferenceTheRaster {
 
     my ( $pixelSizeX, $pixelSizeY, $upperLeftLon, $upperLeftLat, );
     my ( $xPixelSkew, $yPixelSkew );
-    
+
     say $gdalinfoCommandOutput if $debug;
-    
 
     #Extract georeference info from gdalinfo output
     (
@@ -3003,7 +3002,7 @@ sub georeferenceTheRaster {
         $upperLeftLat
 
     ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput);
-    
+
     say "From gcps2wld: ";
     say " pixelSizeX->$pixelSizeX";
     say " yPixelSkew->$yPixelSkew";
@@ -3017,6 +3016,7 @@ sub georeferenceTheRaster {
 
         #BUG TODO
         if ( $main::CHART_CODE =~ /IAP/ ) {
+
             #Instrument Approach Procedures are always True North Up so lets
             #zero out these values just in case
             $xPixelSkew = 0;
@@ -3025,8 +3025,7 @@ sub georeferenceTheRaster {
 
         #Update the georef table
         my $update_dtpp_geo_record =
-            "UPDATE dtppGeo " 
-          . "SET "
+            "UPDATE dtppGeo " . "SET "
           . "xMedian = ?, "
           . "yMedian = ?, "
           . "upperLeftLon = ?, "
@@ -3127,6 +3126,7 @@ sub handlerAutoGeoreferenceButtonClick {
 
     return TRUE;
 }
+
 sub handlerOpenInQgisButtonClick {
     my ( $widget, $event ) = @_;
 

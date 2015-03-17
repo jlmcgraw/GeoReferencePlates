@@ -46,7 +46,6 @@ Most methods return the instance so that you can chain method calls:
 
 =cut
 
-
 =head1 METHODS
 
 =head2 new
@@ -84,24 +83,23 @@ In other words, invoking the constructor without arguments is equivalent to this
 =cut
 
 sub new {
-	my $self = shift;
-	my (%args) = @_;
+    my $self = shift;
+    my (%args) = @_;
 
-	my $class = ref($self) || $self;
-	$self = bless {m11 => 1, m12 => 0, m21 => 0, m22 => 1, tx => 0, ty => 0, %args}, $class;
-#	$self->init();
-	Hash::Util::lock_keys(%$self);
+    my $class = ref($self) || $self;
+    $self =
+      bless { m11 => 1, m12 => 0, m21 => 0, m22 => 1, tx => 0, ty => 0, %args },
+      $class;
 
-	return $self;
+    #	$self->init();
+    Hash::Util::lock_keys(%$self);
+
+    return $self;
 }
-
 
 # hook for subclasses
 # sub init {
 # }
-
-
-
 
 =head2 clone
 
@@ -110,11 +108,9 @@ Returns a clone of the instance.
 =cut
 
 sub clone {
-	my $self = shift;
-	return $self->new()->set_matrix_2x3($self->matrix_2x3());
+    my $self = shift;
+    return $self->new()->set_matrix_2x3( $self->matrix_2x3() );
 }
-
-
 
 =head2 invert
 
@@ -125,23 +121,21 @@ Inverts the state of the transformation.
 =cut
 
 sub invert {
-	my $self = shift;
+    my $self = shift;
 
     my $det = $self->determinant();
-    
-  	croak "Unable to invert this transform (zero determinant)" unless $det;
+
+    croak "Unable to invert this transform (zero determinant)" unless $det;
 
     return $self->set_matrix_2x3(
-        $self->{m22} / $det, # 11
-        -$self->{m12} / $det, # 12
-        -$self->{m21} / $det, # 21
-        $self->{m11} / $det, # 22
-        ($self->{m21} * $self->{ty} - $self->{m22} * $self->{tx}) / $det,
-        ($self->{m12} * $self->{tx} - $self->{m11} * $self->{ty}) / $det,
+        $self->{m22} / $det,     # 11
+        -$self->{m12} / $det,    # 12
+        -$self->{m21} / $det,    # 21
+        $self->{m11} / $det,     # 22
+        ( $self->{m21} * $self->{ty} - $self->{m22} * $self->{tx} ) / $det,
+        ( $self->{m12} * $self->{tx} - $self->{m11} * $self->{ty} ) / $det,
     );
 }
-
-
 
 =head2 transform
 
@@ -157,32 +151,28 @@ Returns the transformed list of coordinates in the same form as the input list.
 =cut
 
 sub transform {
-	my $self = shift;
-	my (@pairs) = @_;
+    my $self = shift;
+    my (@pairs) = @_;
 
-	my @result;
-	while (my ($x, $y) = splice(@pairs, 0, 2)) {
-		my $x2 = $self->{m11} * $x + $self->{m21} * $y + $self->{tx};
-		my $y2 = $self->{m12} * $x + $self->{m22} * $y + $self->{ty};
-		push @result, $x2, $y2;
-	}
+    my @result;
+    while ( my ( $x, $y ) = splice( @pairs, 0, 2 ) ) {
+        my $x2 = $self->{m11} * $x + $self->{m21} * $y + $self->{tx};
+        my $y2 = $self->{m12} * $x + $self->{m22} * $y + $self->{ty};
+        push @result, $x2, $y2;
+    }
 
-	return @result;
+    return @result;
 }
-
-
-
 
 # concatenate another transformation matrix to the current state.
 # Takes the six specifiable parts of the 3x3 transformation matrix.
 sub concatenate_matrix_2x3 {
-	my $self = shift;
-	my ($m11, $m12, $m21, $m22, $tx, $ty) = @_;
-	my $a = [$self->matrix_2x3()];
-	my $b = [$m11, $m12, $m21, $m22, $tx, $ty];
-	return $self->set_matrix_2x3($self->matrix_multiply($a, $b));
+    my $self = shift;
+    my ( $m11, $m12, $m21, $m22, $tx, $ty ) = @_;
+    my $a = [ $self->matrix_2x3() ];
+    my $b = [ $m11, $m12, $m21, $m22, $tx, $ty ];
+    return $self->set_matrix_2x3( $self->matrix_multiply( $a, $b ) );
 }
-
 
 =head2 concatenate
 
@@ -197,15 +187,15 @@ Returns C<$self>.
 =cut
 
 sub concatenate {
-	my $self = shift;
-	my @transforms = @_;
-	foreach my $t (@transforms) {
-		croak "Expecting argument of type Geometry::AffineTransform" unless (ref $t);
-		$self->concatenate_matrix_2x3($t->matrix_2x3()) ;
-	}
-	return $self;
+    my $self       = shift;
+    my @transforms = @_;
+    foreach my $t (@transforms) {
+        croak "Expecting argument of type Geometry::AffineTransform"
+          unless ( ref $t );
+        $self->concatenate_matrix_2x3( $t->matrix_2x3() );
+    }
+    return $self;
 }
-
 
 =head2 scale
 
@@ -230,11 +220,10 @@ Returns C<$self>.
 =cut
 
 sub scale {
-	my $self = shift;
-	my ($sx, $sy) = @_;
-	return $self->concatenate_matrix_2x3($sx, 0, 0, $sy, 0, 0);
+    my $self = shift;
+    my ( $sx, $sy ) = @_;
+    return $self->concatenate_matrix_2x3( $sx, 0, 0, $sy, 0, 0 );
 }
-
 
 =head2 translate
 
@@ -260,13 +249,10 @@ Returns C<$self>.
 =cut
 
 sub translate {
-	my $self = shift;
-	my ($tx, $ty) = @_;
-	return $self->concatenate_matrix_2x3(1, 0, 0, 1, $tx, $ty);
+    my $self = shift;
+    my ( $tx, $ty ) = @_;
+    return $self->concatenate_matrix_2x3( 1, 0, 0, 1, $tx, $ty );
 }
-
-
-
 
 =head2 rotate
 
@@ -288,37 +274,35 @@ Returns C<$self>.
 =cut
 
 sub rotate {
-	my $self = shift;
-	my ($degrees) = @_;
-	my $rad = Math::Trig::deg2rad($degrees);
-	return $self->concatenate_matrix_2x3(cos($rad), sin($rad), -sin($rad), cos($rad), 0, 0);
+    my $self      = shift;
+    my ($degrees) = @_;
+    my $rad       = Math::Trig::deg2rad($degrees);
+    return $self->concatenate_matrix_2x3( cos($rad), sin($rad), -sin($rad),
+        cos($rad), 0, 0 );
 }
-
-
 
 # returns the 6 specifiable parts of the transformation matrix
 sub matrix_2x3 {
-	my $self = shift;
-	return $self->{m11}, $self->{m12}, $self->{m21}, $self->{m22}, $self->{tx}, $self->{ty};
+    my $self = shift;
+    return $self->{m11}, $self->{m12}, $self->{m21}, $self->{m22}, $self->{tx},
+      $self->{ty};
 }
-
 
 # returns the determinant of the matrix
 sub determinant {
-	my $self = shift;
-	return $self->{m11} * $self->{m22} - $self->{m12} * $self->{m21};
+    my $self = shift;
+    return $self->{m11} * $self->{m22} - $self->{m12} * $self->{m21};
 }
-
 
 # sets the 6 specifiable parts of the transformation matrix
 sub set_matrix_2x3 {
-	my $self = shift;
-	($self->{m11}, $self->{m12},
-	 $self->{m21}, $self->{m22},
-	 $self->{tx}, $self->{ty}) = @_;
-	return $self;
+    my $self = shift;
+    (
+        $self->{m11}, $self->{m12}, $self->{m21},
+        $self->{m22}, $self->{tx},  $self->{ty}
+    ) = @_;
+    return $self;
 }
-
 
 =head2 matrix
 
@@ -332,37 +316,34 @@ third, fixed column, as a 9-element list:
 =cut
 
 sub matrix {
-	my $self = shift;
-	return $self->{m11}, $self->{m12}, 0, $self->{m21}, $self->{m22}, 0, $self->{tx}, $self->{ty}, 1;
+    my $self = shift;
+    return $self->{m11}, $self->{m12}, 0, $self->{m21}, $self->{m22}, 0,
+      $self->{tx}, $self->{ty}, 1;
 }
-
-
-
 
 # a simplified multiply that assumes the fixed 0 0 1 third column
 sub matrix_multiply {
-	my $self = shift;
-	my ($a, $b) = @_;
+    my $self = shift;
+    my ( $a, $b ) = @_;
 
-# 	a11 a12 0
-# 	a21 a22 0
-# 	a31 a32 1
-#
-# 	b11 b12 0
-# 	b21 b22 0
-# 	b31 b32 1
+    # 	a11 a12 0
+    # 	a21 a22 0
+    # 	a31 a32 1
+    #
+    # 	b11 b12 0
+    # 	b21 b22 0
+    # 	b31 b32 1
 
-	my ($a11, $a12, $a21, $a22, $a31, $a32) = @$a;
-	my ($b11, $b12, $b21, $b22, $b31, $b32) = @$b;
+    my ( $a11, $a12, $a21, $a22, $a31, $a32 ) = @$a;
+    my ( $b11, $b12, $b21, $b22, $b31, $b32 ) = @$b;
 
-	return
-		($a11 * $b11 + $a12 * $b21),        ($a11 * $b12 + $a12 * $b22),
-		($a21 * $b11 + $a22 * $b21),        ($a21 * $b12 + $a22 * $b22),
-		($a31 * $b11 + $a32 * $b21 + $b31), ($a31 * $b12 + $a32 * $b22 + $b32),
-	;
+    return ( $a11 * $b11 + $a12 * $b21 ), ( $a11 * $b12 + $a12 * $b22 ),
+      ( $a21 * $b11 + $a22 * $b21 ), ( $a21 * $b12 + $a22 * $b22 ),
+      ( $a31 * $b11 + $a32 * $b21 + $b31 ),
+      ( $a31 * $b12 + $a32 * $b22 + $b32 ),
+      ;
 
 }
-
 
 =head1 SEE ALSO
 
@@ -395,6 +376,5 @@ Copyright 2008 Marc Liyanage.
 Distributed under the Artistic License 2.
 
 =cut
-
 
 1;
