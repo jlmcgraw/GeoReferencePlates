@@ -64,12 +64,12 @@ sub main {
 
     my $cycle = shift @ARGV;
 
-    if  (! ($cycle =~ /\d\d\d\d/))
-      { say "Cycle must be a 4 digit number";
+    if ( !( $cycle =~ /\d\d\d\d/ ) ) {
+        say "Cycle must be a 4 digit number";
         say "eg: $0 1413";
         exit(1);
-      }
-      
+    }
+
     say "Cycle: $cycle";
 
     #Connect to our databases
@@ -121,16 +121,14 @@ sub main {
 ;"
     );
     $dtppSth->execute();
-    
-    my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
-    my $_rows  = $dtppSth->rows;
 
-    unless ($_rows)   
-      { say "No charts found in database";
+    my $_allSqlQueryResults = $dtppSth->fetchall_arrayref();
+    my $_rows               = $dtppSth->rows;
+
+    unless ($_rows) {
+        say "No charts found in database";
         exit(1);
-      }
-      
-  
+    }
 
     say "Processing $_rows charts";
     my $completedCount = 0;
@@ -185,83 +183,118 @@ sub main {
 
             link( "$inputDir" . "$pngName",
                 "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$pngName" );
-                    }
+        }
         else {
             say "No .png ($pngName) found for $FAA_CODE";
+
+            #Convert the PDF to a PNG if one doesn't already exist
+            say "Create PNG: $targetPdf -> $targetPng";
+            convertPdfToPng( $targetPdf, $targetPng );
         }
 
-            if ( $upperLeftLon && $upperLeftLat ) {
-                my $worldfilePath =
-                  "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$worldFileName";
+        if ( $upperLeftLon && $upperLeftLat ) {
+            my $worldfilePath =
+              "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$worldFileName";
 
-                #Create the world file
-                open( my $fh, '>', $worldfilePath )
-                  or die "Could not open file '$worldfilePath' $!";
+            #Create the world file
+            open( my $fh, '>', $worldfilePath )
+              or die "Could not open file '$worldfilePath' $!";
 
-                if ( $yPixelSize > 0 ) {
+            if ( $yPixelSize > 0 ) {
 
-                    say "Converting $yPixelSize to negative";
-                    $yPixelSize = -($yPixelSize);
-                }
-
-                #             if ($xPixelSkew != 0 && $yPixelSkew == 0)
-                # 	      {
-                # # say "Something wrong with X skew on $FAA_CODE ($PDF_NAME)";
-                # }
-                # 	    if ($yPixelSkew != 0 && $xPixelSkew == 0)
-                # 	      {
-                # # 	      say "Something wrong with Y skew on $FAA_CODE ($PDF_NAME)";
-                # 	      }
-                # 	    if ($yPixelSkew != 0 && $xPixelSkew != 0)
-                # # 	      {say "Non-zero X and Y skew on $FAA_CODE ($PDF_NAME)";}
-                #
-                # 	    if (abs($yPixelSize) < 0.00001 )
-                # # 	      {say " yPixelSize too small (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-                #
-                # 	    if (abs($yPixelSize) > 0.00009 )
-                # # 	      {say " yPixelSize too big (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-                #
-                # 	    if ($xPixelSize < 0.00001 )
-                # # 	      {say " xPixelSize too small (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-                #
-                # 	    if ($xPixelSize > 0.00009 )
-                # # 	      {say " xPixelSize too big (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-
-                #             say $fh $xPixelSize;
-                say $fh sprintf( $numberFormat, $xPixelSize );
-
-                #             say $fh $yPixelSkew;
-                say $fh sprintf( $numberFormat, $yPixelSkew );
-
-                #             say $fh $xPixelSkew;
-                say $fh sprintf( $numberFormat, $xPixelSkew );
-
-                #             say $fh $yPixelSize;
-                say $fh sprintf( $numberFormat, $yPixelSize );
-
-                #             say $fh $upperLeftLon;
-                say $fh sprintf( $numberFormat, $upperLeftLon );
-
-                #             say $fh $upperLeftLat;
-                say $fh sprintf( $numberFormat, $upperLeftLat );
-                close $fh;
+                say "Converting $yPixelSize to negative";
+                $yPixelSize = -($yPixelSize);
             }
 
-            #             if ( $CHART_CODE eq "APD" ) {
-            #                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
-            # # 		say $targetvrt;
-            #                 if ( -e "$targetvrt"
-            #                     && !-e "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" )
-            #                 {
-            #                     link( "$targetvrt",
-            #                         "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" );
-            # #                     say $targetvrt;
-            #                 }
-            #             }
-    
+            #             if ($xPixelSkew != 0 && $yPixelSkew == 0)
+            # 	      {
+            # # say "Something wrong with X skew on $FAA_CODE ($PDF_NAME)";
+            # }
+            # 	    if ($yPixelSkew != 0 && $xPixelSkew == 0)
+            # 	      {
+            # # 	      say "Something wrong with Y skew on $FAA_CODE ($PDF_NAME)";
+            # 	      }
+            # 	    if ($yPixelSkew != 0 && $xPixelSkew != 0)
+            # # 	      {say "Non-zero X and Y skew on $FAA_CODE ($PDF_NAME)";}
+            #
+            # 	    if (abs($yPixelSize) < 0.00001 )
+            # # 	      {say " yPixelSize too small (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+            #
+            # 	    if (abs($yPixelSize) > 0.00009 )
+            # # 	      {say " yPixelSize too big (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+            #
+            # 	    if ($xPixelSize < 0.00001 )
+            # # 	      {say " xPixelSize too small (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+            #
+            # 	    if ($xPixelSize > 0.00009 )
+            # # 	      {say " xPixelSize too big (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
+
+            #             say $fh $xPixelSize;
+            say $fh sprintf( $numberFormat, $xPixelSize );
+
+            #             say $fh $yPixelSkew;
+            say $fh sprintf( $numberFormat, $yPixelSkew );
+
+            #             say $fh $xPixelSkew;
+            say $fh sprintf( $numberFormat, $xPixelSkew );
+
+            #             say $fh $yPixelSize;
+            say $fh sprintf( $numberFormat, $yPixelSize );
+
+            #             say $fh $upperLeftLon;
+            say $fh sprintf( $numberFormat, $upperLeftLon );
+
+            #             say $fh $upperLeftLat;
+            say $fh sprintf( $numberFormat, $upperLeftLat );
+            close $fh;
+        }
+
+        #             if ( $CHART_CODE eq "APD" ) {
+        #                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
+        # # 		say $targetvrt;
+        #                 if ( -e "$targetvrt"
+        #                     && !-e "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" )
+        #                 {
+        #                     link( "$targetvrt",
+        #                         "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" );
+        # #                     say $targetvrt;
+        #                 }
+        #             }
+
         ++$completedCount;
 
         #         say "$completedCount" . "/" . "$_rows";
     }
 
+}
+
+sub convertPdfToPng {
+
+    #Validate and set input parameters to this function
+    my ( $targetPdf, $targetPng ) =
+      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+
+    #DPI of the output PNG
+    my $pngDpi = 300;
+
+    #Convert the PDF to a PNG
+    my $pdfToPpmOutput;
+
+    #Return if the png already exists
+    if ( -e $targetPng ) {
+        return;
+    }
+    $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetPng);
+
+    my $retval = $? >> 8;
+
+    #Did we succeed?
+    if ( $retval != 0 ) {
+
+        #Delete the possibly bad png
+        unlink $targetPng;
+        carp "Error from pdftoppm.   Return code is $retval";
+    }
+
+    return $retval;
 }

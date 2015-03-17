@@ -94,21 +94,23 @@ if ( -e $TPP_METADATA_FILE ) {
     say "Using existing local metafile: $TPP_METADATA_FILE";
 }
 else {
-    print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
-
-    # my $ret = 200;
-    my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
+    die "Unable to dTPP metadata catalog $TPP_METADATA_FILE does not exist locally";
     
-    if ( $ret != 200 ) {
-        die "Unable to download d-TPP metadata.";
-    }
-    print "done\n";
+#     print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
+# 
+#     # my $ret = 200;
+#     my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
+#     
+#     if ( $ret != 200 ) {
+#         die "Unable to download d-TPP metadata.";
+#     }
+#     print "done\n";
 
 }
 
 #The name of our database
 my $dbfile = "$BASE_DIR/dtpp-$cycle.db";
-my $dbh = DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "" );
+my $dbh = DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "" ,{ RaiseError => 1 });
 
 # $dbh->do("PRAGMA page_size=4096");
 $dbh->do("PRAGMA synchronous=OFF");

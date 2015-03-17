@@ -79,10 +79,6 @@ use constant COLUMN_LONGITUDE => 2;
 use constant COLUMN_LATITUDE  => 3;
 use constant COLUMN_DISTANCE  => 4;
 
-#----------------------------------------------------------------------------------------------
-#Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its associated textbox's center
-our $maxDistanceFromObstacleIconToTextBox = 20;
-
 #DPI of the output PNG
 our $pngDpi = 300;
 
@@ -106,7 +102,7 @@ our $shouldDrawObstaclesHeights = 0;
 our $shouldDrawGcps             = 1;
 our $shouldDrawGraticules       = 1;
 
-#We need at least one argument (the directory with plates)
+#We need at least one argument (the cycle number)
 if ( $arg_num < 1 ) {
     usage();
     exit(1);
@@ -165,6 +161,11 @@ my $cifpDbh =
      DBI->connect( "dbi:SQLite:dbname=./cifp-$cycle.db", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
+#The 56 day NASR database
+our $nasrDbh =
+     DBI->connect( "dbi:SQLite:dbname=./56day.db", "", "", { RaiseError => 1 } )
+  or croak $DBI::errstr;
+  
 #-----------------------------------------------
 #Open the locations database
 our $dbh;
@@ -174,9 +175,7 @@ my $sth;
 #     "", "", { RaiseError => 1 } )
 #   or croak $DBI::errstr;
 
-our $dbh2 =
-     DBI->connect( "dbi:SQLite:dbname=./56day.db", "", "", { RaiseError => 1 } )
-  or croak $DBI::errstr;
+
 
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
@@ -252,7 +251,7 @@ $dtppDbh->disconnect();
 
 #Close the locations database
 # $sth->finish();
-$dbh2->disconnect();
+$nasrDbh->disconnect();
 
 exit;
 
@@ -267,7 +266,7 @@ sub findAirportLatitudeAndLongitude {
     my $_airportLongitudeDec;
 
     #Query the database for airport
-    my $sth = $main::dbh2->prepare( "
+    my $sth = $main::nasrDbh->prepare( "
       SELECT
         location_identifier
 	,apt_latitude
@@ -370,7 +369,7 @@ sub findObstaclesNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-     my $dtppSth = $dbh2->prepare(
+     my $dtppSth = $nasrDbh->prepare(
         "SELECT 
             amsl_ht
             ,obstacle_latitude
@@ -556,7 +555,7 @@ sub findFixesNearAirport {
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
     #Query the database for fixes within our $radius
-    my $sth = $dbh2->prepare( "
+    my $sth = $nasrDbh->prepare( "
         SELECT
 	  national_airspace_system_nas_identifier_for_the_fix_usually_5_c
 	  ,latitude
@@ -632,7 +631,7 @@ sub findNavaidsNearAirport {
     my ( $radiusDegreesLatitude, $radiusDegreesLongitude ) =
       radiusGivenLatitude( $radiusNm, $airportLatitude );
 
-    my $sth = $main::dbh2->prepare(
+    my $sth = $main::nasrDbh->prepare(
         "
         SELECT
 	  navaid_facility_identifier
@@ -682,7 +681,7 @@ sub findRunwaysAtAirport {
     my ($FAA_CODE) =
       validate_pos( @_, { type => SCALAR } );
 
-    my $sth = $main::dbh2->prepare( "
+    my $sth = $main::nasrDbh->prepare( "
       SELECT 
 	 rwy. base_end_identifier
 	,rwy.base_latitude
@@ -2575,7 +2574,7 @@ sub activateNextPlate {
             my $totalPlateCount = scalar @{$_platesMarkedChanged};
 
             if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
-                $indexIntoPlatesMarkedChanged++;
+                $indexIntoPlatesMarkedChanged++;$indexIntoPlatesWithNoLonLat
             }
             $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
 
@@ -2621,6 +2620,23 @@ sub activateNextPlate {
     #Update information for the plate we're getting ready to display
     activateNewPlate($rowRef);
 
+}
+
+sub randomPlateButtonClick {
+    #Activate a random plate for spot checks
+    my ( $widget, $event ) = @_;
+
+    #Use this section to skip to next "bad" plate
+    my $totalPlateCount = scalar @{$_allPlates};
+
+    my $random_number = rand($totalPlateCount - 1);
+    
+    my $rowRef = ( @$_allPlates[$random_number] );
+
+    #Update information for the plate we're getting ready to display
+    activateNewPlate($rowRef);
+
+    return TRUE;
 }
 
 sub markGoodButtonClick {
@@ -2879,9 +2895,9 @@ sub georeferenceTheRaster {
 
     #World file format
     #     pixel resolution * cos(rotation angle)
-    #     -pixel resolution * sin(rotation angle)
-    #     -pixel resolution * sin(rotation angle)
-    #     -pixel resolution * cos(rotation angle)
+    #    -pixel resolution * sin(rotation angle)
+    #    -pixel resolution * sin(rotation angle)
+    #    -pixel resolution * cos(rotation angle)
     #     upper left x
     #     upper left y
 
