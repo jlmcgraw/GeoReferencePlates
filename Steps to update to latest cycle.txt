@@ -1,6 +1,6 @@
 Steps to update to latest cycle
-$previousCycle = 1502
-$latestCycle = 1503
+$previousCycle = 1504
+$latestCycle = 1505
 
 mkdir $latestCycle
 

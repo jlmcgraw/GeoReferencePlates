@@ -19,22 +19,31 @@ previousDtppDir=./dtpp-$previousCycle
 #Where dtpp files will be unzipped to
 latestDtppDir=./dtpp-$latestCycle
 
+#Check if directory for previousCycle exists
 if [ ! -d $previousDtppDir ]; then
     echo "$previousDtppDir doesn't exist"
     exit 1
 fi
 
-
-
+#Check if database for previousCycle exists
 if [ ! -e ./dtpp-$previousCycle.db ]; then
     echo "$previousCycle.db doesn't exist, unable to copy old information"
     exit 1
 fi
 
+#Check if database for current cifp cycle exists
+if [ ! -e ./cifp-$latestCycle.db ]; then
+    echo "cifp-$latestCycle.db doesn't exist, it's needed to process this cycle"
+    exit 1
+fi
+
+#Abort if the NASR database is too old
+[[ $(date +%s -r 56day.db) -lt $(date +%s --date="56 days ago") ]] && echo "NASR database is older than 56 days, please update" && exit 1
+
 #Unzip all of the latest charts
 #Should abort on any errors
 echo Unzipping DTPP $latestCycle files
-unzip -u -j "DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir"
+unzip -u -j -q "DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir"
 
 if [ ! -d $latestDtppDir ]; then
     echo "$latestDtppDir doesn't exist"

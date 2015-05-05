@@ -64,7 +64,7 @@ sub main {
 
     my $cycle = shift @ARGV;
 
-    if ( !( $cycle =~ /\d\d\d\d/ ) ) {
+    if ( !( $cycle =~ /^\d\d\d\d$/ ) ) {
         say "Cycle must be a 4 digit number";
         say "eg: $0 1413";
         exit(1);
@@ -118,7 +118,7 @@ sub main {
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
         DG.STATUS LIKE '%MANUALGOOD%'
-;"
+        ;"
     );
     $dtppSth->execute();
 
@@ -187,9 +187,9 @@ sub main {
         else {
             say "No .png ($pngName) found for $FAA_CODE";
 
-            #Convert the PDF to a PNG if one doesn't already exist
-            say "Create PNG: $targetPdf -> $targetPng";
-            convertPdfToPng( $targetPdf, $targetPng );
+#             #Convert the PDF to a PNG if one doesn't already exist
+#             say "Create PNG: $targetPdf -> $targetPng";
+#              convertPdfToPng( $targetPdf, $targetPng );
         }
 
         if ( $upperLeftLon && $upperLeftLat ) {
@@ -272,7 +272,7 @@ sub convertPdfToPng {
 
     #Validate and set input parameters to this function
     my ( $targetPdf, $targetPng ) =
-      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+      validate_pos( @_, { type => SCALAR }, { type => SCALAR } );
 
     #DPI of the output PNG
     my $pngDpi = 300;
@@ -284,6 +284,7 @@ sub convertPdfToPng {
     if ( -e $targetPng ) {
         return;
     }
+    
     $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetPng);
 
     my $retval = $? >> 8;

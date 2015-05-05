@@ -6,24 +6,13 @@ How to get this utility up and running:
 
 	Enable the "universe" repository in "Software & Updates" section of System Settings and update
 
-	Install git
-		sudo apt-get install git
+	Execute the setup.sh shell script
+		./setup.sh
+
 
 	Download the repository
 		git clone https://github.com/jlmcgraw/GeoReferencePlates
 
-	Install the following external programs
-		gdal 		(sudo apt-get install gdal-bin)
-		mupdf-tools 	(sudo apt-get install mupdf-tools)
-		sqlite3 	(sudo apt-get install sqlite3)
-
-	Install the following CPAN modules
-		PDF::API2   	(sudo apt-get install libpdf-api2-perl)
-		DBI 		(sudo apt-get install libdbi-perl)
-		DBD::SQLite3	(sudo apt-get install libdbd-sqlite3-perl) 
-		Image::Magick	(sudo apt-get install libimage-magick-perl)
-		File::Slurp	(sudo apt-get install libfile-slurp-perl)
-		XML::Xpath 	(sudo apt-get install libxml-xpath-perl)
 
 	Download some Instrument Approach Procedure plates
 		- Download these with the "load_dtpp_metadata.pl" file
@@ -33,7 +22,6 @@ How to get this utility up and running:
 		
 	
 		downloadPlates.pl requires the following CPAN modules:
-			XML::Xpath (sudo apt-get install libxml-xpath-perl)
 
 	Requires a database containing lat/lon info 
 		(currently included in the git repository)
@@ -63,14 +51,6 @@ How to use these utilities
 		-s Output statistics  to dtpp.db about the PDF
 		-c Don't overwrite existing .vrt
 
-	(This utility is not receiving updates, use the database version above)
-	Usage: ./georeferencePlates.pl <options> <pdf_file>
-		-v debug
-		-a<FAA airport ID>  To specify an airport ID
-		-p Output a marked up version of PDF
-		-s Output statistics about the PDF
-		-c Don't overwrite existing .vrt files
-
 	-p will create two extra files:
 		 marked-*.pdf
 			Shows how the ground control points were matched
@@ -83,9 +63,6 @@ How to use these utilities
 	The first time the utility is run for a particular PDF it will take longer as it is generating the corresponding PNG and mask files.  These will not be created again if they exist
 
 	A first run for all plates may take a day or two, subsequent runs will be much shorter
-
-	multithread.sh (being deprecated)
-		This will attempt to use all available CPUs to speed up the process
 
 	./chartCounts.pl
 		Produce a count of the plates from the dtpp.db database
