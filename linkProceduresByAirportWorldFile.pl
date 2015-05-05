@@ -187,9 +187,9 @@ sub main {
         else {
             say "No .png ($pngName) found for $FAA_CODE";
 
-#             #Convert the PDF to a PNG if one doesn't already exist
-#             say "Create PNG: $targetPdf -> $targetPng";
-#              convertPdfToPng( $targetPdf, $targetPng );
+            #             #Convert the PDF to a PNG if one doesn't already exist
+            #             say "Create PNG: $targetPdf -> $targetPng";
+            #              convertPdfToPng( $targetPdf, $targetPng );
         }
 
         if ( $upperLeftLon && $upperLeftLat ) {
@@ -284,7 +284,7 @@ sub convertPdfToPng {
     if ( -e $targetPng ) {
         return;
     }
-    
+
     $pdfToPpmOutput = qx(pdftoppm -png -r $pngDpi $targetPdf > $targetPng);
 
     my $retval = $? >> 8;
