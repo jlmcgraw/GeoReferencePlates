@@ -6,23 +6,21 @@ How to get this utility up and running:
 
 	Enable the "universe" repository in "Software & Updates" section of System Settings and update
 
-	Execute the setup.sh shell script
-		./setup.sh
-
+	Install git
+		sudo apt-get install git
 
 	Download the repository
 		git clone https://github.com/jlmcgraw/GeoReferencePlates
 
+	Execute the setup.sh shell script
+		./setup.sh
 
 	Download some Instrument Approach Procedure plates
 		- Download these with the "load_dtpp_metadata.pl" file
 			This will also re-initialize the dtpp.db file, be careful
 
-		- A download of all plates takes several hours
-		
+		- A download of all plates takes several hours		
 	
-		downloadPlates.pl requires the following CPAN modules:
-
 	Requires a database containing lat/lon info 
 		(currently included in the git repository)
 
