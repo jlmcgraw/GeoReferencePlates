@@ -16,28 +16,8 @@ How to get this utility up and running:
 	Download the repository
 		git clone https://github.com/jlmcgraw/GeoReferencePlates
 
-	Install the following external programs
-		gdal 		(sudo apt-get install gdal-bin)
-		mupdf-tools 	(sudo apt-get install mupdf-tools)
-		sqlite3 	(sudo apt-get install sqlite3)
-
-	Install the following CPAN modules
-		PDF::API2   	(sudo apt-get install libpdf-api2-perl)
-		DBI 		(sudo apt-get install libdbi-perl)
-		DBD::SQLite3	(sudo apt-get install libdbd-sqlite3-perl) 
-		Image::Magick	(sudo apt-get install libimage-magick-perl)
-		File::Slurp	(sudo apt-get install libfile-slurp-perl)
-		XML::Xpath 	(sudo apt-get install libxml-xpath-perl)
-		Math::Round	(sudo apt-get install libmath-round-perl
-		Params::Validate	(sudo apt-get install libparams-validate-perl)
-		Gtk3		(sudo apt-get install libgtk3-perl)
-		GD		(sudo apt-get install libgd-perl)
-		Parse::FixedLength	(sudo apt-get install libparse-fixedlength-perl)
-
-	Or install everything at once:
-		sudo apt-get install --yes git gdal-bin mupdf-tools sqlite3 libpdf-api2-perl libdbi-perl libdbd-sqlite3-perl \
-                                           libimage-magick-perl libfile-slurp-perl libxml-xpath-perl libmath-round-perl \
-                                           libparams-validate-perl libgtk3-perl libgd-perl libparse-fixedlength-perl
+	Execute the setup.sh shell script
+		./setup.sh
 
 	Download some Instrument Approach Procedure plates and initialize the database
 		- Download these with the "load_dtpp_metadata.pl" file
@@ -51,6 +31,7 @@ How to get this utility up and running:
 	Requires perl version > 5.010
 
 How to use these utilities
+	
 	To georeference instrument procedures:
 		 ./georeferencePlatesViaDb.pl <options> <directory_with_PDFs>
 			-v debug
@@ -86,8 +67,11 @@ The first time the utility is run for a particular PDF it will take longer as it
 A first run for all plates may take a day or two, subsequent runs will be much shorter
 
 Running
-	Refresh the locationinfo.db database
-		Code to do so is not currently in github
+	Refresh the location info database
+		https://github.com/jlmcgraw/processFaaData
+
+	Add in the cifp database for use with verifygeoreference.pl
+		https://github.com/jlmcgraw/parseCifp
 
 	Create empty ./dtpp folder
 
@@ -98,7 +82,8 @@ Running
 
 	./georeferenceAirportDiagramsViaDb.pl -p -s ./dtpp/
 
-This software and the data it produces come with no guarantees about accuracy or usefulness whatsoever!  Don't use it when your life may be on the line!
+This software and the data it produces come with no guarantees about accuracy or 
+usefulness whatsoever!  Don't use it when your life may be on the line!
 
 Thanks for trying this out!  If you have any feedback, ideas or patches please submit them to github.
 
@@ -107,7 +92,8 @@ jlmcgraw@gmail.com
 
 DISTRIBUTION
 
-Users are  prohibited from  any commercial or non-free resale use without explicit written permission from Jesse McGraw. Users should acknowledge this project as
+Users are  prohibited from  any commercial or non-free resale use without 
+explicit written permission from Jesse McGraw. Users should acknowledge this project as
 the source used  in the creation  of any reports,  publications, new data  sets,
 derived products, or services resulting from the use of this data set. I also
 request  reprints of  any publications  and notification  of any  redistributing
