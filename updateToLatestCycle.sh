@@ -16,8 +16,13 @@ latestCycle="$2"
 #Where dtpp files from previous cycle are
 previousDtppDir=./dtpp-$previousCycle
 
-#Where dtpp files will be unzipped to
+#Where latest dtpp zip files are stored
+sourceDtppZipDir="/media/sf_Shared_Folder/"
+
+#Where latest dtpp files will be unzipped to
 latestDtppDir=./dtpp-$latestCycle
+
+
 
 #Check if directory for previousCycle exists
 if [ ! -d $previousDtppDir ]; then
@@ -43,14 +48,16 @@ fi
 #Unzip all of the latest charts
 #Should abort on any errors
 echo Unzipping DTPP $latestCycle files
-unzip -u -j -q "DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir"
+unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir"
 
+#Did the directory for latest DTPP cycle get created?
 if [ ! -d $latestDtppDir ]; then
     echo "$latestDtppDir doesn't exist"
     exit 1
 fi
 
-#Create the new cycle db and download IAP,APD charts
+#Create the new cycle database and download IAP,APD charts
+#Also create a file with count of charts
 ./load_dtpp_metadata.pl . $latestCycle | tee $latestCycle-stats.txt
 
 #Move the old georeference database data to the new cycle db (overwriting auto data) along with hashes of GCPs
@@ -61,3 +68,6 @@ fi
 
 #Manually verify everything
 ./verifyGeoreference.pl $latestCycle
+
+# #Create a copy of the database with all unneeded information removed
+# ./sanitizeDtpp.sh $latestCycle
