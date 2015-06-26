@@ -1,11 +1,12 @@
 #!/bin/bash
 set -eu                # Always put this in Bourne shell scripts
-IFS="`printf '\n\t'`"  # Always put this in Bourne shell scripts
+IFS=$(printf '\n\t')  # Always put this in Bourne shell scripts
 
 
 #Check count of command line parameters
 if [ "$#" -ne 2 ] ; then
   echo "Usage: $0 previousCycle latestCycle" >&2
+  echo "   eg: $0 1506 1507" >&2
   exit 1
 fi
 
@@ -25,19 +26,19 @@ latestDtppDir=./dtpp-$latestCycle
 
 
 #Check if directory for previousCycle exists
-if [ ! -d $previousDtppDir ]; then
+if [ ! -d "$previousDtppDir" ]; then
     echo "$previousDtppDir doesn't exist"
     exit 1
 fi
 
 #Check if database for previousCycle exists
-if [ ! -e ./dtpp-$previousCycle.db ]; then
+if [ ! -e "./dtpp-$previousCycle.db" ]; then
     echo "$previousCycle.db doesn't exist, unable to copy old information"
     exit 1
 fi
 
 #Check if database for current cifp cycle exists
-if [ ! -e ./cifp-$latestCycle.db ]; then
+if [ ! -e "./cifp-$latestCycle.db" ]; then
     echo "cifp-$latestCycle.db doesn't exist, it's needed to process this cycle"
     exit 1
 fi
@@ -51,7 +52,7 @@ echo Unzipping DTPP $latestCycle files
 unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir"
 
 #Did the directory for latest DTPP cycle get created?
-if [ ! -d $latestDtppDir ]; then
+if [ ! -d "$latestDtppDir" ]; then
     echo "$latestDtppDir doesn't exist"
     exit 1
 fi
@@ -66,7 +67,7 @@ fi
 #Run autogeoref for added/changed plates
 ./georeferencePlatesViaDb.pl -n -s $latestCycle
 
-#Manually verify everything
+#Manually verify everything.  Get ready to left click many, many times
 ./verifyGeoreference.pl $latestCycle
 
 # #Create a copy of the database with all unneeded information removed

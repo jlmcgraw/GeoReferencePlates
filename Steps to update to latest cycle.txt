@@ -1,14 +1,15 @@
 Steps to update to latest cycle
-$previousCycle = 1504
-$latestCycle = 1505
+
+$previousCycle = 1506
+$latestCycle = 1507
 
 mkdir $latestCycle
 
 #unzip all of the dtpp archives to one directory
-#unzip -q "DDTPP?_20$latestCycle.zip" -d dtpp-$latestCycle
+	unzip -q -u "DDTPP?_20$latestCycle.zip" -d dtpp-$latestCycle
 
 #1
-#Create the new cycle db and download IAP,APD charts
+#Create the new cycle database named dtpp-$latestCycle.db and download IAP,APD charts
   ./load_dtpp_metadata.pl . $latestCycle
   
 #2  
@@ -17,7 +18,7 @@ mkdir $latestCycle
 
 #2a
 #remove empty stored hash files
-#find ./dtpp-$latestCycle -type f -name '*AD-hash*' -size -30c -exec rm '{}' ';'
+#	find ./dtpp-$latestCycle -type f -name '*AD-hash*' -size -30c -exec rm '{}' ';'
 
 #3  
 #Run autogeoref for added/changed plates and update their statistics
@@ -30,10 +31,13 @@ mkdir $latestCycle
 #4
 #Remove unecessary info (unused columns, bad statuses etc)
 
-#To see count of statuses
-#select status, count(status) 
-#from dtppgeo 
-#group by status;
+#To see count of statuses:
+#	select 
+#		status, count(status) 
+#	from 
+#		dtppgeo 
+#	group by
+#		 status;
 
 
 
