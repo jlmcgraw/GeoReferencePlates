@@ -517,7 +517,7 @@ sub doAPlate {
     #Do we already have a hash of ground control points for this plate stored from a previous run?
     #If not, find GCPs
     if ( !-e $storedGcpHash ) {
-        say "Find new GCPs";
+        say "No existing GCP hash, finding new GCPs";
 
         #Look up runways for this airport from the database and populate the array of slopes we're looking for for runway lines
         #(airportId,%runwaysFromDatabase,runwaysToDraw)
@@ -1578,7 +1578,7 @@ sub findAllIcons {
     my ($_output);
 
     #Loop through each "stream" in the pdf looking for our various icon regexes
-    for ( my $i = 0 ; $i < ( $main::objectstreams - 1 ) ; $i++ ) {
+    for ( my $i = 1 ; $i < ( $main::objectstreams - 1 ) ; $i++ ) {
         $_output = qx(mutool show $main::targetPdf $i x);
         my $retval = $? >> 8;
         die
@@ -5150,10 +5150,10 @@ sub usage {
     say "-b Allow creation of vrt with known bad lon/lat ratio";
     say "-c Don't overwrite existing .vrt";
     say "-m Allow use of non-unique obstacles";
-    say "-n Only process new plates with no affine data";
+    say "-n Only process plates with status of ADDEDCHANGED (new, no affine data)";
     say "-o Re-create outlines/mask files";
     say "-p Output a marked up version of PDF";
-    say "-s Output statistics about the PDF";
+    say "-s Output statistics about the PDF to database";
 
     return;
 }

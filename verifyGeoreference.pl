@@ -1107,7 +1107,7 @@ sub cairo_draw {
 
         #Draw fixes
         if ($shouldDrawFixes) {
-            foreach my $key ( keys $main::fixes_from_db_hashref ) {
+            foreach my $key ( keys %{ $main::fixes_from_db_hashref } ) {
 
                 my $lat  = $main::fixes_from_db_hashref->{$key}{"Lat"};
                 my $lon  = $main::fixes_from_db_hashref->{$key}{"Lon"};
@@ -1142,7 +1142,9 @@ sub cairo_draw {
                 }
             }
         }
-        foreach my $key ( keys $main::fixes_from_db_iap_hashref ) {
+        
+        #Always draw fixes mentioned in CIFP for airport
+        foreach my $key ( keys %{ $main::fixes_from_db_iap_hashref } ) {
 
             my $lat  = $main::fixes_from_db_iap_hashref->{$key}{"Lat"};
             my $lon  = $main::fixes_from_db_iap_hashref->{$key}{"Lon"};
@@ -1176,7 +1178,7 @@ sub cairo_draw {
 
         #Draw navaids
         if ($shouldDrawNavaids) {
-            foreach my $key ( keys $navaidsHashRef ) {
+            foreach my $key ( keys %{ $navaidsHashRef } ) {
 
                 my $lat  = $navaidsHashRef->{$key}{"Lat"};
                 my $lon  = $navaidsHashRef->{$key}{"Lon"};
@@ -1220,7 +1222,7 @@ sub cairo_draw {
 
         #Draw GCPs
         if ( $shouldDrawGcps && $gcpHashRef ) {
-            foreach my $key ( sort keys $gcpHashRef ) {
+            foreach my $key ( sort keys %{ $gcpHashRef } ) {
 
                 my $lat  = $gcpHashRef->{$key}{"lat"};
                 my $lon  = $gcpHashRef->{$key}{"lon"};
@@ -1253,7 +1255,7 @@ sub cairo_draw {
 
         #Draw Obstacles?
         if ($shouldDrawObstacles) {
-            foreach my $key ( keys $main::unique_obstacles_from_db_hashref ) {
+            foreach my $key ( keys %{ $main::unique_obstacles_from_db_hashref } ) {
 
                 # print Dumper $obstaclesHashRef;
                 my $lat =
@@ -1355,26 +1357,29 @@ sub cairo_draw {
 
                 my $textviewBuffer = $main::textview1->get_buffer;
                 my $iter           = $textviewBuffer->get_iter_at_offset(0);
-                if ( $segment1Length && $segment3Length ) {
-                    $textviewBuffer->insert(
-                        $iter,
-                        "Angles: "
-                          . rad2deg( $vertexAngles[1] ) . ","
-                          . rad2deg( $vertexAngles[2] ) . ","
-                          . rad2deg( $vertexAngles[3] ) . " "
-                          . "Length Diff: "
-                          . (
-                            ( $segment1Length - $segment2Length ) /
-                              $segment1Length
-                          )
-                          . ","
-                          . (
-                            ( $segment3Length - $segment4Length ) /
-                              $segment3Length
-                          )
-                          . "\n"
-                    );
-                }
+                
+                #This is some basic code to judge the "squareness" of the 
+                #reticules we're drawing around airport
+#                 if ( $segment1Length && $segment3Length ) {
+#                     $textviewBuffer->insert(
+#                         $iter,
+#                         "Angles: "
+#                           . rad2deg( $vertexAngles[1] ) . ","
+#                           . rad2deg( $vertexAngles[2] ) . ","
+#                           . rad2deg( $vertexAngles[3] ) . " "
+#                           . "Length Diff: "
+#                           . (
+#                             ( $segment1Length - $segment2Length ) /
+#                               $segment1Length
+#                           )
+#                           . ","
+#                           . (
+#                             ( $segment3Length - $segment4Length ) /
+#                               $segment3Length
+#                           )
+#                           . "\n"
+#                     );
+#                 }
 
                 # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
 
@@ -1405,7 +1410,7 @@ sub cairo_draw {
         if ($shouldDrawRunways) {
 
             #Draw the runways
-            foreach my $key ( sort keys $runwayHashRef ) {
+            foreach my $key ( sort keys %{ $runwayHashRef } ) {
 
                 my $latLE = $runwayHashRef->{$key}{"LELatitude"};
                 my $lonLE = $runwayHashRef->{$key}{"LELongitude"};
@@ -2042,7 +2047,6 @@ sub activateNewPlate {
 sub load_image {
 
     #Load and scale an image
-    #     my ( $file, $parent ) = @_;
     my ( $file, $parent ) = validate_pos(
         @_,
         { type => SCALAR },
@@ -2136,7 +2140,7 @@ sub create_model {
     );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( sort keys $hashRef ) {
+    for my $item ( sort keys %{ $hashRef } ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2200,7 +2204,7 @@ sub create_model_runways {
       Gtk3::ListStore->new( 'Glib::String', 'Glib::Double', 'Glib::Double' );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( keys $hashRef ) {
+    for my $item ( keys %{ $hashRef } ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2246,7 +2250,7 @@ sub create_model_obstacles {
       Gtk3::ListStore->new( 'Glib::Int', 'Glib::Double', 'Glib::Double' );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( sort keys $hashRef ) {
+    for my $item ( sort keys %{ $hashRef } ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2334,7 +2338,7 @@ sub create_model_gcp {
     );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( sort keys $hashRef ) {
+    for my $item ( sort keys %{ $hashRef } ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2573,7 +2577,6 @@ sub activateNextPlate {
 
             if ( $indexIntoPlatesMarkedChanged < ( $totalPlateCount - 1 ) ) {
                 $indexIntoPlatesMarkedChanged++;
-                $indexIntoPlatesWithNoLonLat;
             }
             $rowRef = ( @$_platesMarkedChanged[$indexIntoPlatesMarkedChanged] );
 
@@ -2626,7 +2629,7 @@ sub randomPlateButtonClick {
     #Activate a random plate for spot checks
     my ( $widget, $event ) = @_;
 
-    #Use this section to skip to next "bad" plate
+    #Use this section to select a random plate for spot checking
     my $totalPlateCount = scalar @{$_allPlates};
 
     my $random_number = rand( $totalPlateCount - 1 );
@@ -2664,7 +2667,7 @@ sub activatePreviousPlate {
 
     #Get the index of which type of plate we want to advance to on marking
     my $comboIndex = $main::comboboxtext1->get_active;
-    say $comboIndex;
+    #say $comboIndex;
     my $rowRef;
     given ($comboIndex) {
         when (/0/) {
@@ -2869,7 +2872,7 @@ sub gcpTest {
 sub createGcpString {
     my ($gcpHashRef) = validate_pos( @_, { type => HASHREF }, );
     my $_gcpstring = "";
-    foreach my $key ( keys $gcpHashRef ) {
+    foreach my $key ( keys %{ $gcpHashRef } ) {
 
         #build the GCP portion of the command line parameters
         $_gcpstring =
@@ -3119,9 +3122,39 @@ sub extractGeoreferenceInfoGcps2Wld {
 
 sub handlerAutoGeoreferenceButtonClick {
     my ( $widget, $event ) = @_;
-
+    
+    my $textviewBuffer = $main::textview1->get_buffer;
+    my $textBufferIter           = $textviewBuffer->get_iter_at_offset(0);
+    
     #Delete the existing stored hash (maybe even outlines etc?)
+    if (-e $main::storedGcpHash) {
+    unlink $main::storedGcpHash;
+    }
+    
+    $textviewBuffer->insert( $textBufferIter,
+            "unlink $main::storedGcpHash\n"
+        );
     #run georef
+    my $autoGeoCommand = "./georeferencePlatesViaDb.pl -s -t $main::PDF_NAME $main::cycle";
+    say $autoGeoCommand;
+    
+    $textviewBuffer->insert( $textBufferIter,
+            "$autoGeoCommand\n"
+        );
+    
+    my $commandOutput = qx($autoGeoCommand);
+
+    my $retval = $? >> 8;
+
+    if ( $retval != 0 ) {
+        carp
+          "Error executing georeferencePlatesViaDb.pl Return code was $retval";
+
+        #           $statistics{'$status'} = "AUTOBAD";
+        #         return;
+    }
+    say $commandOutput;
+    activateNextPlate();
     #update all of my current data with data from the run
 
     return TRUE;
