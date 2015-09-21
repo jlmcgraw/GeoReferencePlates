@@ -27,6 +27,8 @@ use Carp;
 use Math::Trig;
 use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
 
+use Params::Validate qw(:all);
+
 no if $] >= 5.018, warnings => "experimental";
 
 $VERSION = 1.00;
@@ -310,10 +312,20 @@ sub slopeAngle {
     return rad2deg( atan2( $y2 - $y1, $x2 - $x1 ) ) % 180;
 }
 
+# sub NESW {
+# 
+#     # Notice the 90 - latitude: phi zero is at the North Pole.
+#     return deg2rad( $_[0] ), deg2rad( 90 - $_[1] );
+# }
+
 sub NESW {
 
+    #Validate and set input parameters to this function
+    my ( $airportLongitude, $airportLatitude ) =
+      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+
     # Notice the 90 - latitude: phi zero is at the North Pole.
-    return deg2rad( $_[0] ), deg2rad( 90 - $_[1] );
+    return deg2rad($airportLongitude), deg2rad( 90 - $airportLatitude );
 }
 
 sub removeIconsAndTextboxesInMaskedAreas {

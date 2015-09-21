@@ -6,7 +6,7 @@ IFS=$(printf '\n\t')  # Always put this in Bourne shell scripts
 #Check count of command line parameters
 if [ "$#" -ne 2 ] ; then
   echo "Usage: $0 previousCycle latestCycle" >&2
-  echo "   eg: $0 1506 1507" >&2
+  echo "   eg: $0 1509 1510" >&2
   exit 1
 fi
 
@@ -43,13 +43,19 @@ if [ ! -e "./cifp-$latestCycle.db" ]; then
     exit 1
 fi
 
+#Check if database for current dtpp cycle already exists
+if [ -e "./dtpp-$latestCycle.db" ]; then
+    echo "dtpp-$latestCycle.db already exists, delete it if you really want to start over"
+    exit 1
+fi
+
 #Abort if the NASR database is too old
 [[ $(date +%s -r 56day.db) -lt $(date +%s --date="56 days ago") ]] && echo "NASR database is older than 56 days, please update" && exit 1
 
-#Unzip all of the latest charts
-#Should abort on any errors
-echo Unzipping DTPP $latestCycle files
-unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir"
+# #Unzip all of the latest charts
+# #Should abort on any errors
+# echo Unzipping DTPP $latestCycle files
+# unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir" > "$latestCycle-unzip.txt"
 
 #Did the directory for latest DTPP cycle get created?
 if [ ! -d "$latestDtppDir" ]; then

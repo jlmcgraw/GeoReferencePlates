@@ -18,7 +18,7 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 #-------------------------------------------------------------------------------------------------------------------------------------------
 
-use 5.010;
+use Modern::Perl '2014';
 
 use strict;
 use warnings;

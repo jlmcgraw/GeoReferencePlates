@@ -606,15 +606,15 @@ sub radiusGivenLatitude {
 
 }
 
-sub NESW {
-
-    #Validate and set input parameters to this function
-    my ( $airportLongitude, $airportLatitude ) =
-      validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
-
-    # Notice the 90 - latitude: phi zero is at the North Pole.
-    return deg2rad($airportLongitude), deg2rad( 90 - $airportLatitude );
-}
+# sub NESW {
+# 
+#     #Validate and set input parameters to this function
+#     my ( $airportLongitude, $airportLatitude ) =
+#       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
+# 
+#     # Notice the 90 - latitude: phi zero is at the North Pole.
+#     return deg2rad($airportLongitude), deg2rad( 90 - $airportLatitude );
+# }
 
 sub findNavaidsNearAirport {
 

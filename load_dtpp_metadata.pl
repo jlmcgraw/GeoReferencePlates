@@ -23,7 +23,9 @@
 # * Copyright 2012 Nadeem Hasan <nhasan@nadmm.com>
 # *
 
-use 5.010;
+use Modern::Perl '2014';
+#Don't buffer stdout
+local $| = 1;
 
 use strict;
 use warnings;
@@ -93,7 +95,7 @@ if ( -e $TPP_METADATA_FILE ) {
 }
 else {
     die
-      "Unable to dTPP metadata catalog $TPP_METADATA_FILE does not exist locally";
+      "Unable to load dTPP metadata catalog: $TPP_METADATA_FILE does not exist locally";
 
     #     print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
     #
@@ -332,7 +334,7 @@ sub record {
 
     ++$count;
 
-    say "\rLoading # $count...";
+    say "\rLoading # $count : $pdf_name: $chart_name";
 
     #TPP_VOLUME
     $sth_dtpp->bind_param( 1, $volume );
@@ -439,9 +441,11 @@ sub record {
 }
 
 sub deleteStaleFiles {
-
+    #Validate and set input parameters to this function
+    my ($pdf_name) =
+      validate_pos( @_, { type => SCALAR } );
     #First parameter is the name of the PDF (eg 00130RC.PDF)
-    my $pdf_name       = shift @_;
+#     my $pdf_name       = shift @_;
     my $pdf_name_lower = $pdf_name;
     $pdf_name_lower =~ s/\.PDF/\.pdf/;
 
@@ -493,18 +497,24 @@ sub deleteStaleFiles {
 
 sub downloadPlate {
 
+    #Validate and set input parameters to this function
+    my ($pdf_name) =
+      validate_pos( @_, { type => SCALAR } );
+      
     #Download a chart if it doesn't already exist locally
     #First parameter is the name of the PDF (eg 00130RC.PDF)
-    my $pdf_name       = shift @_;
+#     my $pdf_name       = shift @_;
     my $pdf_name_lower = $pdf_name;
+    
     $pdf_name_lower =~ s/\.PDF/\.pdf/;
 
     #Pull out the various filename components of the input file from the command line
     my ( $filename, $dir, $ext ) = fileparse( $pdf_name, qr/\.[^.]*/x );
 
     #Where to download DTPPs from
-    my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$cycle/";
+    my $chart_url_base = "http://aeronav.faa.gov/d-tpp/$main::requestedCycle/";
 
+    #Don't download if we already have it locally
     return if ( -e "$dtppDownloadDir" . "$pdf_name" );
 
     say "Download changed chart $chart_url_base"
@@ -517,7 +527,7 @@ sub downloadPlate {
 
     #         getPlate();
     #Get the new one
-    my $status;
+
 
     #         $status = getstore(
     #             "$chart_url_base" . "$pdf_name",
@@ -525,12 +535,14 @@ sub downloadPlate {
     #         );
     #         die "Error $status on $pdf_name" unless is_success($status);
     #
-    until ( is_success($status) ) {
-        $status = getstore(
+#     until ( is_success($status) ) {
+        say "Downloading " . $chart_url_base . $pdf_name . $dtppDownloadDir . $pdf_name;
+        
+            my $status = getstore(
             "$chart_url_base" . "$pdf_name",
             "$dtppDownloadDir" . "$pdf_name"
         );
-    }
+#     }
 
     ++$downloadedCount;
 
