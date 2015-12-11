@@ -1020,30 +1020,26 @@ sub wgs84ToPixelBuf {
           $main::invertedAffineTransform->transform( $_longitude, $_latitude );
 
         #Clamp to height of our scaled image
-        if ( $_yPixel < 0 ) {
-            $_yPixel = 0;
+        if ( $_yPixel < 0 || $_yPixel > $scaledImageHeight) {
+            $_yPixel = undef;
         }
-        elsif ( $_yPixel > $scaledImageHeight ) {
-            $_yPixel = $scaledImageHeight;
-        }
-
-        $_yPixel =
-          ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
 
         #Clamp to width
-        if ( $_xPixel < 0 ) {
-            $_xPixel = 0;
-        }
-        elsif ( $_xPixel > $scaledImageWidth ) {
-            $_xPixel = $scaledImageWidth;
+        if ( $_xPixel < 0 || $_xPixel > $scaledImageWidth ) {
+            $_xPixel = undef;
         }
 
-        $_xPixel =
-          ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+        if ($_yPixel && $_xPixel) {
+            $_yPixel =
+            ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
 
+            $_xPixel =
+            ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+            
+        }
         return ( $_xPixel, $_yPixel );
     }
-    else { return ( 0, 0 ) }
+    else { return ( undef, undef ) }
 }
 
 sub toggleDrawingFixes {
@@ -1699,7 +1695,7 @@ sub activateNewPlate {
                 $main::currentGcpLat  = $model->get_value( $iter, 2 );
                 $selection->get_tree_view->scroll_to_cell(
                     $model->get_path($iter),
-                    undef, FALSE, 0.0, 0.0 );
+                     undef, TRUE, 0.5, 0.5 );
 
                 #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
 
@@ -1768,7 +1764,7 @@ sub activateNewPlate {
                     $main::currentGcpLat  = $model->get_value( $iter, 3 );
                     $selection->get_tree_view->scroll_to_cell(
                         $model->get_path($iter),
-                        undef, FALSE, 0.0, 0.0 );
+                         undef, TRUE, 0.5, 0.5 );
                 }
             }
         );
@@ -1819,7 +1815,7 @@ sub activateNewPlate {
                     #                 say \$iter;
                     $selection->get_tree_view->scroll_to_cell(
                         $model->get_path($iter),
-                        undef, FALSE, 0.5, 0.5 );
+                        undef, TRUE, 0.5, 0.5 );
 
                     #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
 
@@ -1862,7 +1858,7 @@ sub activateNewPlate {
                     $main::currentGcpLat  = $model->get_value( $iter, 2 );
                     $selection->get_tree_view->scroll_to_cell(
                         $model->get_path($iter),
-                        undef, FALSE, 0.0, 0.0 );
+                        undef, TRUE, 0.5, 0.5 );
 
                     #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
 

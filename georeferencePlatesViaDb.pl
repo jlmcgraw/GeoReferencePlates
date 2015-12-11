@@ -1225,7 +1225,8 @@ sub findAirportLatitudeAndLongitude {
 sub getMediaboxSize {
 
     #Get the mediabox size from the PDF
-    my $mutoolinfo = qx(mutool info -m $main::targetPdf);
+    #was -m in older versions of mutool
+    my $mutoolinfo = qx(mutool info -M $main::targetPdf);
     my $retval     = $? >> 8;
     die
       "No output from mutool info for $main::targetPdf.  Is it installed? Return code was $retval"

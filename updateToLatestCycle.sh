@@ -4,30 +4,35 @@ IFS=$(printf '\n\t')  # Always put this in Bourne shell scripts
 
 
 #Check count of command line parameters
-if [ "$#" -ne 2 ] ; then
-  echo "Usage: $0 previousCycle latestCycle" >&2
-  echo "   eg: $0 1509 1510" >&2
+if [ "$#" -ne 3 ] ; then
+  echo "Usage: $0 <directory_where_dtpp_files_are> <previousCycle> <latestCycle>" >&2
+  echo "   eg: $0 ~/Downloads 1510 1511" >&2
   exit 1
 fi
 
 #Get command line parameters
-previousCycle="$1"
-latestCycle="$2"
+sourceDtppZipDir="$1"
+previousCycle="$2"
+latestCycle="$3"
 
 #Where dtpp files from previous cycle are
 previousDtppDir=./dtpp-$previousCycle
 
 #Where latest dtpp zip files are stored
-sourceDtppZipDir="/media/sf_Shared_Folder/"
+# sourceDtppZipDir="~/Downloads/"
 
 #Where latest dtpp files will be unzipped to
 latestDtppDir=./dtpp-$latestCycle
 
-
+#Check if source directory for DTPP zip files exists
+if [ ! -d "$sourceDtppZipDir" ]; then
+    echo "Source directory $sourceDtppZipDir doesn't exist"
+    exit 1
+fi
 
 #Check if directory for previousCycle exists
 if [ ! -d "$previousDtppDir" ]; then
-    echo "$previousDtppDir doesn't exist"
+    echo "Previous cycle directory $previousDtppDir doesn't exist"
     exit 1
 fi
 
@@ -52,14 +57,14 @@ fi
 #Abort if the NASR database is too old
 [[ $(date +%s -r 56day.db) -lt $(date +%s --date="56 days ago") ]] && echo "NASR database is older than 56 days, please update" && exit 1
 
-# #Unzip all of the latest charts
-# #Should abort on any errors
-# echo Unzipping DTPP $latestCycle files
+#Unzip all of the latest charts
+#Should abort on any errors
+echo Unzipping DTPP $latestCycle files
 # unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir" > "$latestCycle-unzip.txt"
 
 #Did the directory for latest DTPP cycle get created?
 if [ ! -d "$latestDtppDir" ]; then
-    echo "$latestDtppDir doesn't exist"
+    echo "Latest cycle directory $latestDtppDir doesn't exist, did the archives extract properly?"
     exit 1
 fi
 
