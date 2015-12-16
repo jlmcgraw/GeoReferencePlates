@@ -24,9 +24,15 @@ sudo apt-get install libparse-fixedlength-perl
 sudo apt-get install libxml-twig-perl
 sudo apt-get install libparallel-forkmanager-perl
 
+git clone https://github.com/jlmcgraw/parallelGdal2tiles.git
+git clone https://github.com/mapbox/mbutil.git
+git clone https://github.com/jlmcgraw/tilers_tools.git
+
 #Setup hooks to run perltidy on git commit
 cat > .git/hooks/pre-commit << 'EOF'
 #!/bin/bash
 find . -maxdepth 1 -type f -name '*.pl' -or -name '*.pm' | \
     xargs -I{} -P0 sh -c 'perltidy -b -noll {}'
 EOF
+
+chmod +x .git/hooks/pre-commit

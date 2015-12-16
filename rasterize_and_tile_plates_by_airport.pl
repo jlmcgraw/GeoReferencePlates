@@ -25,6 +25,8 @@ use 5.010;
 
 use strict;
 use warnings;
+use Carp;
+use File::Copy;
 
 #use diagnostics;
 use DBI;
@@ -113,7 +115,7 @@ sub main {
         CHART_CODE = 'IAP'
         OR 
         CHART_CODE = 'APD' 
-        )                          
+        )
           AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
           AND
@@ -133,8 +135,8 @@ sub main {
     say "Processing $_rows charts";
     my $completedCount = 0;
 
-    my $inputDir  = "./dtpp-$cycle/";
-    my $outputDir = "./byAirportWorldFile-$cycle/";
+    my $inputPathRoot  = "./dtpp-$cycle/";
+    my $outputPathRoot = "./byAirportWorldFile-$cycle/";
 
     #Process each plate returned by our query
     foreach my $_row (@$_allSqlQueryResults) {
@@ -145,56 +147,59 @@ sub main {
             $xPixelSkew,   $yPixelSkew
         ) = @$_row;
 
-        # EC-3, ORD, 51125, IAP, ILS RWY 09L (SA CAT I), , 00166I9LSAC1.PDF, , N, , IL
-        # say      '$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID';
-        #         say "$PDF_NAME,     $FAA_CODE,     $CHART_NAME,
-        #             $upperLeftLon, $upperLeftLat, $xPixelSize,
-        #             $yPixelSize,   $xPixelSkew,   $yPixelSkew";
-
-        #         my $targetVrtFile =
-        #           $STATE_ID . "-" . $FAA_CODE . "-" . $PDF_NAME . "-" . $CHART_NAME;
-        #
-        #         # convert spaces, ., and slashes to dash
-        #         $targetVrtFile =~ s/[\s \/ \\ \. \( \)]/-/xg;
-        #
-        #         my $targetVrtBadRatio = $dir . "badRatio-" . $targetVrtFile . ".vrt";
-        #         my $touchFile         = $dir . "noPoints-" . $targetVrtFile . ".vrt";
-
-        #         my $targetvrt = $dir . $targetVrtFile . ".vrt";
-
+        say "$FAA_CODE ----------------------------------------------------";
+        
         #Make the airport directory if it doesn't already exist
-        if ( !-e "$outputDir" ) {
-            make_path("$outputDir");
+        if ( !-e "$outputPathRoot" ) {
+            make_path("$outputPathRoot");
         }
 
         #Make the airport directory if it doesn't already exist
-        if ( !-e "$outputDir" . "$FAA_CODE/" ) {
-            make_path( "$outputDir" . "$FAA_CODE/" );
+        if ( !-e "$outputPathRoot" . "$FAA_CODE/" ) {
+            make_path( "$outputPathRoot" . "$FAA_CODE/" );
         }
+
         my ($chartBasename) = $PDF_NAME =~ m/(\w+)\.PDF/i;
         my $pngName         = $chartBasename . '.png';
         my $worldFileName   = $chartBasename . '.wld';
+        my $vrtFileName     = $chartBasename . '.vrt';
         my $numberFormat    = "%.10f";
 
         #Does the .png for this procedure exist
-        if ( -e "$inputDir" . "$pngName" ) {
+        if ( -e "$outputPathRoot" . "$FAA_CODE/" . $pngName ) {
 
-            #             link( "$", "$outputDir . $FAA_CODE/$targetVrtFile.vrt" );
+            #             link( "$", "$outputPathRoot . $FAA_CODE/$targetVrtFile.vrt" );
 
-            link( "$inputDir" . "$pngName",
-                "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$pngName" );
+            #             link( "$inputPathRoot" . "$pngName",
+            #                 "$outputPathRoot" . "$FAA_CODE" . "/$FAA_CODE-$pngName" );
         }
         else {
-            say "No .png ($pngName) found for $FAA_CODE";
+            #say "No .png ($pngName) found for $FAA_CODE";
 
-            #             #Convert the PDF to a PNG if one doesn't already exist
-            #             say "Create PNG: $targetPdf -> $targetPng";
-            #              convertPdfToPng( $targetPdf, $targetPng );
+            #Convert the PDF to a PNG if one doesn't already exist
+            say "Create PNG: "
+              . $inputPathRoot
+              . $PDF_NAME . "->"
+              . $outputPathRoot
+              . "$FAA_CODE/"
+              . $pngName;
+              
+            convertPdfToPng( $inputPathRoot . $PDF_NAME,
+                $outputPathRoot . "$FAA_CODE/" . $pngName );
+                
+            say "Optimize $outputPathRoot" . "$FAA_CODE/" . $pngName;
+            
+            my $pngQuantCommand =
+                "pngquant -s2 -q 100 --ext=.png --force $outputPathRoot" . "$FAA_CODE/" . $pngName;
+
+            executeAndReport($pngQuantCommand);
         }
 
         if ( $upperLeftLon && $upperLeftLat ) {
+            
+            
             my $worldfilePath =
-              "$outputDir" . "$FAA_CODE" . "/$FAA_CODE-$worldFileName";
+              "$outputPathRoot" . "$FAA_CODE/" . "$worldFileName";
 
             #Create the world file
             open( my $fh, '>', $worldfilePath )
@@ -206,66 +211,86 @@ sub main {
                 $yPixelSize = -($yPixelSize);
             }
 
-            #             if ($xPixelSkew != 0 && $yPixelSkew == 0)
-            # 	      {
-            # # say "Something wrong with X skew on $FAA_CODE ($PDF_NAME)";
-            # }
-            # 	    if ($yPixelSkew != 0 && $xPixelSkew == 0)
-            # 	      {
-            # # 	      say "Something wrong with Y skew on $FAA_CODE ($PDF_NAME)";
-            # 	      }
-            # 	    if ($yPixelSkew != 0 && $xPixelSkew != 0)
-            # # 	      {say "Non-zero X and Y skew on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if (abs($yPixelSize) < 0.00001 )
-            # # 	      {say " yPixelSize too small (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if (abs($yPixelSize) > 0.00009 )
-            # # 	      {say " yPixelSize too big (" . sprintf($numberFormat,$yPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if ($xPixelSize < 0.00001 )
-            # # 	      {say " xPixelSize too small (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-            #
-            # 	    if ($xPixelSize > 0.00009 )
-            # # 	      {say " xPixelSize too big (" . sprintf($numberFormat,$xPixelSize) . ") on $FAA_CODE ($PDF_NAME)";}
-
-            #             say $fh $xPixelSize;
+            #Write out the world file parameters
             say $fh sprintf( $numberFormat, $xPixelSize );
-
-            #             say $fh $yPixelSkew;
             say $fh sprintf( $numberFormat, $yPixelSkew );
-
-            #             say $fh $xPixelSkew;
             say $fh sprintf( $numberFormat, $xPixelSkew );
-
-            #             say $fh $yPixelSize;
             say $fh sprintf( $numberFormat, $yPixelSize );
-
-            #             say $fh $upperLeftLon;
             say $fh sprintf( $numberFormat, $upperLeftLon );
-
-            #             say $fh $upperLeftLat;
             say $fh sprintf( $numberFormat, $upperLeftLat );
             close $fh;
+
+            say "Translate $outputPathRoot$FAA_CODE/$pngName";
+            
+            my $gdal_translateCommand =
+              "gdal_translate -of VRT -strict -a_srs EPSG:4326"
+              . " $outputPathRoot$FAA_CODE/$pngName"
+              . " $outputPathRoot$FAA_CODE/$vrtFileName";
+              
+            executeAndReport($gdal_translateCommand);
+            
+            
+            
+            say "Tile $outputPathRoot$FAA_CODE/$vrtFileName";
+            
+            my $tileCommand = 
+                "../mergedCharts/tilers_tools/gdal_tiler.py "
+                   . ' --profile=tms'
+                   . ' --release'
+                   . ' --paletted'
+                   . ' --dest-dir="' . $outputPathRoot . $FAA_CODE . '"'
+                   . " $outputPathRoot" . $FAA_CODE . '/' . $vrtFileName;
+
+            executeAndReport($tileCommand);
+
+            
+            
+            say "Optimize $outputPathRoot$FAA_CODE/$chartBasename.tms";
+            
+            my $pngQuantCommand =
+                "../mergedCharts/pngquant_all_files_in_directory.sh $outputPathRoot$FAA_CODE/$chartBasename.tms";
+
+            executeAndReport($pngQuantCommand);
+
+            
+            
+            say "Mbtile $outputPathRoot$FAA_CODE/$chartBasename.tms";
+            my $mbtileCommand = "python ../mergedCharts/mbutil/mb-util"
+                . ' --scheme=tms'
+                . " $outputPathRoot$FAA_CODE/$chartBasename.tms"
+                . " $outputPathRoot$FAA_CODE/$chartBasename.mbtiles";
+
+            executeAndReport($mbtileCommand);
+
+            #Copy the viewer
+            copy(
+                "../mergedCharts/leaflet.html",
+                "$outputPathRoot$FAA_CODE/$chartBasename.tms"
+            );
+            
+            ++$completedCount;
         }
 
-        #             if ( $CHART_CODE eq "APD" ) {
-        #                 $targetvrt = $dir . "warped" . $targetVrtFile . ".vrt";
-        # # 		say $targetvrt;
-        #                 if ( -e "$targetvrt"
-        #                     && !-e "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" )
-        #                 {
-        #                     link( "$targetvrt",
-        #                         "./byAirportWorldFile/$FAA_CODE/warped-$targetVrtFile.vrt" );
-        # #                     say $targetvrt;
-        #                 }
-        #             }
-
-        ++$completedCount;
-
-        #         say "$completedCount" . "/" . "$_rows";
     }
 
+}
+
+sub executeAndReport {
+
+    #Validate and set input parameters to this function
+    my ($command) =
+      validate_pos( @_, { type => SCALAR } );
+
+    my $output = qx($command);
+
+    my $retval = $? >> 8;
+
+    #Did we succeed?
+    if ( $retval != 0 ) {
+        say $output;
+        carp "Error from $command.   Return code is $retval";
+    }
+    return $retval;
 }
 
 sub convertPdfToPng {
