@@ -35,20 +35,19 @@ use 5.010;
 use strict;
 use warnings;
 use autodie;
-
-#Allow use of locally installed libraries in conjunction with Carton
-use FindBin '$Bin';
-use lib "$FindBin::Bin/local/lib/perl5";
-
-#use diagnostics;
-
-# use PDF::API2;
-use DBI;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
 use Getopt::Std;
 use Carp;
+
+#Standard libraries
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
+#Non-standard libraries
+use DBI;
 use Math::Trig;
 use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
 use Math::Round;

@@ -1,14 +1,15 @@
 #!/bin/bash
 set -eu                # Always put this in Bourne shell scripts
-IFS="`printf '\n\t'`"  # Always put this in Bourne shell scripts
+IFS=$(printf '\n\t')  # Always put this in Bourne shell scripts
 
 #Install necessary software
-sudo apt-get install git
-sudo apt-get install gdal-bin
-sudo apt-get install mupdf-tools
-sudo apt-get install sqlite3
-sudo apt-get install perltidy
-sudo apt-get install pngquant
+sudo apt-get install git \
+                     gdal-bin \
+                     mupdf-tools \
+                     sqlite3 \
+                     perltidy \
+                     pngquant \
+                     cpanminus
 
 #Install various perl libraries
 sudo apt-get install libpdf-api2-perl
