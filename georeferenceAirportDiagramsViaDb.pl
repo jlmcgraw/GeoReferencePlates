@@ -39,7 +39,8 @@ use Getopt::Std;
 use Carp;
 use Math::Trig;
 use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
-use Math::Round;
+use File::Slurp;
+use POSIX;
 
 #Allow use of locally installed libraries in conjunction with Carton
 use FindBin '$Bin';
@@ -49,9 +50,7 @@ use lib "$FindBin::Bin/local/lib/perl5";
 use PDF::API2;
 use DBI;
 use Image::Magick;
-use File::Slurp;
-use POSIX;
-
+use Math::Round;
 # use Math::Round;
 use Time::HiRes q/gettimeofday/;
 
