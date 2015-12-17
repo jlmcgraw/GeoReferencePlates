@@ -24,12 +24,7 @@ use strict;
 use warnings;
 use autodie;
 
-#Allow use of locally installed libraries in conjunction with Carton
-use FindBin '$Bin';
-use lib "$FindBin::Bin/local/lib/perl5";
-
-use Modern::Perl '2014';
-use DBI;
+#Standard libraries
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
@@ -37,6 +32,14 @@ use Getopt::Std;
 use Carp;
 use File::Copy;
 use POSIX;
+
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
+#Non-standard libraries
+use Modern::Perl '2014';
+use DBI;
 use Params::Validate qw(:all);
 
 #Call the main routine and exit with its return code

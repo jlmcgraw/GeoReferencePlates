@@ -26,29 +26,27 @@
 use strict;
 use warnings;
 
-#Allow use of locally installed libraries in conjunction with Carton
-use FindBin '$Bin';
-use lib "$FindBin::Bin/local/lib/perl5";
-
-use Modern::Perl '2014';
-
-use DBI;
-use LWP::Simple;
-use XML::Twig;
-
-# use Parallel::ForkManager;
-use File::Path qw(make_path remove_tree);
-use Params::Validate qw(:all);
 use File::Basename;
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use Carp;
 use Getopt::Std;
+use File::Path qw(make_path remove_tree);
+
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
+#Non-standard libraries
+use Modern::Perl '2014';
+use DBI;
+use LWP::Simple;
+use XML::Twig;
+use Params::Validate qw(:all);
 
 #Don't buffer stdout
 local $| = 1;
 
-#
 my @links = ();
 
 use vars qw/ %opt /;

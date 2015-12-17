@@ -35,36 +35,31 @@ use 5.010;
 use strict;
 use warnings;
 use autodie;
+
+#Standard libraries
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
 use Getopt::Std;
 use Carp;
+use List::Util qw[min max];
+use Storable;
+use Math::Trig;
+use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
+use POSIX;
 
-#Standard libraries
 #Allow use of locally installed libraries in conjunction with Carton
 use FindBin '$Bin';
 use lib "$FindBin::Bin/local/lib/perl5";
 
 #Non-standard libraries
 use DBI;
-use Math::Trig;
-use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
 use Math::Round;
-use POSIX;
 use Params::Validate qw(:all);
 use Gtk3 '-init';
 use Glib 'TRUE', 'FALSE';
-use List::Util qw[min max];
-use Storable;
-
 use GD;
 use GD::Polyline;
-
-# use Time::HiRes q/gettimeofday/;
-
-# use Image::Magick;
-# use File::Slurp;
 
 #Some subroutines
 use GeoReferencePlatesSubroutines;

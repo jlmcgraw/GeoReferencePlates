@@ -54,11 +54,7 @@ use 5.010;
 
 use strict;
 use warnings;
-
-#use diagnostics;
-
-use PDF::API2;
-use DBI;
+#Standard libraries
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
@@ -66,18 +62,22 @@ use Getopt::Std;
 use Carp;
 use Math::Trig;
 use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
-use Math::Round;
 use POSIX;
+use Storable;
+
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
+#Non-standard libraries
+use PDF::API2;
+use DBI;
+use Math::Round;
 use Params::Validate qw(:all);
-
-# use Math::Round;
 use Time::HiRes q/gettimeofday/;
-
-#use Math::Polygon;
-# use Acme::Tools qw(between);
 use Image::Magick;
 use File::Slurp;
-use Storable;
+
 
 #PDF constants
 use constant mm => 25.4 / 72;

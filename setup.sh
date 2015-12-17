@@ -15,21 +15,26 @@ sudo apt-get install \
 #Install the libraries in our cpanfile locally
 carton install
 
+#Libraries that aren't working yet with Carton
+sudo apt-get install \
+                    libgd-perl \
+                    libimage-magick-perl \
+                    libgtk3-perl
+                    
 #Install various perl libraries
-sudo apt-get install libpdf-api2-perl
-sudo apt-get install libdbi-perl
-sudo apt-get install libdbd-sqlite3-perl 
-sudo apt-get install libimage-magick-perl
-sudo apt-get install libfile-slurp-perl
-sudo apt-get install libxml-xpath-perl
-sudo apt-get install libmath-round-perl
-sudo apt-get install libparams-validate-perl
-sudo apt-get install libgtk3-perl
-sudo apt-get install libgd-perl
-sudo apt-get install libparse-fixedlength-perl
-sudo apt-get install libxml-twig-perl
-sudo apt-get install libparallel-forkmanager-perl
+# sudo apt-get install libpdf-api2-perl
+# sudo apt-get install libdbi-perl
+# sudo apt-get install libdbd-sqlite3-perl 
+# # sudo apt-get install libfile-slurp-perl
+# sudo apt-get install libxml-xpath-perl
+# sudo apt-get install libmath-round-perl
+# sudo apt-get install libparams-validate-perl
 
+# sudo apt-get install libparse-fixedlength-perl
+# sudo apt-get install libxml-twig-perl
+# sudo apt-get install libparallel-forkmanager-perl
+
+#Clone some utilities locally for our use
 git clone https://github.com/jlmcgraw/parallelGdal2tiles.git
 git clone https://github.com/mapbox/mbutil.git
 git clone https://github.com/jlmcgraw/tilers_tools.git
