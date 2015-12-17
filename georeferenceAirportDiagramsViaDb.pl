@@ -51,6 +51,7 @@ use PDF::API2;
 use DBI;
 use Image::Magick;
 use Math::Round;
+
 # use Math::Round;
 use Time::HiRes q/gettimeofday/;
 
@@ -1895,23 +1896,23 @@ sub georeferenceTheRaster {
     ) = extractGeoreferenceInfo($gdalinfoCommandOutput);
 
     #---------------------
-    my $gdalinfoCommand = "gcps2wld.py '$main::targetvrt'";
+    my $gcps2wldCommand = "gcps2wld.py '$main::targetvrt'";
     if ($debug) {
-        say $gdalinfoCommand;
+        say $gcps2wldCommand;
         say "";
     }
 
-    my $gdalinfoCommandOutput = qx($gdalinfoCommand);
+    my $gcps2wldCommandOutput = qx($gcps2wldCommand);
 
     $retval = $? >> 8;
 
     if ( $retval != 0 ) {
         carp
-          "Error executing gdalinfo.  Is it installed? Return code was $retval";
+          "Error executing gcps2wld.  Is it installed? Return code was $retval";
         $statistics{'$status'} = "AUTOBAD";
         return;
     }
-    say $gdalinfoCommandOutput if $debug;
+    say $gcps2wldCommandOutput if $debug;
     my ( $xPixelSkew, $yPixelSkew );
 
     #Extract georeference info from gdalinfo output
@@ -1919,7 +1920,7 @@ sub georeferenceTheRaster {
         $pixelSizeX, $pixelSizeY, $xPixelSkew, $yPixelSkew, $upperLeftLon,
         $upperLeftLat
 
-    ) = extractGeoreferenceInfoGcps2Wld($gdalinfoCommandOutput);
+    ) = extractGeoreferenceInfoGcps2Wld($gcps2wldCommandOutput);
 
     #Save the info for writing out
     $statistics{'$yMedian'}       = $pixelSizeY;
