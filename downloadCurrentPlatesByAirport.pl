@@ -26,6 +26,11 @@ use 5.010;
 
 use strict;
 use warnings;
+
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
 use DBI;
 use LWP::Simple;
 use XML::Twig;

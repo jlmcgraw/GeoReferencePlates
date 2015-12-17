@@ -23,13 +23,15 @@
 # * Copyright 2012 Nadeem Hasan <nhasan@nadmm.com>
 # *
 
-use Modern::Perl '2014';
-
-#Don't buffer stdout
-local $| = 1;
-
 use strict;
 use warnings;
+
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
+use Modern::Perl '2014';
+
 use DBI;
 use LWP::Simple;
 use XML::Twig;
@@ -42,6 +44,9 @@ use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use Carp;
 use Getopt::Std;
+
+#Don't buffer stdout
+local $| = 1;
 
 #
 my @links = ();
