@@ -313,7 +313,7 @@ sub slopeAngle {
 }
 
 # sub NESW {
-# 
+#
 #     # Notice the 90 - latitude: phi zero is at the North Pole.
 #     return deg2rad( $_[0] ), deg2rad( 90 - $_[1] );
 # }

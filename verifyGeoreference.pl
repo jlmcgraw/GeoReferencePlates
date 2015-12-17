@@ -607,11 +607,11 @@ sub radiusGivenLatitude {
 }
 
 # sub NESW {
-# 
+#
 #     #Validate and set input parameters to this function
 #     my ( $airportLongitude, $airportLatitude ) =
 #       validate_pos( @_, { type => SCALAR }, { type => SCALAR }, );
-# 
+#
 #     # Notice the 90 - latitude: phi zero is at the North Pole.
 #     return deg2rad($airportLongitude), deg2rad( 90 - $airportLatitude );
 # }
@@ -1020,7 +1020,7 @@ sub wgs84ToPixelBuf {
           $main::invertedAffineTransform->transform( $_longitude, $_latitude );
 
         #Clamp to height of our scaled image
-        if ( $_yPixel < 0 || $_yPixel > $scaledImageHeight) {
+        if ( $_yPixel < 0 || $_yPixel > $scaledImageHeight ) {
             $_yPixel = undef;
         }
 
@@ -1029,13 +1029,13 @@ sub wgs84ToPixelBuf {
             $_xPixel = undef;
         }
 
-        if ($_yPixel && $_xPixel) {
+        if ( $_yPixel && $_xPixel ) {
             $_yPixel =
-            ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
+              ( $_yPixel + ( $scrollWindowHeight - $scaledImageHeight ) / 2 );
 
             $_xPixel =
-            ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
-            
+              ( $_xPixel + ( $scrollWindowWidth - $scaledImageWidth ) / 2 );
+
         }
         return ( $_xPixel, $_yPixel );
     }
@@ -1103,7 +1103,7 @@ sub cairo_draw {
 
         #Draw fixes
         if ($shouldDrawFixes) {
-            foreach my $key ( keys %{ $main::fixes_from_db_hashref } ) {
+            foreach my $key ( keys %{$main::fixes_from_db_hashref} ) {
 
                 my $lat  = $main::fixes_from_db_hashref->{$key}{"Lat"};
                 my $lon  = $main::fixes_from_db_hashref->{$key}{"Lon"};
@@ -1138,9 +1138,9 @@ sub cairo_draw {
                 }
             }
         }
-        
+
         #Always draw fixes mentioned in CIFP for airport
-        foreach my $key ( keys %{ $main::fixes_from_db_iap_hashref } ) {
+        foreach my $key ( keys %{$main::fixes_from_db_iap_hashref} ) {
 
             my $lat  = $main::fixes_from_db_iap_hashref->{$key}{"Lat"};
             my $lon  = $main::fixes_from_db_iap_hashref->{$key}{"Lon"};
@@ -1174,7 +1174,7 @@ sub cairo_draw {
 
         #Draw navaids
         if ($shouldDrawNavaids) {
-            foreach my $key ( keys %{ $navaidsHashRef } ) {
+            foreach my $key ( keys %{$navaidsHashRef} ) {
 
                 my $lat  = $navaidsHashRef->{$key}{"Lat"};
                 my $lon  = $navaidsHashRef->{$key}{"Lon"};
@@ -1218,7 +1218,7 @@ sub cairo_draw {
 
         #Draw GCPs
         if ( $shouldDrawGcps && $gcpHashRef ) {
-            foreach my $key ( sort keys %{ $gcpHashRef } ) {
+            foreach my $key ( sort keys %{$gcpHashRef} ) {
 
                 my $lat  = $gcpHashRef->{$key}{"lat"};
                 my $lon  = $gcpHashRef->{$key}{"lon"};
@@ -1251,7 +1251,8 @@ sub cairo_draw {
 
         #Draw Obstacles?
         if ($shouldDrawObstacles) {
-            foreach my $key ( keys %{ $main::unique_obstacles_from_db_hashref } ) {
+            foreach my $key ( keys %{$main::unique_obstacles_from_db_hashref} )
+            {
 
                 # print Dumper $obstaclesHashRef;
                 my $lat =
@@ -1353,29 +1354,29 @@ sub cairo_draw {
 
                 my $textviewBuffer = $main::textview1->get_buffer;
                 my $iter           = $textviewBuffer->get_iter_at_offset(0);
-                
-                #This is some basic code to judge the "squareness" of the 
+
+                #This is some basic code to judge the "squareness" of the
                 #reticules we're drawing around airport
-#                 if ( $segment1Length && $segment3Length ) {
-#                     $textviewBuffer->insert(
-#                         $iter,
-#                         "Angles: "
-#                           . rad2deg( $vertexAngles[1] ) . ","
-#                           . rad2deg( $vertexAngles[2] ) . ","
-#                           . rad2deg( $vertexAngles[3] ) . " "
-#                           . "Length Diff: "
-#                           . (
-#                             ( $segment1Length - $segment2Length ) /
-#                               $segment1Length
-#                           )
-#                           . ","
-#                           . (
-#                             ( $segment3Length - $segment4Length ) /
-#                               $segment3Length
-#                           )
-#                           . "\n"
-#                     );
-#                 }
+                #                 if ( $segment1Length && $segment3Length ) {
+                #                     $textviewBuffer->insert(
+                #                         $iter,
+                #                         "Angles: "
+                #                           . rad2deg( $vertexAngles[1] ) . ","
+                #                           . rad2deg( $vertexAngles[2] ) . ","
+                #                           . rad2deg( $vertexAngles[3] ) . " "
+                #                           . "Length Diff: "
+                #                           . (
+                #                             ( $segment1Length - $segment2Length ) /
+                #                               $segment1Length
+                #                           )
+                #                           . ","
+                #                           . (
+                #                             ( $segment3Length - $segment4Length ) /
+                #                               $segment3Length
+                #                           )
+                #                           . "\n"
+                #                     );
+                #                 }
 
                 # 	    $textviewBuffer->insert ($iter,"Length $segment1Length,$segment3Length - $segment2Length, $segment4Length\n\n");
 
@@ -1406,7 +1407,7 @@ sub cairo_draw {
         if ($shouldDrawRunways) {
 
             #Draw the runways
-            foreach my $key ( sort keys %{ $runwayHashRef } ) {
+            foreach my $key ( sort keys %{$runwayHashRef} ) {
 
                 my $latLE = $runwayHashRef->{$key}{"LELatitude"};
                 my $lonLE = $runwayHashRef->{$key}{"LELongitude"};
@@ -1695,7 +1696,7 @@ sub activateNewPlate {
                 $main::currentGcpLat  = $model->get_value( $iter, 2 );
                 $selection->get_tree_view->scroll_to_cell(
                     $model->get_path($iter),
-                     undef, TRUE, 0.5, 0.5 );
+                    undef, TRUE, 0.5, 0.5 );
 
                 #     $treeview->scroll_to_cell ($path, $column=undef, $use_align=FALSE, $row_align=0.0, $col_align=0.0);
 
@@ -1764,7 +1765,7 @@ sub activateNewPlate {
                     $main::currentGcpLat  = $model->get_value( $iter, 3 );
                     $selection->get_tree_view->scroll_to_cell(
                         $model->get_path($iter),
-                         undef, TRUE, 0.5, 0.5 );
+                        undef, TRUE, 0.5, 0.5 );
                 }
             }
         );
@@ -1998,6 +1999,7 @@ sub activateNewPlate {
         say " pixelSizeY->$yMed";
         say " upperLeftLon->$upperLeftLon";
         say " upperLeftLat->$upperLeftLat";
+        
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,
@@ -2043,39 +2045,57 @@ sub activateNewPlate {
 sub load_image {
 
     #Load and scale an image
-    my ( $file, $parent ) = validate_pos(
+    my ( $file, $plateWindow_ref ) = validate_pos(
         @_,
         { type => SCALAR },
         { type => HASHREF }
 
     );
+    #Create a pixbuf from the plate's png
     my $pixbuf = Gtk3::Gdk::Pixbuf->new_from_file($file);
-    my $scaled = scale_pixbuf( $pixbuf, $parent );
-    return $scaled;
+    
+    #Scale that image to parent window if need be
+    my $scaled_pixbuf_ref = scale_pixbuf( $pixbuf, $plateWindow_ref );
+    
+    return $scaled_pixbuf_ref;
 }
 
 sub scale_pixbuf {
-    my ( $pixbuf, $parent ) = validate_pos(
+    my ( $pixbuf, $plateWindow_ref ) = validate_pos(
         @_,
         { type => HASHREF },
         { type => HASHREF }
 
     );
 
-    my $max_w  = $parent->get_allocation()->{width};
-    my $max_h  = $parent->get_allocation()->{height};
+    #Get the height and width of the window
+    my $max_w  = $plateWindow_ref->get_allocation()->{width};
+    my $max_h  = $plateWindow_ref->get_allocation()->{height};
+    #Get the height and width of the file
     my $pixb_w = $pixbuf->get_width();
     my $pixb_h = $pixbuf->get_height();
+    
+    #Is the file bigger than the window in either dimension?
     if ( ( $pixb_w > $max_w ) || ( $pixb_h > $max_h ) ) {
+        #Determine the height and width scale factors
         my $sc_factor_w = $max_w / $pixb_w;
         my $sc_factor_h = $max_h / $pixb_h;
+#         $sc_factor_w < $sc_factor_h ? say "Using width scale factor" : say "Using height scale factor";
+        #Use whichever is smaller
         my $sc_factor   = min $sc_factor_w, $sc_factor_h;
+        
+        #Calculate the scaling to use to make the file the same size as the window
         my $sc_w        = int( $pixb_w * $sc_factor );
         my $sc_h        = int( $pixb_h * $sc_factor );
-        my $scaled = $pixbuf->scale_simple( $sc_w, $sc_h, 'GDK_INTERP_HYPER' );
-        return $scaled;
+        
+        #Scale the image appropriately
+        my $scaled_pixbuf_ref = $pixbuf->scale_simple( $sc_w, $sc_h, 'GDK_INTERP_HYPER' );
+        
+        #And return that scaled image
+        return $scaled_pixbuf_ref;
     }
     else {
+        #Otherwise return the unscaled image
         return $pixbuf;
     }
 }
@@ -2136,7 +2156,7 @@ sub create_model {
     );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( sort keys %{ $hashRef } ) {
+    for my $item ( sort keys %{$hashRef} ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2200,7 +2220,7 @@ sub create_model_runways {
       Gtk3::ListStore->new( 'Glib::String', 'Glib::Double', 'Glib::Double' );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( keys %{ $hashRef } ) {
+    for my $item ( keys %{$hashRef} ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2246,7 +2266,7 @@ sub create_model_obstacles {
       Gtk3::ListStore->new( 'Glib::Int', 'Glib::Double', 'Glib::Double' );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( sort keys %{ $hashRef } ) {
+    for my $item ( sort keys %{$hashRef} ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2334,7 +2354,7 @@ sub create_model_gcp {
     );
 
     #Populate the data for the list store from the hashRef
-    for my $item ( sort keys %{ $hashRef } ) {
+    for my $item ( sort keys %{$hashRef} ) {
         my $iter = $lstore->append();
 
         #         say $hashRef->{$item}{Name};
@@ -2663,6 +2683,7 @@ sub activatePreviousPlate {
 
     #Get the index of which type of plate we want to advance to on marking
     my $comboIndex = $main::comboboxtext1->get_active;
+
     #say $comboIndex;
     my $rowRef;
     given ($comboIndex) {
@@ -2868,7 +2889,7 @@ sub gcpTest {
 sub createGcpString {
     my ($gcpHashRef) = validate_pos( @_, { type => HASHREF }, );
     my $_gcpstring = "";
-    foreach my $key ( keys %{ $gcpHashRef } ) {
+    foreach my $key ( keys %{$gcpHashRef} ) {
 
         #build the GCP portion of the command line parameters
         $_gcpstring =
@@ -3118,26 +3139,25 @@ sub extractGeoreferenceInfoGcps2Wld {
 
 sub handlerAutoGeoreferenceButtonClick {
     my ( $widget, $event ) = @_;
-    
+
     my $textviewBuffer = $main::textview1->get_buffer;
-    my $textBufferIter           = $textviewBuffer->get_iter_at_offset(0);
-    
+    my $textBufferIter = $textviewBuffer->get_iter_at_offset(0);
+
     #Delete the existing stored hash (maybe even outlines etc?)
-    if (-e $main::storedGcpHash) {
-    unlink $main::storedGcpHash;
+    if ( -e $main::storedGcpHash ) {
+        unlink $main::storedGcpHash;
     }
-    
-    $textviewBuffer->insert( $textBufferIter,
-            "unlink $main::storedGcpHash\n"
-        );
+
+    $textviewBuffer->insert( $textBufferIter, "unlink $main::storedGcpHash\n" );
+
     #run georef
-    my $autoGeoCommand = "./georeferencePlatesViaDb.pl -s -t $main::PDF_NAME $main::cycle";
+    my $autoGeoCommand =
+      "./georeferencePlatesViaDb.pl -s -t $main::PDF_NAME $main::cycle";
+    
     say $autoGeoCommand;
-    
-    $textviewBuffer->insert( $textBufferIter,
-            "$autoGeoCommand\n"
-        );
-    
+
+    $textviewBuffer->insert( $textBufferIter, "$autoGeoCommand\n" );
+
     my $commandOutput = qx($autoGeoCommand);
 
     my $retval = $? >> 8;
@@ -3151,6 +3171,7 @@ sub handlerAutoGeoreferenceButtonClick {
     }
     say $commandOutput;
     activateNextPlate();
+
     #update all of my current data with data from the run
 
     return TRUE;

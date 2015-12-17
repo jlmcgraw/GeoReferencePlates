@@ -24,6 +24,7 @@
 # *
 
 use Modern::Perl '2014';
+
 #Don't buffer stdout
 local $| = 1;
 
@@ -441,11 +442,13 @@ sub record {
 }
 
 sub deleteStaleFiles {
+
     #Validate and set input parameters to this function
     my ($pdf_name) =
       validate_pos( @_, { type => SCALAR } );
+
     #First parameter is the name of the PDF (eg 00130RC.PDF)
-#     my $pdf_name       = shift @_;
+    #     my $pdf_name       = shift @_;
     my $pdf_name_lower = $pdf_name;
     $pdf_name_lower =~ s/\.PDF/\.pdf/;
 
@@ -500,12 +503,12 @@ sub downloadPlate {
     #Validate and set input parameters to this function
     my ($pdf_name) =
       validate_pos( @_, { type => SCALAR } );
-      
+
     #Download a chart if it doesn't already exist locally
     #First parameter is the name of the PDF (eg 00130RC.PDF)
-#     my $pdf_name       = shift @_;
+    #     my $pdf_name       = shift @_;
     my $pdf_name_lower = $pdf_name;
-    
+
     $pdf_name_lower =~ s/\.PDF/\.pdf/;
 
     #Pull out the various filename components of the input file from the command line
@@ -528,21 +531,23 @@ sub downloadPlate {
     #         getPlate();
     #Get the new one
 
-
     #         $status = getstore(
     #             "$chart_url_base" . "$pdf_name",
     #             "$dtppDownloadDir" . "$pdf_name"
     #         );
     #         die "Error $status on $pdf_name" unless is_success($status);
     #
-#     until ( is_success($status) ) {
-        say "Downloading " . $chart_url_base . $pdf_name . $dtppDownloadDir . $pdf_name;
-        
-            my $status = getstore(
-            "$chart_url_base" . "$pdf_name",
-            "$dtppDownloadDir" . "$pdf_name"
-        );
-#     }
+    #     until ( is_success($status) ) {
+    say "Downloading "
+      . $chart_url_base
+      . $pdf_name
+      . $dtppDownloadDir
+      . $pdf_name;
+
+    my $status = getstore( "$chart_url_base" . "$pdf_name",
+        "$dtppDownloadDir" . "$pdf_name" );
+
+    #     }
 
     ++$downloadedCount;
 

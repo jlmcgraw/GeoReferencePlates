@@ -5151,7 +5151,8 @@ sub usage {
     say "-b Allow creation of vrt with known bad lon/lat ratio";
     say "-c Don't overwrite existing .vrt";
     say "-m Allow use of non-unique obstacles";
-    say "-n Only process plates with status of ADDEDCHANGED (new, no affine data)";
+    say
+      "-n Only process plates with status of ADDEDCHANGED (new, no affine data)";
     say "-o Re-create outlines/mask files";
     say "-p Output a marked up version of PDF";
     say "-s Output statistics about the PDF to database";

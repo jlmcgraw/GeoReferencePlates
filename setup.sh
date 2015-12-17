@@ -8,6 +8,7 @@ sudo apt-get install gdal-bin
 sudo apt-get install mupdf-tools
 sudo apt-get install sqlite3
 sudo apt-get install perltidy
+sudo apt-get install pngquant
 
 #Install various perl libraries
 sudo apt-get install libpdf-api2-perl

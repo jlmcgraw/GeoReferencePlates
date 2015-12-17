@@ -5,7 +5,7 @@
 #
 # Copyright (C) 2013  Jesse McGraw (jlmcgraw@gmail.com)
 #
-#--------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -19,52 +19,75 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 
-#-------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#TODO
+# Finding 12826 vs 12837 airports when joining on CIFP id
+# Make sure upperLeftLon/upperLeftLat are used if no CIFP airport coordinate
 
 use 5.010;
-
 use strict;
 use warnings;
 use Carp;
 use File::Copy;
+use File::Slurp qw(read_file write_file read_dir);
+use File::Path qw(make_path remove_tree);
+use Getopt::Std;
+use vars qw/ %opt /;
 
 #use diagnostics;
 use DBI;
-use LWP::Simple;
-use XML::Twig;
-use PDF::API2;
 use autodie;
-use Data::Dumper;
-$Data::Dumper::Sortkeys = 1;
-use POSIX;
-use File::Copy qw(copy);
 use Params::Validate qw(:all);
-use File::Path qw(make_path remove_tree);
+use Parse::FixedLength;
 
 #Call the main routine and exit with its return code
 exit main(@ARGV);
 
-#--------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 sub main {
 
-    # mkdir byAirport-$cycle
-    # for each distinct FAA_CODE
-    #   mkdir FAA_CODE
-    #   for each DTPP that is IAP or AirportDiagram
-    #   santize procedure Name
-    #   create a .wld file from database
-    #   link ./byAirportWorldFile$cycle/AirportCode/procedureName.png -> ./dtpp-$cycle/chartcode.png
+    #Define the valid command line options
+    my $opt_string = 'tmoa:s:';
+    my $arg_num    = scalar @ARGV;
 
-    my $arg_num = scalar @ARGV;
-
-    #We need at least one argument (the name of the PDF to process)
     if ( $arg_num < 1 ) {
-        say "Specify cycle";
-        say "eg: $0 1410";
-        exit(1);
+        usage();
     }
 
-    my $cycle = shift @ARGV;
+    #This will fail if we receive an invalid option
+    unless ( getopts( "$opt_string", \%opt ) ) {
+        usage();
+    }
+
+    #Whether to perform various functions
+    my $shouldCreateTiles   = $opt{t};
+    my $shouldCreateMbtiles = $opt{m};
+    my $shouldOptimizeTiles = $opt{o};
+
+    #Either of these options implies making tiles first
+    if ($shouldCreateMbtiles || $shouldOptimizeTiles) {$shouldCreateTiles = 'True';}
+
+    #Default to all airports for the SQL query
+    my $airportId = "%";
+    if ( $opt{a} ) {
+
+        #If something  provided on the command line use it instead
+        $airportId = $opt{a};
+        say "Supplied airport ID: $airportId";
+    }
+
+    #Default to all states for the SQL query
+    my $stateId = "%";
+
+    if ( $opt{s} ) {
+
+        #If something  provided on the command line use it instead
+        $stateId = $opt{s};
+        say "Supplied state ID: $stateId";
+    }
+
+    #Get the cycle from command line options
+    my $cycle = $ARGV[0];
 
     if ( !( $cycle =~ /^\d\d\d\d$/ ) ) {
         say "Cycle must be a 4 digit number";
@@ -75,24 +98,22 @@ sub main {
     say "Cycle: $cycle";
 
     #Connect to our databases
-    my $dbFile = "./dtpp-$cycle.db";
+    my $dtppDatabase = "./dtpp-$cycle.db";
+    my $cifpDatabase = "./cifp-$cycle.db";
 
     #database of metadata for dtpp
     my $dtppDbh =
-      DBI->connect( "dbi:SQLite:dbname=$dbFile", "", "", { RaiseError => 1 } )
+      DBI->connect( "dbi:SQLite:dbname=$dtppDatabase", "", "", { RaiseError => 1 } )
       or croak $DBI::errstr;
-
-    #     my (
-    #         $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
-    #         $CHART_NAME,   $USER_ACTION, $PDF_NAME,  $FAANFD18_CODE,
-    #         $MILITARY_USE, $COPTER_USE,  $STATE_ID
-    #     );
 
     $dtppDbh->do("PRAGMA page_size=4096");
     $dtppDbh->do("PRAGMA synchronous=OFF");
 
+    #Also attach our CIFP database
+    $dtppDbh->do("attach database '$cifpDatabase' as cifp");
+
     #Query the dtpp database for charts
-    my $dtppSth = $dtppDbh->prepare(
+   my $dtppSth = $dtppDbh->prepare(
         "SELECT 
 	D.PDF_NAME
 	,D.FAA_CODE
@@ -104,22 +125,31 @@ sub main {
 	,DG.yMedian
 	,DG.xPixelSkew
 	,DG.yPixelSkew
+	,C.AirportReferencePtLongitude
+	,C.AirportReferencePtLatitude
       FROM 
 	dtpp as D 
       JOIN 
 	dtppGeo as DG 
+	,cifp.'primary_P_A_base_Airport - Reference Points' as C
       ON 
 	D.PDF_NAME=DG.PDF_NAME
-      WHERE  
+            and
+        D.FAA_CODE=C.ATAIATADesignator
+      WHERE
         ( 
         CHART_CODE = 'IAP'
-        OR 
+            OR 
         CHART_CODE = 'APD' 
         )
-          AND
+            AND
         DG.PDF_NAME NOT LIKE '%DELETED%'
-          AND
+            AND
         DG.STATUS LIKE '%MANUALGOOD%'
+            AND
+        D.FAA_CODE LIKE  '$airportId'
+            AND
+        D.STATE_ID LIKE  '$stateId'
         ;"
     );
     $dtppSth->execute();
@@ -135,24 +165,27 @@ sub main {
     say "Processing $_rows charts";
     my $completedCount = 0;
 
+    #Where the PDFs are for this cycle
     my $inputPathRoot  = "./dtpp-$cycle/";
+    
+    #Where to store output
     my $outputPathRoot = "./byAirportWorldFile-$cycle/";
 
+    #Make the output directory if it doesn't already exist
+    if ( !-e "$outputPathRoot" ) {
+        make_path("$outputPathRoot");
+    }
+        
     #Process each plate returned by our query
     foreach my $_row (@$_allSqlQueryResults) {
 
         my (
             $PDF_NAME,     $FAA_CODE,     $CHART_NAME, $MILITARY_USE,
             $upperLeftLon, $upperLeftLat, $xPixelSize, $yPixelSize,
-            $xPixelSkew,   $yPixelSkew
+            $xPixelSkew,   $yPixelSkew, $AirportReferencePtLongitude, $AirportReferencePtLatitude
         ) = @$_row;
 
         say "$FAA_CODE ----------------------------------------------------";
-        
-        #Make the airport directory if it doesn't already exist
-        if ( !-e "$outputPathRoot" ) {
-            make_path("$outputPathRoot");
-        }
 
         #Make the airport directory if it doesn't already exist
         if ( !-e "$outputPathRoot" . "$FAA_CODE/" ) {
@@ -165,39 +198,34 @@ sub main {
         my $vrtFileName     = $chartBasename . '.vrt';
         my $numberFormat    = "%.10f";
 
-        #Does the .png for this procedure exist
-        if ( -e "$outputPathRoot" . "$FAA_CODE/" . $pngName ) {
+        #Create the .png for this procedure if it doesn't already exist
+        if ( !-e "$outputPathRoot" . "$FAA_CODE/" . $pngName ) {
 
-            #             link( "$", "$outputPathRoot . $FAA_CODE/$targetVrtFile.vrt" );
-
-            #             link( "$inputPathRoot" . "$pngName",
-            #                 "$outputPathRoot" . "$FAA_CODE" . "/$FAA_CODE-$pngName" );
-        }
-        else {
             #say "No .png ($pngName) found for $FAA_CODE";
 
-            #Convert the PDF to a PNG if one doesn't already exist
             say "Create PNG: "
               . $inputPathRoot
               . $PDF_NAME . "->"
               . $outputPathRoot
               . "$FAA_CODE/"
               . $pngName;
-              
+
             convertPdfToPng( $inputPathRoot . $PDF_NAME,
                 $outputPathRoot . "$FAA_CODE/" . $pngName );
-                
-            say "Optimize $outputPathRoot" . "$FAA_CODE/" . $pngName;
-            
+
+            say "Optimize: $outputPathRoot" . "$FAA_CODE/" . $pngName;
+
             my $pngQuantCommand =
-                "pngquant -s2 -q 100 --ext=.png --force $outputPathRoot" . "$FAA_CODE/" . $pngName;
+                "pngquant -s2 -q 100 --ext=.png --force $outputPathRoot"
+              . "$FAA_CODE/"
+              . $pngName;
 
             executeAndReport($pngQuantCommand);
         }
 
+        #If this plate is georeferenced (which it should be due to our query parameters
         if ( $upperLeftLon && $upperLeftLat ) {
-            
-            
+
             my $worldfilePath =
               "$outputPathRoot" . "$FAA_CODE/" . "$worldFileName";
 
@@ -220,54 +248,101 @@ sub main {
             say $fh sprintf( $numberFormat, $upperLeftLat );
             close $fh;
 
-            say "Translate $outputPathRoot$FAA_CODE/$pngName";
-            
+            #Make a .vrt for this .png, using the .wld file we just created
+            say "Translate: $outputPathRoot$FAA_CODE/$pngName";
+
             my $gdal_translateCommand =
-              "gdal_translate -of VRT -strict -a_srs EPSG:4326"
+                "gdal_translate -of VRT -strict -a_srs EPSG:4326"
               . " $outputPathRoot$FAA_CODE/$pngName"
               . " $outputPathRoot$FAA_CODE/$vrtFileName";
-              
+
             executeAndReport($gdal_translateCommand);
-            
-            
-            
-            say "Tile $outputPathRoot$FAA_CODE/$vrtFileName";
-            
-            my $tileCommand = 
-                "../mergedCharts/tilers_tools/gdal_tiler.py "
-                   . ' --profile=tms'
-                   . ' --release'
-                   . ' --paletted'
-                   . ' --dest-dir="' . $outputPathRoot . $FAA_CODE . '"'
-                   . " $outputPathRoot" . $FAA_CODE . '/' . $vrtFileName;
 
-            executeAndReport($tileCommand);
+            #Create tiles if the user asked to
+            if ($shouldCreateTiles) {
+                say "Tile: $outputPathRoot$FAA_CODE/$vrtFileName";
 
-            
-            
-            say "Optimize $outputPathRoot$FAA_CODE/$chartBasename.tms";
-            
-            my $pngQuantCommand =
-                "../mergedCharts/pngquant_all_files_in_directory.sh $outputPathRoot$FAA_CODE/$chartBasename.tms";
+                my $tileCommand =
+                    "./tilers_tools/gdal_tiler.py "
+                  . ' --profile=tms'
+                  . ' --release'
+                  . ' --paletted'
+                  . ' --dest-dir="'
+                  . $outputPathRoot
+                  . $FAA_CODE . '"'
+                  . " $outputPathRoot"
+                  . $FAA_CODE . '/'
+                  . $vrtFileName;
 
-            executeAndReport($pngQuantCommand);
+                executeAndReport($tileCommand);
 
-            
-            
-            say "Mbtile $outputPathRoot$FAA_CODE/$chartBasename.tms";
-            my $mbtileCommand = "python ../mergedCharts/mbutil/mb-util"
-                . ' --scheme=tms'
-                . " $outputPathRoot$FAA_CODE/$chartBasename.tms"
-                . " $outputPathRoot$FAA_CODE/$chartBasename.mbtiles";
+                #Copy the viewer
+                copy( "./leaflet_template.html",
+                    "$outputPathRoot$FAA_CODE/$chartBasename.tms/leaflet.html"
+                );
 
-            executeAndReport($mbtileCommand);
+                #Get the sort list of directories in the tiles folder and use first entry as min zoom
+                #and last as maxZoom
+                # TODO HACK
+                my $tilesDirectory =
+                  "$outputPathRoot$FAA_CODE/$chartBasename.tms";
+                my @zoom_levels =
+                  sort { $a <=> $b }
+                  grep { -d "$tilesDirectory/$_" } read_dir($tilesDirectory);
+                my $minNativeZoom = $zoom_levels[0];
+                my $maxNativeZoom = $zoom_levels[-1];
 
-            #Copy the viewer
-            copy(
-                "../mergedCharts/leaflet.html",
-                "$outputPathRoot$FAA_CODE/$chartBasename.tms"
-            );
+                #Calculate WGS84 decimal coordinates of the airport 
+                my $airportLongitudeWgs84 = coordinateToDecimalCifpFormat($AirportReferencePtLongitude);
+                my $airportLatitudeWgs84 = coordinateToDecimalCifpFormat($AirportReferencePtLatitude);
+
+                #If these coordinates aren't defined use the upper left ones
+                $airportLongitudeWgs84 //= $upperLeftLon;
+                $airportLatitudeWgs84 //= $upperLeftLat;
+                
+                #Adjust the template for this particular plate
+                #Fix up the parameters in the leaflet
+                #These are simple hacks for now
+                my $filename =
+                  "$outputPathRoot$FAA_CODE/$chartBasename.tms/leaflet.html";
+                my $data = read_file $filename, { binmode => ':utf8' };
+
+                $data =~
+                  s|<title>Tiled Chart</title>|<title>$FAA_CODE $CHART_NAME</title>|ig;
+                $data =~
+                  s|this._div.innerHTML = "Merged Chart";|this._div.innerHTML = "$FAA_CODE $CHART_NAME";|ig;
+                $data =~
+                  s|center: \[44.966667,-103.766667\],|center: [$airportLatitudeWgs84, $airportLongitudeWgs84],|ig;
+                $data =~ s|zoom: 4,|zoom: $minNativeZoom,|ig;
+                $data =~
+                  s|maxNativeZoom: 12345|maxNativeZoom: $maxNativeZoom|ig;
+
+                write_file $filename, { binmode => ':utf8' }, $data;
+
+            }
             
+            #Optimize all of the tiles if the user asked to
+            if ($shouldOptimizeTiles) {
+                say "Optimize: $outputPathRoot$FAA_CODE/$chartBasename.tms";
+
+                my $pngQuantCommand =
+                  "./pngquant_all_files_in_directory.sh $outputPathRoot$FAA_CODE/$chartBasename.tms";
+
+                executeAndReport($pngQuantCommand);
+            }
+
+            #Create mbtiles if the user asked to
+            if ($shouldCreateMbtiles) {
+                say "Mbtile: $outputPathRoot$FAA_CODE/$chartBasename.tms";
+                my $mbtileCommand =
+                    "python ./mbutil/mb-util"
+                  . ' --scheme=tms'
+                  . " $outputPathRoot$FAA_CODE/$chartBasename.tms"
+                  . " $outputPathRoot$FAA_CODE/$chartBasename.mbtiles";
+
+                executeAndReport($mbtileCommand);
+            }
+
             ++$completedCount;
         }
 
@@ -323,4 +398,102 @@ sub convertPdfToPng {
     }
 
     return $retval;
+}
+
+sub usage {
+    say "Usage: $0 <options> <cycle>";
+    say " <cycle> The cycle number, eg. 1513";
+    say "   -t Make tiles";
+    say "   -m Make mbtiles";
+    say "   -o Optimze tile size";
+    say "   -a FAA airport ID";
+    say "   -s Two letter state code";
+    
+    exit 1;
+}
+
+sub coordinateToDecimalCifpFormat {
+
+    #Convert a latitude or longitude in CIFP format to its decimal equivalent
+    my ($coordinate) = shift;
+    my ( $deg, $min, $sec, $signedDegrees, $declination, $secPostDecimal );
+    my $data;
+
+    #First parse the common information for a record to determine which more specific parser to use
+    my $parser_latitude = Parse::FixedLength->new(
+        [
+            qw(
+              Declination:1
+              Degrees:2
+              Minutes:2
+              Seconds:2
+              SecondsPostDecimal:2
+              )
+        ]
+    );
+    my $parser_longitude = Parse::FixedLength->new(
+        [
+            qw(
+              Declination:1
+              Degrees:3
+              Minutes:2
+              Seconds:2
+              SecondsPostDecimal:2
+              )
+        ]
+    );
+
+    #Get the first character of the coordinate and parse accordingly
+    $declination = substr( $coordinate, 0, 1 );
+
+    given ($declination) {
+        when (/[NS]/) {
+            $data = $parser_latitude->parse_newref($coordinate);
+            die "Bad input length on parser_latitude"
+              if ( $parser_latitude->length != 9 );
+
+            #Latitude is invalid if less than -90  or greater than 90
+            # $signedDegrees = "" if ( abs($signedDegrees) > 90 );
+        }
+        when (/[EW]/) {
+            $data = $parser_longitude->parse_newref($coordinate);
+            die "Bad input length on parser_longitude"
+              if ( $parser_longitude->length != 10 );
+
+            #Longitude is invalid if less than -180 or greater than 180
+            # $signedDegrees = "" if ( abs($signedDegrees) > 180 );
+        }
+        default {
+            return 0;
+
+        }
+    }
+
+    $declination    = $data->{Declination};
+    $deg            = $data->{Degrees};
+    $min            = $data->{Minutes};
+    $sec            = $data->{Seconds};
+    $secPostDecimal = $data->{SecondsPostDecimal};
+
+    # print Dumper($data);
+
+    $deg = $deg / 1;
+    $min = $min / 60;
+
+    #Concat the two portions of the seconds field with a decimal between
+    $sec = ( $sec . "." . $secPostDecimal );
+
+    # say "Sec: $sec";
+    $sec           = ($sec) / 3600;
+    $signedDegrees = ( $deg + $min + $sec );
+
+    #Make coordinate negative if necessary
+    if ( ( $declination eq "S" ) || ( $declination eq "W" ) ) {
+        $signedDegrees = -($signedDegrees);
+    }
+
+    # say "Coordinate: $coordinate to $signedDegrees";           #if $debug;
+    # say "Decl:$declination Deg: $deg, Min:$min, Sec:$sec";    #if $debug;
+
+    return ($signedDegrees);
 }
