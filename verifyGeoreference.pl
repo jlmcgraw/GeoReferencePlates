@@ -36,6 +36,10 @@ use strict;
 use warnings;
 use autodie;
 
+#Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+
 #use diagnostics;
 
 # use PDF::API2;
@@ -1999,7 +2003,7 @@ sub activateNewPlate {
         say " pixelSizeY->$yMed";
         say " upperLeftLon->$upperLeftLon";
         say " upperLeftLat->$upperLeftLat";
-        
+
         my $textviewBuffer = $main::textview1->get_buffer;
         my $iter           = $textviewBuffer->get_iter_at_offset(0);
         $textviewBuffer->insert( $iter,
@@ -2051,12 +2055,13 @@ sub load_image {
         { type => HASHREF }
 
     );
+
     #Create a pixbuf from the plate's png
     my $pixbuf = Gtk3::Gdk::Pixbuf->new_from_file($file);
-    
+
     #Scale that image to parent window if need be
     my $scaled_pixbuf_ref = scale_pixbuf( $pixbuf, $plateWindow_ref );
-    
+
     return $scaled_pixbuf_ref;
 }
 
@@ -2069,28 +2074,32 @@ sub scale_pixbuf {
     );
 
     #Get the height and width of the window
-    my $max_w  = $plateWindow_ref->get_allocation()->{width};
-    my $max_h  = $plateWindow_ref->get_allocation()->{height};
+    my $max_w = $plateWindow_ref->get_allocation()->{width};
+    my $max_h = $plateWindow_ref->get_allocation()->{height};
+
     #Get the height and width of the file
     my $pixb_w = $pixbuf->get_width();
     my $pixb_h = $pixbuf->get_height();
-    
+
     #Is the file bigger than the window in either dimension?
     if ( ( $pixb_w > $max_w ) || ( $pixb_h > $max_h ) ) {
+
         #Determine the height and width scale factors
         my $sc_factor_w = $max_w / $pixb_w;
         my $sc_factor_h = $max_h / $pixb_h;
-#         $sc_factor_w < $sc_factor_h ? say "Using width scale factor" : say "Using height scale factor";
+
+        #         $sc_factor_w < $sc_factor_h ? say "Using width scale factor" : say "Using height scale factor";
         #Use whichever is smaller
-        my $sc_factor   = min $sc_factor_w, $sc_factor_h;
-        
+        my $sc_factor = min $sc_factor_w, $sc_factor_h;
+
         #Calculate the scaling to use to make the file the same size as the window
-        my $sc_w        = int( $pixb_w * $sc_factor );
-        my $sc_h        = int( $pixb_h * $sc_factor );
-        
+        my $sc_w = int( $pixb_w * $sc_factor );
+        my $sc_h = int( $pixb_h * $sc_factor );
+
         #Scale the image appropriately
-        my $scaled_pixbuf_ref = $pixbuf->scale_simple( $sc_w, $sc_h, 'GDK_INTERP_HYPER' );
-        
+        my $scaled_pixbuf_ref =
+          $pixbuf->scale_simple( $sc_w, $sc_h, 'GDK_INTERP_HYPER' );
+
         #And return that scaled image
         return $scaled_pixbuf_ref;
     }
@@ -3153,7 +3162,7 @@ sub handlerAutoGeoreferenceButtonClick {
     #run georef
     my $autoGeoCommand =
       "./georeferencePlatesViaDb.pl -s -t $main::PDF_NAME $main::cycle";
-    
+
     say $autoGeoCommand;
 
     $textviewBuffer->insert( $textBufferIter, "$autoGeoCommand\n" );

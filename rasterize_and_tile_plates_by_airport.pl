@@ -65,7 +65,9 @@ sub main {
     my $shouldOptimizeTiles = $opt{o};
 
     #Either of these options implies making tiles first
-    if ($shouldCreateMbtiles || $shouldOptimizeTiles) {$shouldCreateTiles = 'True';}
+    if ( $shouldCreateMbtiles || $shouldOptimizeTiles ) {
+        $shouldCreateTiles = 'True';
+    }
 
     #Default to all airports for the SQL query
     my $airportId = "%";
@@ -102,8 +104,8 @@ sub main {
     my $cifpDatabase = "./cifp-$cycle.db";
 
     #database of metadata for dtpp
-    my $dtppDbh =
-      DBI->connect( "dbi:SQLite:dbname=$dtppDatabase", "", "", { RaiseError => 1 } )
+    my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=$dtppDatabase",
+        "", "", { RaiseError => 1 } )
       or croak $DBI::errstr;
 
     $dtppDbh->do("PRAGMA page_size=4096");
@@ -113,7 +115,7 @@ sub main {
     $dtppDbh->do("attach database '$cifpDatabase' as cifp");
 
     #Query the dtpp database for charts
-   my $dtppSth = $dtppDbh->prepare(
+    my $dtppSth = $dtppDbh->prepare(
         "SELECT 
 	D.PDF_NAME
 	,D.FAA_CODE
@@ -166,8 +168,8 @@ sub main {
     my $completedCount = 0;
 
     #Where the PDFs are for this cycle
-    my $inputPathRoot  = "./dtpp-$cycle/";
-    
+    my $inputPathRoot = "./dtpp-$cycle/";
+
     #Where to store output
     my $outputPathRoot = "./byAirportWorldFile-$cycle/";
 
@@ -175,14 +177,17 @@ sub main {
     if ( !-e "$outputPathRoot" ) {
         make_path("$outputPathRoot");
     }
-        
+
     #Process each plate returned by our query
     foreach my $_row (@$_allSqlQueryResults) {
 
         my (
-            $PDF_NAME,     $FAA_CODE,     $CHART_NAME, $MILITARY_USE,
-            $upperLeftLon, $upperLeftLat, $xPixelSize, $yPixelSize,
-            $xPixelSkew,   $yPixelSkew, $AirportReferencePtLongitude, $AirportReferencePtLatitude
+            $PDF_NAME,                    $FAA_CODE,
+            $CHART_NAME,                  $MILITARY_USE,
+            $upperLeftLon,                $upperLeftLat,
+            $xPixelSize,                  $yPixelSize,
+            $xPixelSkew,                  $yPixelSkew,
+            $AirportReferencePtLongitude, $AirportReferencePtLatitude
         ) = @$_row;
 
         say "$FAA_CODE ----------------------------------------------------";
@@ -292,14 +297,16 @@ sub main {
                 my $minNativeZoom = $zoom_levels[0];
                 my $maxNativeZoom = $zoom_levels[-1];
 
-                #Calculate WGS84 decimal coordinates of the airport 
-                my $airportLongitudeWgs84 = coordinateToDecimalCifpFormat($AirportReferencePtLongitude);
-                my $airportLatitudeWgs84 = coordinateToDecimalCifpFormat($AirportReferencePtLatitude);
+                #Calculate WGS84 decimal coordinates of the airport
+                my $airportLongitudeWgs84 =
+                  coordinateToDecimalCifpFormat($AirportReferencePtLongitude);
+                my $airportLatitudeWgs84 =
+                  coordinateToDecimalCifpFormat($AirportReferencePtLatitude);
 
                 #If these coordinates aren't defined use the upper left ones
                 $airportLongitudeWgs84 //= $upperLeftLon;
-                $airportLatitudeWgs84 //= $upperLeftLat;
-                
+                $airportLatitudeWgs84  //= $upperLeftLat;
+
                 #Adjust the template for this particular plate
                 #Fix up the parameters in the leaflet
                 #These are simple hacks for now
@@ -320,7 +327,7 @@ sub main {
                 write_file $filename, { binmode => ':utf8' }, $data;
 
             }
-            
+
             #Optimize all of the tiles if the user asked to
             if ($shouldOptimizeTiles) {
                 say "Optimize: $outputPathRoot$FAA_CODE/$chartBasename.tms";
@@ -408,7 +415,7 @@ sub usage {
     say "   -o Optimze tile size";
     say "   -a FAA airport ID";
     say "   -s Two letter state code";
-    
+
     exit 1;
 }
 
