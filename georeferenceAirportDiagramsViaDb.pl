@@ -52,7 +52,6 @@ use Image::Magick;
 use File::Slurp;
 use POSIX;
 
-
 # use Math::Round;
 use Time::HiRes q/gettimeofday/;
 

@@ -54,6 +54,7 @@ use 5.010;
 
 use strict;
 use warnings;
+
 #Standard libraries
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
@@ -77,7 +78,6 @@ use Params::Validate qw(:all);
 use Time::HiRes q/gettimeofday/;
 use Image::Magick;
 use File::Slurp;
-
 
 #PDF constants
 use constant mm => 25.4 / 72;

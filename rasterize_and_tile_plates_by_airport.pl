@@ -36,13 +36,13 @@ use File::Slurp qw(read_file write_file read_dir);
 use File::Path qw(make_path remove_tree);
 use Getopt::Std;
 use vars qw/ %opt /;
-use DBI;
 
 #Allow use of locally installed libraries in conjunction with Carton
 use FindBin '$Bin';
 use lib "$FindBin::Bin/local/lib/perl5";
 
 #Non-standard libraries
+use DBI;
 use Params::Validate qw(:all);
 use Parse::FixedLength;
 
