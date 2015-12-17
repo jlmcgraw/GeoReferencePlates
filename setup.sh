@@ -3,13 +3,17 @@ set -eu                # Always put this in Bourne shell scripts
 IFS=$(printf '\n\t')  # Always put this in Bourne shell scripts
 
 #Install necessary software
-sudo apt-get install git \
+sudo apt-get install \
                      gdal-bin \
                      mupdf-tools \
                      sqlite3 \
                      perltidy \
                      pngquant \
-                     cpanminus
+                     cpanminus \
+                     Carton
+
+#Install the libraries in our cpanfile locally
+carton install
 
 #Install various perl libraries
 sudo apt-get install libpdf-api2-perl
