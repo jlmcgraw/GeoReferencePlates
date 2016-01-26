@@ -465,7 +465,7 @@ sub findFixesFromCifpForAirport {
 	iap.FixIdentifier = fix.waypointIdentifier
 
       WHERE 
-        airportidentifier like '%$main::FAA_CODE%' ;"
+        LandingFacilityIcaoIdentifier like '%$main::FAA_CODE%' ;"
     );
     $sth->execute();
 
@@ -508,7 +508,7 @@ sub findFixesFromCifpForAirport {
 	iap.FixIdentifier = fix.waypointIdentifier
 
       WHERE 
-        airportidentifier like '%$main::FAA_CODE%' ;"
+        LandingFacilityIcaoIdentifier like '%$main::FAA_CODE%' ;"
     );
     $sth->execute();
 

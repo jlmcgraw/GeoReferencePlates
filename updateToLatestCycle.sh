@@ -45,6 +45,7 @@ fi
 #Check if database for current cifp cycle exists
 if [ ! -e "./cifp-$latestCycle.db" ]; then
     echo "cifp-$latestCycle.db doesn't exist, it's needed to process this cycle"
+    echo "use https://github.com/jlmcgraw/parseCifp to create it"
     exit 1
 fi
 
@@ -60,7 +61,7 @@ fi
 #Unzip all of the latest charts
 #Should abort on any errors
 echo Unzipping DTPP $latestCycle files
-# unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir" > "$latestCycle-unzip.txt"
+unzip -u -j -q "$sourceDtppZipDir/DDTPP?_20$latestCycle.zip"  -d "$latestDtppDir" > "$latestCycle-unzip.txt"
 
 #Did the directory for latest DTPP cycle get created?
 if [ ! -d "$latestDtppDir" ]; then

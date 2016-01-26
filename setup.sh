@@ -12,15 +12,15 @@ sudo apt-get install \
                      cpanminus \
                      Carton
 
-#Install the libraries in our cpanfile locally
-carton install
-
 #Libraries that aren't working yet with Carton
 sudo apt-get install \
                     libgd-perl \
                     libimage-magick-perl \
                     libgtk3-perl
-                    
+
+#Install the libraries in our cpanfile locally
+carton install
+
 #Install various perl libraries
 # sudo apt-get install libpdf-api2-perl
 # sudo apt-get install libdbi-perl
