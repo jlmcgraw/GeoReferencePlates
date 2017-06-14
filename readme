@@ -1,5 +1,11 @@
 Create Georeferencing information for Instrument Approach Procedures and Airport Diagrams
 
+Note: The FAA is currently adding georeferencing information to the Instrument
+Approach Procedure plates, so this program is no longer necessary for them
+
+However, they have yet to release georeferenced Aiport Diagrams so it can still 
+be useful
+
 These instructions are based on using Ubuntu
 
 How to get this utility up and running:
