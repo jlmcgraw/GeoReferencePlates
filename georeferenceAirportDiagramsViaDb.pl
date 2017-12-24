@@ -295,13 +295,13 @@ sub doAPlate {
 
     $statistics{'$targetPdf'} = $targetPdf;
 
-    #This is a quick hack to abort if we've already created a .vrt for this plate
+    # This is a quick hack to abort if we've already created a .vrt for this plate
     if ( $shouldNotOverwriteVrt && -e $targetvrt ) {
         say "$targetvrt exists, exiting";
         return (1);
     }
 
-    #Default is portait orientation
+    # Default is portait orientation
     our $isPortraitOrientation = 1;
 
     #Pull all text out of the PDF
@@ -332,7 +332,7 @@ sub doAPlate {
         return (1);
     }
 
-    #Pull airport location from chart text or, if a name was supplied on command line, from database
+    # Pull airport location from chart text or, if a name was supplied on command line, from database
     our ( $airportLatitudeDec, $airportLongitudeDec ) =
       findAirportLatitudeAndLongitude();
 
@@ -348,19 +348,19 @@ sub doAPlate {
           "$airportLatitudeDegrees $airportLatitudeDeclination, $airportLongitudeDegrees $airportLongitudeDeclination";
     }
 
-    #Get the mediabox size and other variables from the PDF
+    # Get the mediabox size and other variables from the PDF
     our ( $pdfXSize, $pdfYSize, $pdfCenterX, $pdfCenterY, $pdfXYRatio ) =
       getMediaboxSize();
 
-    #Convert the PDF to a PNG if one doesn't already exist
+    # Convert the PDF to a PNG if one doesn't already exist
     convertPdfToPng();
 
-    #Get PNG dimensions and the PDF->PNG scale factors
+    # Get PNG dimensions and the PDF->PNG scale factors
     our ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
       getPngSize();
 
     #--------------------------------------------------------------------------------------------------------------
-    # #Some regex building blocks to be used elsewhere
+    # Some regex building blocks to be used elsewhere
     #numbers that start with 1-9 followed by 2 or more digits
     our $obstacleHeightRegex = qr/[1-9]\d{1,}/x;
 
@@ -378,18 +378,18 @@ sub doAPlate {
     our ($transformNoCaptureXYRegex) =
       qr/q\s1\s0\s0\s1\s+$numberRegex\s+$numberRegex\s+cm/x;
 
-    #A bezier curve
+    # A bezier curve
     our ($bezierCurveRegex) = qr/(?:$numberRegex\s+){6}c/x;
 
-    #A line or path
-    our ($lineRegex)          = qr/$numberRegex\s+$numberRegex\s+l/x;
-    our ($lineRegexCaptureXY) = qr/($numberRegex)\s+($numberRegex)\s+l/x;
+    # A line or path
+    our ($lineRegex)          = qr/ $numberRegex \s+ $numberRegex \s+ l/x;
+    our ($lineRegexCaptureXY) = qr/ ($numberRegex) \s+ ($numberRegex) \s+ l/x;
 
     # my $bezierCurveRegex = qr/(?:$numberRegex\s){6}c/;
     # my $lineRegex        = qr/$numberRegex\s$numberRegex\sl/;
 
-    #Move to the origin
-    our ($originRegex) = qr/0\s+0\s+m/x;
+    # Move to the origin
+    our ($originRegex) = qr/0 \s+ 0 \s+ m/x;
 
     #F*  Fill path
     #S     Stroke path
@@ -400,22 +400,22 @@ sub doAPlate {
 
     our %latitudeAndLongitudeLines = ();
 
-    # #Get number of objects/streams in the targetpdf
+    # Get number of objects/streams in the targetpdf
     our $objectstreams = getNumberOfStreams();
     our @pdfToTextBbox = ();
 
     our %latitudeTextBoxes  = ();
     our %longitudeTextBoxes = ();
 
-    #Loop through each of the streams in the PDF and find all of the icons we're interested in
+    # Loop through each of the streams in the PDF and find all of the icons we're interested in
     findAllIcons();
 
-    #Loop through each of the streams in the PDF and find all of the textboxes we're interested in
+    # Loop through each of the streams in the PDF and find all of the textboxes we're interested in
     findAllTextboxes();
 
     #----------------------------------------------------------------------------------------------------------
-    #Modify the PDF
-    #Don't do anything PDF related unless we've asked to create one on the command line
+    # Modify the PDF
+    # Don't do anything PDF related unless we've asked to create one on the command line
 
     our ( $pdf, $page );
 
@@ -428,7 +428,7 @@ sub doAPlate {
     }
 
     #---------------------------------------------------
-    #Convert the outlines PDF to a PNG
+    # Convert the outlines PDF to a PNG
     our ( $image, $perlMagickStatus );
 
     # #Draw boxes around the icons and textboxes we've found so far
@@ -439,7 +439,7 @@ sub doAPlate {
     my $latitudeLineOrientation  = "horizontal";
     my $longitudeLineOrientation = "vertical";
 
-    #the orientation is being determined withing the textbox finding routines for now
+    # The orientation is being determined within the textbox finding routines for now
     if ( !$isPortraitOrientation ) {
         say "Setting orientation to landscape";
         $latitudeLineOrientation  = "vertical";
@@ -447,8 +447,8 @@ sub doAPlate {
     }
 
     #----------------------------------------------------------------------------------------------------------------------------------
-    #Everything to do with latitude
-    #Match a line to a textbox
+    # Everything to do with latitude
+    # Match a line to a textbox
     findClosestLineToTextBox( \%latitudeTextBoxes, \%latitudeAndLongitudeLines,
         $latitudeLineOrientation );
 
@@ -459,7 +459,7 @@ sub doAPlate {
         print Dumper ( \%latitudeTextBoxes );
     }
 
-    #Draw a line between the two
+    # Draw a line between the two
     if ($shouldSaveMarkedPdf) {
         drawLineFromEachIconToMatchedTextBox( \%latitudeTextBoxes,
             \%latitudeAndLongitudeLines );
@@ -467,9 +467,9 @@ sub doAPlate {
     }
 
     #----------------------------------------------------------------------------------------------------------------------------------
-    #Everything to do with longitude
+    # Everything to do with longitude
 
-    #Match a line to a textbox
+    # Match a line to a textbox
     findClosestLineToTextBox( \%longitudeTextBoxes,
         \%latitudeAndLongitudeLines, $longitudeLineOrientation );
 
@@ -480,34 +480,34 @@ sub doAPlate {
         print Dumper ( \%longitudeTextBoxes );
     }
 
-    #Draw a line between the two
+    # Draw a line between the two
     if ($shouldSaveMarkedPdf) {
         drawLineFromEachIconToMatchedTextBox( \%longitudeTextBoxes,
             \%latitudeAndLongitudeLines );
     }
 
-    #Find the points where all of our lines intersect, use those as GCPs
+    # Find the points where all of our lines intersect, use those as GCPs
     findIntersectionOfLatLonLines( \%latitudeTextBoxes, \%longitudeTextBoxes,
         \%latitudeAndLongitudeLines );
 
-    #build the GCP portion of the command line parameters
+    # Build the GCP portion of the command line parameters
     our $gcpstring = createGcpString();
 
-    #outline the GCP points we ended up using
+    # Outline the GCP points we ended up using
     drawCircleAroundGCPs() if $shouldSaveMarkedPdf;
 
-    #Make sure we have enough GCPs
+    # Make sure we have enough GCPs
     my $gcpCount = scalar( keys(%gcps) );
     say "Found $gcpCount potential Ground Control Points" if $debug;
 
-    #Save statistics
+    # Save statistics
     $statistics{'$gcpCount'} = $gcpCount;
 
     if ($shouldSaveMarkedPdf) {
         $pdf->saveas($outputPdf);
     }
 
-    #Can't do anything if we didn't find any valid ground control points
+    # Can't do anything if we didn't find any valid ground control points
     if ( $gcpCount < 2 ) {
         say
           "Only found $gcpCount ground c5ontrol points in $targetPdf, can't georeference";
@@ -519,15 +519,15 @@ sub doAPlate {
         return (1);
     }
 
-    #Actually produce the georeferencing data via GDAL
+    # Actually produce the georeferencing data via GDAL
     georeferenceTheRaster();
 
-    #Write out the statistics of this file if requested
+    # Write out the statistics of this file if requested
     writeStatistics() if $shouldOutputStatistics;
 
-    #Since we've calculated our extents, try drawing some features on the outputPdf to see if they align
-    #With our work
-    # drawFeaturesOnPdf() if $shouldSaveMarkedPdf;
+    # Since we've calculated our extents, try drawing some features on the outputPdf to see if they align
+    # With our work
+    #  drawFeaturesOnPdf() if $shouldSaveMarkedPdf;
 
     return;
 }
@@ -553,11 +553,13 @@ sub findAirportLatitudeAndLongitude {
             return (1);
         }
 
-        #Query the database for airport
+        # Query the database for airport
         my $sth = $dbh->prepare(
             "SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportId'"
         );
+
         $sth->execute();
+
         my $_allSqlQueryResults = $sth->fetchall_arrayref();
 
         foreach my $_row (@$_allSqlQueryResults) {
@@ -573,6 +575,7 @@ sub findAirportLatitudeAndLongitude {
                 say "Airport Name: $airportname";
             }
         }
+
         if ( $_airportLongitudeDec eq "" or $_airportLatitudeDec eq "" ) {
             say
               "No airport coordinate information found for $airportId in $main::targetPdf  or database";
@@ -581,7 +584,7 @@ sub findAirportLatitudeAndLongitude {
 
     }
 
-    #Save statistics
+    # Save statistics
     $statistics{'$airportLatitude'}  = $_airportLatitudeDec;
     $statistics{'$airportLongitude'} = $_airportLongitudeDec;
 

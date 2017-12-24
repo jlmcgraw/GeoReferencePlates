@@ -56,7 +56,7 @@ if [ -e "./dtpp-$latestCycle.db" ]; then
 fi
 
 #Abort if the NASR database is too old
-[[ $(date +%s -r 56day.db) -lt $(date +%s --date="56 days ago") ]] && echo "NASR database is older than 56 days, please update" && exit 1
+[[ $(date +%s -r "nasr.sqlite") -lt $(date +%s --date="28 days ago") ]] && echo "NASR database is older than 28 days, please update" && exit 1
 
 #Unzip all of the latest charts
 #Should abort on any errors

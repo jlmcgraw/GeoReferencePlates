@@ -161,7 +161,7 @@ my $cifpDbh = DBI->connect( "dbi:SQLite:dbname=./cifp-$cycle.db",
 
 #The 56 day NASR database
 our $nasrDbh =
-     DBI->connect( "dbi:SQLite:dbname=./56day.db", "", "", { RaiseError => 1 } )
+  DBI->connect( "dbi:SQLite:dbname=./nasr.sqlite", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
