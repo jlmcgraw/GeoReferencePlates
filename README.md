@@ -1,12 +1,14 @@
 Create Georeferencing information for Instrument Approach Procedures and Airport Diagrams
 
+# Note that the FAA has started providing georeferencing in the PDFs for approach plates so this utility is no longer needed for them.  However, it is still useful for airport diagrams which are not referenced.
+
 ![SFO Airport Diagram](https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-AD.png)
 
 ![SFO VOR RWY 19L](https://raw.github.com/jlmcgraw/GeoReferencePlates/master/screenshots/SFO-VOR-RWY-19L.png)
 
 These instructions are based on using Ubuntu (or some other Debian variant)
 
-How to get this utility up and running:
+## Installation
 
 	Enable the "universe" repository in "Software & Updates" section of System Settings and update
 
@@ -30,7 +32,7 @@ How to get this utility up and running:
 
 	Requires perl version > 5.010
 
-How to use these utilities
+## How to use these utilities
 	
 	To georeference instrument procedures:
 		 ./georeferencePlatesViaDb.pl <options> <directory_with_PDFs>
@@ -66,11 +68,11 @@ The first time the utility is run for a particular PDF it will take longer as it
 
 A first run for all plates may take a day or two, subsequent runs will be much shorter
 
-Running
-	Refresh the location info database
-		https://github.com/jlmcgraw/processFaaData
+## Running
 
-	Add in the cifp database for use with verifygeoreference.pl
+	Create/refresh the NASR and CIFP databases
+	
+		https://github.com/jlmcgraw/processFaaData
 		https://github.com/jlmcgraw/parseCifp
 
 	Create empty ./dtpp folder
