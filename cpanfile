@@ -8,6 +8,7 @@ requires 'PDF::API2';
 requires 'File::Slurp';
 requires 'LWP::Simple';
 requires 'XML::Twig';
+requires 'DBD::SQLite';
 
 #requires 'Image::Magick';
 #requires 'Glib';
