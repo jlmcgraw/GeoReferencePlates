@@ -86,9 +86,8 @@ if ( !-e "$dtppDownloadDir" ) {
 die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 
 #URL of the DTPP catalog
-# my $dtpp_url =
-# "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
-my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
+my $dtpp_url = "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
+# my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
 
 my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
 
@@ -98,18 +97,15 @@ if ( -e $TPP_METADATA_FILE ) {
     say "Using existing local metafile: $TPP_METADATA_FILE";
 }
 else {
-    die
-      "Unable to load dTPP metadata catalog: $TPP_METADATA_FILE does not exist locally";
+    print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
+    
+    # my $ret = 200;
+    my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
 
-    #     print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
-    #
-    #     # my $ret = 200;
-    #     my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
-    #
-    #     if ( $ret != 200 ) {
-    #         die "Unable to download d-TPP metadata.";
-    #     }
-    #     print "done\n";
+    if ( $ret != 200 ) {
+        die "Unable to download d-TPP metadata.";
+    }
+    print "done\n";
 
 }
 
