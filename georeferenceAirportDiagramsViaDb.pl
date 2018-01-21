@@ -134,7 +134,8 @@ my $dtppDbh =
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect( "dbi:SQLite:dbname=locationinfo.db",
+# The nasr database created by processFaaData
+$dbh = DBI->connect( "dbi:SQLite:dbname=../processFaaData/nasr.sqlite",
     "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
@@ -555,7 +556,7 @@ sub findAirportLatitudeAndLongitude {
 
         # Query the database for airport
         my $sth = $dbh->prepare(
-            "SELECT  FaaID, Latitude, Longitude, Name  FROM airports  WHERE  FaaID = '$airportId'"
+            "SELECT  location_identifier, apt_latitude, apt_longitude, official_facility_name  FROM APT_APT  WHERE  location_identifier = '$airportId'"
         );
 
         $sth->execute();
