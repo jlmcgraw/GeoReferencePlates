@@ -89,7 +89,7 @@ die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 my $dtpp_url = "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
 # my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
 
-my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
+my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount ) = (0) x 5;
 
 my %countHash;
 
