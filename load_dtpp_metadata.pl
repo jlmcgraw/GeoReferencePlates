@@ -53,7 +53,7 @@ use vars qw/ %opt /;
 my $arg_num = scalar @ARGV;
 
 #Define the valid command line options
-my $opt_string = 'dr';
+my $opt_string = 'dra:';
 
 #This will fail if we receive an invalid option
 unless ( getopts( "$opt_string", \%opt ) ) {
@@ -66,6 +66,16 @@ if ( $arg_num < 2 ) {
     usage();
     exit(1);
 }
+
+#Default to all airports for the SQL query
+our $airportId = "";
+if ( $opt{a} ) {
+    #If something  provided on the command line use it instead
+    $airportId = $opt{a};
+    say "Supplied airport ID: Only $airportId will be processed!";
+}
+
+
 
 my $BASE_DIR = shift @ARGV;
 my $cycle    = shift @ARGV;
@@ -334,6 +344,11 @@ sub record {
 
     ++$count;
 
+    if ( !( $airportId eq "" ) && $airportId ne $faa_code) {
+        #say "Skipping airport $faa_code";
+        return;
+    }
+
     say "\rLoading # $count : $pdf_name: $chart_name";
 
     #TPP_VOLUME
@@ -588,5 +603,6 @@ sub usage {
     say "eg: $0 . 1502";
     say "-d Download ALL plates (default is only added/new)";
     say "-r Rasterize ALL plates (default is only added/new)";
+    say "-a<FAA airport ID>  To specify an airport ID";
 
 }
