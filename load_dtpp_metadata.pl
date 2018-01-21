@@ -75,6 +75,7 @@ if ( $opt{a} ) {
     say "Supplied airport ID: Only $airportId will be processed!";
 }
 
+our $downloadAll = $opt{d};
 
 
 my $BASE_DIR = shift @ARGV;
@@ -402,17 +403,22 @@ sub record {
         deleteStaleFiles($pdf_name);
         ++$deletedCount;
     }
+
+    my $doDownload = 0;
     if ( $user_action =~ /A/i ) {
         say "Added " . "$dtppDownloadDir" . "$pdf_name";
-        downloadPlate($pdf_name);
         ++$addedCount;
+        $doDownload = 1
 
     }
     if ( $user_action =~ /C/i ) {
-        downloadPlate($pdf_name);
         ++$changedCount;
+        $doDownload = 1;
     }
 
+    if ($doDownload || $downloadAll) {
+        downloadPlate($pdf_name);
+    }
     #If the pdf doesn't exist locally fetch it
     #but don't bother trying to download DELETED charts
     if (  !( $pdf_name =~ /DELETED/i )
