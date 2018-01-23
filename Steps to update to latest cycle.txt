@@ -3,7 +3,7 @@ Steps to update to latest cycle
 $previousCycle = 1506
 $latestCycle = 1507
 
-mkdir $latestCycle
+mkdir "dtpp-${latestCycle}"
 
 #unzip all of the dtpp archives to one directory
 	unzip -q -u "DDTPP?_20$latestCycle.zip" -d dtpp-$latestCycle

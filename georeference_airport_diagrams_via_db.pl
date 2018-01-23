@@ -2533,7 +2533,7 @@ sub usage {
     say "-a<FAA airport ID>  To specify an airport ID";
     say "-i<2 Letter state ID>  To specify a specific state";
     say "-p Output a marked up version of PDF";
-    say "-s Output statistics  to dtpp.db about the PDF";
+    say "-s Output statistics to dtpp database about the PDF";
     say "-n Don't overwrite existing .vrt";
 
     return;
