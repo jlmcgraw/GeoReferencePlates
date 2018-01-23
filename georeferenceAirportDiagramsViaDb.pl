@@ -21,7 +21,7 @@
 #Unavoidable problems:
 #-----------------------------------
 
-# Relies on actual text being in PDF.  It seems that most, if not all, military 
+# Relies on actual text being in PDF.  It seems that most, if not all, military
 # plates have no text in them
 # We may be able to get around this with tesseract OCR but that will take some work
 #
@@ -32,7 +32,7 @@ use 5.010;
 use strict;
 use warnings;
 
-#Standard libraries
+# Standard libraries
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
@@ -67,7 +67,7 @@ use GeoReferencePlatesSubroutines;
 
 # Some other constants
 #-------------------------------------------------------------------------------
-# Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its 
+# Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its
 # associated textbox's center
 our $maxDistanceFromObstacleIconToTextBox = 20;
 
@@ -80,7 +80,7 @@ our %statistics = ();
 use vars qw/ %opt /;
 
 # Define the valid command line options
-my $opt_string = 'cspva:i:';
+my $opt_string = 'nspva:c:i:';
 my $arg_num    = scalar @ARGV;
 
 # We need at least one argument (the name of the PDF to process)
@@ -122,15 +122,24 @@ if ( $opt{i} ) {
     say "Supplied state ID: $stateId";
 }
 
-our $shouldNotOverwriteVrt  = $opt{c};
+# Which cycle to process
+my $cycle;
+if ( $opt{c} ) {
+
+    # If something  provided on the command line use it instead
+    $cycle = $opt{c};
+    say "Supplied cycle: $cycle";
+}
+
+our $shouldNotOverwriteVrt  = $opt{n};
 our $shouldOutputStatistics = $opt{s};
 our $shouldSaveMarkedPdf    = $opt{p};
 our $debug                  = $opt{v};
 
 # database of metadata for dtpp
 # Created by load_dtpp_metadata.pl
-my $dtppDbh =
-  DBI->connect( "dbi:SQLite:dbname=./dtpp.sqlite", "", "", { RaiseError => 1 } )
+my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.sqlite",
+    "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
@@ -191,7 +200,7 @@ foreach my $_row (@$_allSqlQueryResults) {
     process_one_plate();
 
     ++$completedCount;
-    
+
     say
       "Success: $successCount, Fail: $failCount, No Text: $noTextCount, No Points: $noPointsCount, Chart: $completedCount"
       . "/"
@@ -2525,7 +2534,7 @@ sub usage {
     say "-i<2 Letter state ID>  To specify a specific state";
     say "-p Output a marked up version of PDF";
     say "-s Output statistics  to dtpp.db about the PDF";
-    say "-c Don't overwrite existing .vrt";
+    say "-n Don't overwrite existing .vrt";
 
     return;
 }
