@@ -75,20 +75,21 @@ our $requestedCycle = $cycle;
 
 my $TPP_METADATA_FILE = "$BASE_DIR/dtpp-$cycle/d-TPP_Metafile.xml";
 
-#Where to download DTPPs to
+# #Where to download DTPPs to
 my $dtppDownloadDir = "$BASE_DIR/dtpp-$cycle/";
 
-#Make the download directory if it doesn't already exist
-if ( !-e "$dtppDownloadDir" ) {
-    make_path("$dtppDownloadDir");
-}
-
-die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
+#
+# #Make the download directory if it doesn't already exist
+# if ( !-e "$dtppDownloadDir" ) {
+#     make_path("$dtppDownloadDir");
+# }
+#
+# die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 
 #URL of the DTPP catalog
 # my $dtpp_url =
 # "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
-my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
+# my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
 
 my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
 
@@ -114,7 +115,7 @@ else {
 }
 
 #The name of our database
-my $dbfile = "$BASE_DIR/dtpp-$cycle.db";
+my $dbfile = "$BASE_DIR/dtpp-$cycle.sqlite";
 my $dbh =
   DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "", { RaiseError => 1 } );
 
@@ -388,17 +389,20 @@ sub record {
 
     if ( $user_action =~ /D/i ) {
         say "Deleting old " . "$dtppDownloadDir" . "$pdf_name";
-        deleteStaleFiles($pdf_name);
+
+        #deleteStaleFiles($pdf_name);
         ++$deletedCount;
     }
     if ( $user_action =~ /A/i ) {
         say "Added " . "$dtppDownloadDir" . "$pdf_name";
-        downloadPlate($pdf_name);
+
+        #downloadPlate($pdf_name);
         ++$addedCount;
 
     }
     if ( $user_action =~ /C/i ) {
-        downloadPlate($pdf_name);
+
+        #downloadPlate($pdf_name);
         ++$changedCount;
     }
 
