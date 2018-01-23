@@ -38,7 +38,6 @@ def get_jsonparsed_data(url):
 if __name__ == '__main__':
 
     # Parse the command line options
-
     parser = argparse.ArgumentParser(
         description='Download a specified edition of DTPP archives from FAA')
 

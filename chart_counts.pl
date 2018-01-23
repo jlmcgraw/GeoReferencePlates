@@ -60,9 +60,8 @@ unless ( getopts( "$opt_string", \%opt ) ) {
 }
 
 # Which cycle to process
-my $cycle =  $ARGV[0];
+my $cycle = $ARGV[0];
 say "Supplied cycle: $cycle";
-
 
 # database of metadta for dtpp
 my $dbfile = "./dtpp-$cycle.sqlite";
@@ -75,10 +74,9 @@ my $dtppDbh =
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect(
-    "dbi:SQLite:dbname=nasr.sqlite",
-    "", "", { RaiseError => 1 },
-) or croak $DBI::errstr;
+$dbh =
+  DBI->connect( "dbi:SQLite:dbname=nasr.sqlite", "", "", { RaiseError => 1 }, )
+  or croak $DBI::errstr;
 
 our (
     $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
@@ -681,8 +679,6 @@ $dtppDbh->disconnect();
 #Close the locations database
 # $sth->finish();
 $dbh->disconnect();
-
-
 
 sub usage {
     say "Usage: $0 <cycle>";
