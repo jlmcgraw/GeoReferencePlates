@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 
-# GeoRerencePlates - a utility to automatically georeference FAA Instrument Approach Plates / Terminal Procedures
+# A utility to automatically georeference FAA airport diagrams
 # Copyright (C) 2013  Jesse McGraw (jlmcgraw@gmail.com)
 #
-#--------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -16,22 +16,23 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
-#-------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 #Unavoidable problems:
 #-----------------------------------
 
-#-Relies on actual text being in PDF.  It seems that most, if not all, military plates have no text in them
-#       We may be able to get around this with tesseract OCR but that will take some work
+# Relies on actual text being in PDF.  It seems that most, if not all, military
+# plates have no text in them
+# We may be able to get around this with tesseract OCR but that will take some work
 #
-#Known issues:
+# Known issues:
 #---------------------
 
 use 5.010;
 use strict;
 use warnings;
 
-#Standard libraries
+# Standard libraries
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use File::Basename;
@@ -42,11 +43,12 @@ use Math::Trig qw(great_circle_distance deg2rad great_circle_direction rad2deg);
 use File::Slurp;
 use POSIX;
 
-#Allow use of locally installed libraries in conjunction with Carton
+# Allow use of locally installed libraries in conjunction with Carton
 use FindBin '$Bin';
 use lib "$FindBin::Bin/local/lib/perl5";
+use lib $FindBin::Bin;
 
-#Non-standard libraries
+# Non-standard libraries
 use PDF::API2;
 use DBI;
 use Image::Magick;
@@ -55,44 +57,47 @@ use Math::Round;
 # use Math::Round;
 use Time::HiRes q/gettimeofday/;
 
-#PDF constants
+# PDF constants
 use constant mm => 25.4 / 72;
 use constant in => 1 / 72;
 use constant pt => 1;
 
-#Some subroutines
+# Some subroutines
 use GeoReferencePlatesSubroutines;
 
-#Some other constants
-#----------------------------------------------------------------------------------------------
-#Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its associated textbox's center
+# Some other constants
+#-------------------------------------------------------------------------------
+# Max allowed radius in PDF points from an icon (obstacle, fix, gps) to its
+# associated textbox's center
 our $maxDistanceFromObstacleIconToTextBox = 20;
 
-#DPI of the output PNG
+# DPI of the output PNG
 our $pngDpi = 300;
 
-#A hash to collect statistics
+# A hash to collect statistics
 our %statistics = ();
 
 use vars qw/ %opt /;
 
+
 #Define the valid command line options
-my $opt_string = 'cspva:i:d:';
+my $opt_string = 'cspva:c:i:d:';
+
 my $arg_num    = scalar @ARGV;
 
-#We need at least one argument (the name of the PDF to process)
+# We need at least one argument (the name of the PDF to process)
 if ( $arg_num < 1 ) {
     usage();
     exit(1);
 }
 
-#This will fail if we receive an invalid option
+# This will fail if we receive an invalid option
 unless ( getopts( "$opt_string", \%opt ) ) {
     usage();
     exit(1);
 }
 
-#Get the target PDF file from command line options
+# Get the target PDF file from command line options
 our ($dtppDirectory) = $ARGV[0];
 
 if ( !-e ($dtppDirectory) ) {
@@ -100,7 +105,7 @@ if ( !-e ($dtppDirectory) ) {
     exit(1);
 }
 
-#Default to all airports for the SQL query
+# Default to all airports for the SQL query
 our $airportId = "%";
 if ( $opt{a} ) {
 
@@ -109,28 +114,39 @@ if ( $opt{a} ) {
     say "Supplied airport ID: $airportId";
 }
 
-#Default to all states for the SQL query
+# Default to all states for the SQL query
 our $stateId = "%";
 
 if ( $opt{i} ) {
 
-    #If something  provided on the command line use it instead
+    # If something  provided on the command line use it instead
     $stateId = $opt{i};
     say "Supplied state ID: $stateId";
 }
 
-our $shouldNotOverwriteVrt  = $opt{c};
+# Which cycle to process
+my $cycle;
+if ( $opt{c} ) {
+
+    # If something  provided on the command line use it instead
+    $cycle = $opt{c};
+    say "Supplied cycle: $cycle";
+}
+
+our $shouldNotOverwriteVrt  = $opt{n};
 our $shouldOutputStatistics = $opt{s};
 our $shouldSaveMarkedPdf    = $opt{p};
 our $debug                  = $opt{v};
 
-#database of metadata for dtpp
-my $dtppDbh =
-     DBI->connect( "dbi:SQLite:dbname=./dtpp.db", "", "", { RaiseError => 1 } )
+# database of metadata for dtpp
+# Created by load_dtpp_metadata.pl
+my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=./dtpp-$cycle.sqlite",
+    "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
-#Open the locations database
+# Open the nasr database
+# created by parse_nasr project
 our $dbh;
 my $sth;
 
@@ -142,8 +158,9 @@ if ( $opt{d} ) {
 }
 
 # The nasr database created by processFaaData
-$dbh = DBI->connect( "dbi:SQLite:dbname=$dbhPath",
-    "", "", { RaiseError => 1 } )
+$dbh =
+  DBI->connect( "dbi:SQLite:dbname=nasr.sqlite", "", "", { RaiseError => 1 } )
+
   or croak $DBI::errstr;
 
 our (
@@ -155,7 +172,7 @@ our (
 $dtppDbh->do("PRAGMA page_size=4096");
 $dtppDbh->do("PRAGMA synchronous=OFF");
 
-#Query the dtpp database for charts
+# Query the dtpp database for charts
 my $dtppSth = $dtppDbh->prepare(
     "SELECT  TPP_VOLUME, FAA_CODE, CHART_SEQ, CHART_CODE, CHART_NAME, USER_ACTION, PDF_NAME, FAANFD18_CODE, MILITARY_USE, COPTER_USE, STATE_ID
              FROM dtpp  
@@ -191,30 +208,31 @@ foreach my $_row (@$_allSqlQueryResults) {
       "$TPP_VOLUME, $FAA_CODE, $CHART_SEQ, $CHART_CODE, $CHART_NAME, $USER_ACTION, $PDF_NAME, $FAANFD18_CODE, $MILITARY_USE, $COPTER_USE, $STATE_ID";
 
     # say "$FAA_CODE";
-    doAPlate();
+    process_one_plate();
 
     ++$completedCount;
+
     say
       "Success: $successCount, Fail: $failCount, No Text: $noTextCount, No Points: $noPointsCount, Chart: $completedCount"
       . "/"
       . "$_rows";
 }
 
-#Close the charts database
+# Close the charts database
 $dtppSth->finish();
 $dtppDbh->disconnect();
 
-#Close the locations database
+# Close the locations database
 # $sth->finish();
 $dbh->disconnect();
 
 exit;
 
-#----------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
-sub doAPlate {
+sub process_one_plate {
 
-    #Zero out the stats hash
+    # Zero out the stats hash
     %statistics = (
         '$airportLatitude'                 => "0",
         '$horizontalAndVerticalLinesCount' => "0",
@@ -253,15 +271,15 @@ sub doAPlate {
 
     my $retval;
 
-    #Say what our input PDF is
+    # Say what our input PDF is
     say $targetPdf;
 
-    #Pull out the various filename components of the input file from the command line
+    # Pull out the various filename components of the input file from the command line
     our ( $filename, $dir, $ext ) = fileparse( $targetPdf, qr/\.[^.]*/x );
 
     $airportId = $FAA_CODE;
 
-    #Set some output file names based on the input filename
+    # Set some output file names based on the input filename
     our $outputPdf         = $dir . "marked-" . $filename . ".pdf";
     our $outputPdfOutlines = $dir . "outlines-" . $filename . ".pdf";
     our $outputPdfRaw      = $dir . "raw-" . $filename . ".txt";
@@ -312,7 +330,7 @@ sub doAPlate {
     # Default is portait orientation
     our $isPortraitOrientation = 1;
 
-    #Pull all text out of the PDF
+    # Pull all text out of the PDF
     my @pdftotext;
     @pdftotext = qx(pdftotext $targetPdf  -enc ASCII7 -);
     $retval    = $? >> 8;
@@ -367,22 +385,22 @@ sub doAPlate {
     our ( $pngXSize, $pngYSize, $scaleFactorX, $scaleFactorY, $pngXYRatio ) =
       getPngSize();
 
-    #--------------------------------------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # Some regex building blocks to be used elsewhere
-    #numbers that start with 1-9 followed by 2 or more digits
+    # numbers that start with 1-9 followed by 2 or more digits
     our $obstacleHeightRegex = qr/[1-9]\d{1,}/x;
 
-    #A number with possible decimal point and minus sign
+    # A number with possible decimal point and minus sign
     our $numberRegex = qr/[-\.\d]+/x;
 
     our $latitudeRegex  = qr/$numberRegex’[N|S]/x;
     our $longitudeRegex = qr/$numberRegex’[E|W]/x;
 
-    #A transform, capturing the X and Y
+    # A transform, capturing the X and Y
     our ($transformCaptureXYRegex) =
       qr/q\s1\s0\s0\s1\s+($numberRegex)\s+($numberRegex)\s+cm/x;
 
-    #A transform, not capturing the X and Y
+    # A transform, not capturing the X and Y
     our ($transformNoCaptureXYRegex) =
       qr/q\s1\s0\s0\s1\s+$numberRegex\s+$numberRegex\s+cm/x;
 
@@ -421,7 +439,7 @@ sub doAPlate {
     # Loop through each of the streams in the PDF and find all of the textboxes we're interested in
     findAllTextboxes();
 
-    #----------------------------------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # Modify the PDF
     # Don't do anything PDF related unless we've asked to create one on the command line
 
@@ -439,7 +457,7 @@ sub doAPlate {
     # Convert the outlines PDF to a PNG
     our ( $image, $perlMagickStatus );
 
-    # #Draw boxes around the icons and textboxes we've found so far
+    # Draw boxes around the icons and textboxes we've found so far
     outlineEverythingWeFound() if $shouldSaveMarkedPdf;
 
     our %gcps = ();
@@ -454,7 +472,7 @@ sub doAPlate {
         $longitudeLineOrientation = "horizontal";
     }
 
-    #----------------------------------------------------------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # Everything to do with latitude
     # Match a line to a textbox
     findClosestLineToTextBox( \%latitudeTextBoxes, \%latitudeAndLongitudeLines,
@@ -474,7 +492,7 @@ sub doAPlate {
 
     }
 
-    #----------------------------------------------------------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
     # Everything to do with longitude
 
     # Match a line to a textbox
@@ -518,7 +536,7 @@ sub doAPlate {
     # Can't do anything if we didn't find any valid ground control points
     if ( $gcpCount < 2 ) {
         say
-          "Only found $gcpCount ground c5ontrol points in $targetPdf, can't georeference";
+          "Only found $gcpCount ground control points in $targetPdf, can't georeference";
         touchFile($noPointsFile);
 
         ++$main::noPointsCount;
@@ -540,9 +558,8 @@ sub doAPlate {
     return;
 }
 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#SUBROUTINES
-#------------------------------------------------------------------------------------------------------------------------------------------
+# SUBROUTINES
+#-------------------------------------------------------------------------------
 
 sub findAirportLatitudeAndLongitude {
 
@@ -763,7 +780,7 @@ sub findAllIcons {
     say ":findAllIcons" if $debug;
 
     #Loop through each "stream" in the pdf looking for our various icon regexes
-    for ( my $i = 0 ; $i <= ( $main::objectstreams - 1 ) ; $i++ ) {
+    for ( my $i = 1 ; $i <= ( $main::objectstreams - 1 ) ; $i++ ) {
         $_output = qx(mutool show $main::targetPdf $i x);
         my $retval = $? >> 8;
 
@@ -2528,8 +2545,8 @@ sub usage {
     say "-a<FAA airport ID>  To specify an airport ID";
     say "-i<2 Letter state ID>  To specify a specific state";
     say "-p Output a marked up version of PDF";
-    say "-s Output statistics  to dtpp.db about the PDF";
-    say "-c Don't overwrite existing .vrt";
+    say "-s Output statistics to dtpp database about the PDF";
+    say "-n Don't overwrite existing .vrt";
 
     return;
 }
