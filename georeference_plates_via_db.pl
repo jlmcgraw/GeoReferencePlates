@@ -173,7 +173,7 @@ our $shouldSaveBadRatio         = $opt{b};
 our $shouldUseMultipleObstacles = $opt{m};
 
 #The name of our dtpp database
-my $dbfile = "./dtpp-$cycle.db";
+my $dbfile = "./dtpp-$cycle.sqlite";
 
 #Connect to dtpp database
 my $dtppDbh =

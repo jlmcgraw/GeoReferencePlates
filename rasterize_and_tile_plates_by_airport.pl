@@ -106,8 +106,8 @@ sub main {
     say "Cycle: $cycle";
 
     #Connect to our databases
-    my $dtppDatabase = "./dtpp-$cycle.db";
-    my $cifpDatabase = "./cifp-$cycle.db";
+    my $dtppDatabase = "./dtpp-$cycle.sqlite";
+    my $cifpDatabase = "./cifp-$cycle.sqlite";
 
     #database of metadata for dtpp
     my $dtppDbh = DBI->connect( "dbi:SQLite:dbname=$dtppDatabase",

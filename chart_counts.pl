@@ -32,24 +32,51 @@ use File::Basename;
 use Getopt::Std;
 use Carp;
 
+# Allow use of locally installed libraries in conjunction with Carton
+use FindBin '$Bin';
+use lib "$FindBin::Bin/local/lib/perl5";
+use lib $FindBin::Bin;
+
 #Some subroutines
 use GeoReferencePlatesSubroutines;
 
-#database of metadta for dtpp
-my $dbfile = "./dtpp.db";
+# Options
+use vars qw/ %opt /;
+
+# Define the valid command line options
+my $opt_string = '';
+my $arg_num    = scalar @ARGV;
+
+# We need at least one argument
+if ( $arg_num < 1 ) {
+    usage();
+    exit(1);
+}
+
+# This will fail if we receive an invalid option
+unless ( getopts( "$opt_string", \%opt ) ) {
+    usage();
+    exit(1);
+}
+
+# Which cycle to process
+my $cycle = $ARGV[0];
+say "Supplied cycle: $cycle";
+
+# database of metadta for dtpp
+my $dbfile = "./dtpp-$cycle.sqlite";
 my $dtppDbh =
      DBI->connect( "dbi:SQLite:dbname=$dbfile", "", "", { RaiseError => 1 } )
   or croak $DBI::errstr;
 
 #-----------------------------------------------
-#Open the locations database
+# Open the locations database
 our $dbh;
 my $sth;
 
-$dbh = DBI->connect(
-    "dbi:SQLite:dbname=locationinfo.db",
-    "", "", { RaiseError => 1 },
-) or croak $DBI::errstr;
+$dbh =
+  DBI->connect( "dbi:SQLite:dbname=nasr.sqlite", "", "", { RaiseError => 1 }, )
+  or croak $DBI::errstr;
 
 our (
     $TPP_VOLUME,   $FAA_CODE,    $CHART_SEQ, $CHART_CODE,
@@ -652,3 +679,8 @@ $dtppDbh->disconnect();
 #Close the locations database
 # $sth->finish();
 $dbh->disconnect();
+
+sub usage {
+    say "Usage: $0 <cycle>";
+    return;
+}
