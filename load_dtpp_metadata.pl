@@ -53,7 +53,7 @@ use vars qw/ %opt /;
 my $arg_num = scalar @ARGV;
 
 #Define the valid command line options
-my $opt_string = 'dr';
+my $opt_string = 'dra:';
 
 #This will fail if we receive an invalid option
 unless ( getopts( "$opt_string", \%opt ) ) {
@@ -66,6 +66,17 @@ if ( $arg_num < 2 ) {
     usage();
     exit(1);
 }
+
+#Default to all airports for the SQL query
+our $airportId = "";
+if ( $opt{a} ) {
+    #If something  provided on the command line use it instead
+    $airportId = $opt{a};
+    say "Supplied airport ID: Only $airportId will be processed!";
+}
+
+our $downloadAll = $opt{d};
+
 
 my $BASE_DIR = shift @ARGV;
 my $cycle    = shift @ARGV;
@@ -87,11 +98,13 @@ my $dtppDownloadDir = "$BASE_DIR/dtpp-$cycle/";
 # die "$dtppDownloadDir doesn't exist" if ( !-e $dtppDownloadDir );
 
 #URL of the DTPP catalog
+
+
 # my $dtpp_url =
 # "http://aeronav.faa.gov/d-tpp/$cycle/xml_data/d-TPP_Metafile.xml";
 # my $dtpp_url = "https://nfdc.faa.gov/webContent/dtpp/current.xml";
 
-my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount );
+my ( $count, $downloadedCount, $deletedCount, $changedCount, $addedCount ) = (0) x 5;
 
 my %countHash;
 
@@ -99,18 +112,15 @@ if ( -e $TPP_METADATA_FILE ) {
     say "Using existing local metafile: $TPP_METADATA_FILE";
 }
 else {
-    die
-      "Unable to load dTPP metadata catalog: $TPP_METADATA_FILE does not exist locally";
+    print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
+    
+    # my $ret = 200;
+    my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
 
-    #     print "Downloading the d-TPP metafile: " . $dtpp_url . "...";
-    #
-    #     # my $ret = 200;
-    #     my $ret = getstore( $dtpp_url, $TPP_METADATA_FILE );
-    #
-    #     if ( $ret != 200 ) {
-    #         die "Unable to download d-TPP metadata.";
-    #     }
-    #     print "done\n";
+    if ( $ret != 200 ) {
+        die "Unable to download d-TPP metadata.";
+    }
+    print "done\n";
 
 }
 
@@ -339,6 +349,11 @@ sub record {
 
     ++$count;
 
+    if ( !( $airportId eq "" ) && $airportId ne $faa_code) {
+        #say "Skipping airport $faa_code";
+        return;
+    }
+
     say "\rLoading # $count : $pdf_name: $chart_name";
 
     #TPP_VOLUME
@@ -393,19 +408,27 @@ sub record {
         #deleteStaleFiles($pdf_name);
         ++$deletedCount;
     }
+
+    my $doDownload = 0;
     if ( $user_action =~ /A/i ) {
         say "Added " . "$dtppDownloadDir" . "$pdf_name";
 
         #downloadPlate($pdf_name);
+
         ++$addedCount;
+        $doDownload = 1
 
     }
     if ( $user_action =~ /C/i ) {
 
         #downloadPlate($pdf_name);
         ++$changedCount;
+        $doDownload = 1;
     }
 
+    if ($doDownload || $downloadAll) {
+        downloadPlate($pdf_name);
+    }
     #If the pdf doesn't exist locally fetch it
     #but don't bother trying to download DELETED charts
     if (  !( $pdf_name =~ /DELETED/i )
@@ -596,5 +619,6 @@ sub usage {
     say "eg: $0 . 1502";
     say "-d Download ALL plates (default is only added/new)";
     say "-r Rasterize ALL plates (default is only added/new)";
+    say "-a<FAA airport ID>  To specify an airport ID";
 
 }
